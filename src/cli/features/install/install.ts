@@ -149,13 +149,15 @@ const completeInstallation = async (args: {
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.skillset - Skillset to use (required if no existing config)
+ * @param args.persistActiveSkillset - When false, do not persist the selected skillset to the global config (transient --install-dir switch)
  */
 export const noninteractive = async (args?: {
   installDir?: string | null;
   agent?: string | null;
   skillset?: string | null;
+  persistActiveSkillset?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, skillset } = args || {};
+  const { installDir, agent, skillset, persistActiveSkillset } = args || {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -191,9 +193,15 @@ export const noninteractive = async (args?: {
 
   const selectedSkillset = skillset ?? existingSkillset!;
 
-  await updateConfig({
-    activeSkillset: selectedSkillset,
-  });
+  // Persist the active skillset to the global config unless this is a transient
+  // install — e.g. a per-worktree switch that passed an explicit --install-dir
+  // override. Transient switches install into their own directory and must not
+  // clobber the user's global active skillset.
+  if (persistActiveSkillset !== false) {
+    await updateConfig({
+      activeSkillset: selectedSkillset,
+    });
+  }
 
   // Reload config after saving
   const config = await loadConfig();
@@ -205,8 +213,23 @@ export const noninteractive = async (args?: {
   // Step 3: Complete installation (run loaders, track analytics, display banners)
   // Use the runtime installDir for operational purposes (where to write files),
   // not the persisted one. Only `sks config` should change persisted installDir.
+  // When persistence was skipped (a transient --install-dir switch), `config`
+  // still holds the old global activeSkillset, so overlay the selected one in
+  // memory for this install only — and thread `persistActiveSkillset: false`
+  // so configLoader (which otherwise writes `config.activeSkillset` to disk)
+  // keeps the global value. On the persisted path `config.activeSkillset`
+  // already holds the canonical selected skillset, so leave it untouched.
   await completeInstallation({
-    config: { ...config, installDir: normalizedInstallDir },
+    config: {
+      ...config,
+      installDir: normalizedInstallDir,
+      ...(persistActiveSkillset === false
+        ? {
+            activeSkillset: selectedSkillset,
+            persistActiveSkillset: false,
+          }
+        : {}),
+    },
     agent: agentImpl,
     nonInteractive: true,
   });
@@ -220,6 +243,7 @@ export const noninteractive = async (args?: {
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.silent - Whether to suppress all output
  * @param args.skillset - Skillset to use (required if no existing config)
+ * @param args.persistActiveSkillset - When false, do not persist the selected skillset to the global config (transient --install-dir switch)
  */
 export const main = async (args?: {
   nonInteractive?: boolean | null;
@@ -227,8 +251,10 @@ export const main = async (args?: {
   agent?: string | null;
   silent?: boolean | null;
   skillset?: string | null;
+  persistActiveSkillset?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, silent, skillset } = args || {};
+  const { installDir, agent, silent, skillset, persistActiveSkillset } =
+    args || {};
 
   // Save original console.log and suppress all output if silent mode requested
   const originalConsoleLog = console.log;
@@ -242,6 +268,7 @@ export const main = async (args?: {
       installDir,
       agent,
       skillset,
+      persistActiveSkillset,
     });
   } catch (err: any) {
     log.error(err.message);

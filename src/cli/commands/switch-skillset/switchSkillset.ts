@@ -233,6 +233,8 @@ export const switchSkillsetAction = async (args: {
             agent: agentName,
             silent: true,
             skillset: pName,
+            // A transient --install-dir switch must not clobber global activeSkillset.
+            persistActiveSkillset: resolved.source !== "cli",
           });
         },
         onRedownload: redownloadEnabled
@@ -407,6 +409,8 @@ export const switchSkillsetAction = async (args: {
       agent: agentName,
       silent: true,
       skillset: name,
+      // A transient --install-dir switch must not clobber global activeSkillset.
+      persistActiveSkillset: resolved.source !== "cli",
     });
   }
 

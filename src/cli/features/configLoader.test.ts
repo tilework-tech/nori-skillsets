@@ -227,6 +227,31 @@ describe("configLoader", () => {
       expect(fileContents.activeSkillset).toBe("none");
     });
 
+    it("should keep on-disk activeSkillset when persistActiveSkillset is false", async () => {
+      // A transient --install-dir switch overlays the selected skillset in memory
+      // so loaders write the right files, but must not clobber the global value.
+      const configFile = getConfigPath();
+      fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+          installDir: tempDir,
+          activeSkillset: "public/keep-me",
+        }),
+        "utf-8",
+      );
+
+      const config: Config = {
+        installDir: "/tmp/worktree",
+        activeSkillset: "public/target",
+        persistActiveSkillset: false,
+      };
+
+      await configLoader.run({ agent: {} as any, config });
+
+      const fileContents = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+      expect(fileContents.activeSkillset).toBe("public/keep-me");
+    });
+
     it("should convert password to refresh token when password is provided", async () => {
       const config: Config = {
         installDir: tempDir,

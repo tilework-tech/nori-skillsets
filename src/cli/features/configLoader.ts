@@ -34,9 +34,16 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
 
   const sendSessionTranscript = config.sendSessionTranscript ?? null;
 
-  // Preserve activeSkillset from existing config or new config
+  // Persist activeSkillset unless this is a transient install (e.g. a
+  // per-worktree `--install-dir` switch). Transient installs overlay the
+  // selected skillset on the in-memory config so loaders write the right
+  // files, but must not clobber the user's global activeSkillset on disk.
+  // Prefer the in-memory value when persisting; when not, keep whatever is
+  // already on disk (or null if none).
   const activeSkillset =
-    config.activeSkillset ?? existingConfig?.activeSkillset ?? null;
+    config.persistActiveSkillset === false
+      ? (existingConfig?.activeSkillset ?? null)
+      : (config.activeSkillset ?? existingConfig?.activeSkillset ?? null);
 
   // If we have password but no refresh token, authenticate to get a refresh token
   // This converts password-based login to token-based storage

@@ -149,12 +149,26 @@ describe("registry-install", () => {
       skillset: "public/senior-swe",
       agent: "claude-code",
       silent: null,
+      persistActiveSkillset: true,
     });
 
     // Should NOT call switchSkillset or second install (initial install handles it)
     expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+  });
+
+  it("should not persist global activeSkillset for a transient --install-dir install", async () => {
+    // An explicit --install-dir makes the install transient; it must not clobber
+    // the user's global activeSkillset. Pass the flag through to installMain.
+    await registryInstallMain({
+      packageSpec: "senior-swe",
+      installDir: "/custom/worktree",
+    });
+
+    expect(installMain).toHaveBeenCalledWith(
+      expect.objectContaining({ persistActiveSkillset: false }),
+    );
   });
 
   it("should download skillset, switch skillset, and regenerate when existing installation detected", async () => {
@@ -192,6 +206,7 @@ describe("registry-install", () => {
       agent: "claude-code",
       silent: true,
       skillset: "public/senior-swe",
+      persistActiveSkillset: true,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
@@ -236,6 +251,7 @@ describe("registry-install", () => {
       skillset: "public/product-manager",
       agent: "claude-code",
       silent: null,
+      persistActiveSkillset: true,
     });
   });
 
@@ -259,6 +275,7 @@ describe("registry-install", () => {
       skillset: "public/documenter",
       agent: "claude-code",
       silent: null,
+      persistActiveSkillset: true,
     });
   });
 
