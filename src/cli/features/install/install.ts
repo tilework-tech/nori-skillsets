@@ -215,14 +215,19 @@ export const noninteractive = async (args?: {
   // not the persisted one. Only `sks config` should change persisted installDir.
   // When persistence was skipped (a transient --install-dir switch), `config`
   // still holds the old global activeSkillset, so overlay the selected one in
-  // memory for this install only. On the persisted path `config.activeSkillset`
+  // memory for this install only — and thread `persistActiveSkillset: false`
+  // so configLoader (which otherwise writes `config.activeSkillset` to disk)
+  // keeps the global value. On the persisted path `config.activeSkillset`
   // already holds the canonical selected skillset, so leave it untouched.
   await completeInstallation({
     config: {
       ...config,
       installDir: normalizedInstallDir,
       ...(persistActiveSkillset === false
-        ? { activeSkillset: selectedSkillset }
+        ? {
+            activeSkillset: selectedSkillset,
+            persistActiveSkillset: false,
+          }
         : {}),
     },
     agent: agentImpl,

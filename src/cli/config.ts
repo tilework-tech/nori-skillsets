@@ -32,6 +32,11 @@ export type Config = {
   defaultAgents?: Array<string> | null;
   /** The currently active skillset, shared across all agents */
   activeSkillset?: string | null;
+  /**
+   * Runtime-only: when false, loaders must not persist `activeSkillset` to
+   * disk (transient `--install-dir` switch). Never written to `.nori-config.json`.
+   */
+  persistActiveSkillset?: boolean | null;
   /** Organization ID for transcript uploads (e.g., "myorg" -> https://myorg.noriskillsets.dev) */
   transcriptDestination?: string | null;
   /** Whether to delete transcript files after successful upload */
