@@ -1131,11 +1131,16 @@ export const registerNoriSkillsetsClearCommand = (args: {
     .description(
       "Remove all Nori-managed configuration from the install directory",
     )
-    .action(async () => {
+    .option(
+      "--exact-install-dir",
+      "Remove only configuration recorded for the explicit --install-dir",
+    )
+    .action(async (options: { exactInstallDir?: boolean }) => {
       const { clearMain } = await import("@/cli/commands/clear/clear.js");
       const globalOpts = program.opts();
       await clearMain({
         installDir: globalOpts.installDir || null,
+        exactInstallDir: options.exactInstallDir || null,
       });
     });
 };
