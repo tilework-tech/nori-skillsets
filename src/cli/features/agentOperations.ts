@@ -37,6 +37,7 @@ import {
   skillsetPath,
 } from "@/norijson/skillset.js";
 import { readVersionInfo } from "@/packaging/provenance.js";
+import { readJsonObjectFile } from "@/utils/jsonFile.js";
 
 import type {
   AgentConfig,
@@ -48,32 +49,28 @@ import type { ManifestDiff } from "@/cli/features/manifest.js";
 const BEGIN_MARKER = "# BEGIN NORI-AI MANAGED BLOCK";
 const END_MARKER = "# END NORI-AI MANAGED BLOCK";
 
-/**
- * Remove the entire managed block (markers included) from a file in place.
- * Preserves any user content above and below the block. If the file doesn't
- * exist or doesn't contain the block, this is a no-op.
- * @param args - Configuration arguments
- * @param args.filePath - Absolute path to the file to clear
- */
-const clearManagedBlock = async (args: { filePath: string }): Promise<void> => {
-  const { filePath } = args;
-  let content: string;
-  try {
-    content = await fs.readFile(filePath, "utf-8");
-  } catch {
-    return;
-  }
-
+// Remove the entire managed block while preserving surrounding user content.
+const clearManagedBlockContent = (args: { content: string }): string => {
+  const { content } = args;
   if (!content.includes(BEGIN_MARKER)) {
-    return;
+    return content;
   }
 
   const regex = new RegExp(
     `\\n?${BEGIN_MARKER}\\n[\\s\\S]*?\\n${END_MARKER}\\n?`,
     "g",
   );
-  const cleared = content.replace(regex, "");
-  await fs.writeFile(filePath, cleared);
+  return content.replace(regex, "");
+};
+
+const clearManagedBlock = async (args: { filePath: string }): Promise<void> => {
+  const { filePath } = args;
+  try {
+    const content = await fs.readFile(filePath, "utf-8");
+    await fs.writeFile(filePath, clearManagedBlockContent({ content }));
+  } catch {
+    return;
+  }
 };
 
 export const getManagedFiles = (args: {
@@ -348,6 +345,138 @@ export const removeSkillset = async (args: {
   for (const file of externalFiles) {
     await restoreSettingsFile({ file });
   }
+};
+
+export type ExactSkillsetRemovalPlan = {
+  filePaths: ReadonlyArray<string>;
+  instructionsUpdate: { filePath: string; content: string } | null;
+  manifestPath: string;
+  markerPath: string;
+};
+
+const readTextIfPresent = async (filePath: string): Promise<string | null> => {
+  try {
+    return await fs.readFile(filePath, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+};
+
+const assertPathConfined = async (basePath: string, candidatePath: string) => {
+  const base = path.resolve(basePath);
+  const candidate = path.resolve(candidatePath);
+  const relative = path.relative(base, candidate);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`)) {
+    throw new Error(`Refusing to remove path outside ${base}`);
+  }
+  for (
+    let current = candidate;
+    current !== base;
+    current = path.dirname(current)
+  ) {
+    let stat;
+    try {
+      stat = await fs.lstat(current);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw err;
+      }
+      continue;
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Refusing to remove symlinked path: ${current}`);
+    }
+  }
+};
+
+const readExactManifest = async (args: {
+  installDir: string;
+  manifestPath: string;
+}): Promise<Record<string, unknown>> => {
+  const absent = {};
+  const manifest = await readJsonObjectFile({
+    filePath: args.manifestPath,
+    ifAbsent: absent,
+  });
+  if (
+    manifest === absent ||
+    manifest.version !== 1 ||
+    manifest.files == null ||
+    typeof manifest.files !== "object" ||
+    Array.isArray(manifest.files) ||
+    typeof manifest.installDir !== "string" ||
+    path.resolve(manifest.installDir) !== path.resolve(args.installDir)
+  ) {
+    throw new Error(`Exact install manifest is invalid: ${args.manifestPath}`);
+  }
+  return manifest.files as Record<string, unknown>;
+};
+
+export const preflightSkillsetRemovalAtExactInstallDir = async (args: {
+  agent: AgentConfig;
+  installDir: string;
+}): Promise<ExactSkillsetRemovalPlan | null> => {
+  const { agent, installDir } = args;
+  const agentDir = agent.getAgentDir({ installDir });
+  const instructionsFilePath = agent.getInstructionsFilePath({ installDir });
+  const markerPath = path.join(agentDir, ".nori-managed");
+  if ((await readTextIfPresent(markerPath)) == null) return null;
+
+  await Promise.all([
+    assertPathConfined(installDir, agentDir),
+    assertPathConfined(installDir, instructionsFilePath),
+  ]);
+
+  let instructionsUpdate: ExactSkillsetRemovalPlan["instructionsUpdate"] = null;
+  const content = await readTextIfPresent(instructionsFilePath);
+  if (content != null) {
+    const clearedContent = clearManagedBlockContent({ content });
+    if (clearedContent !== content) {
+      instructionsUpdate = {
+        filePath: instructionsFilePath,
+        content: clearedContent,
+      };
+    }
+  }
+
+  const manifestPath = getManifestPath({ agentName: agent.name, installDir });
+  const manifestFiles = await readExactManifest({ installDir, manifestPath });
+
+  const excludedPath = path.normalize(
+    path.relative(agentDir, instructionsFilePath),
+  );
+  const filePaths: Array<string> = [];
+  for (const relativePath of Object.keys(manifestFiles)) {
+    if (relativePath === "") throw new Error("Empty path in exact manifest");
+    const filePath = path.resolve(agentDir, relativePath);
+    await assertPathConfined(agentDir, filePath);
+    if (path.normalize(relativePath) !== excludedPath) filePaths.push(filePath);
+  }
+
+  return {
+    filePaths,
+    instructionsUpdate,
+    manifestPath,
+    markerPath,
+  };
+};
+
+export const removeSkillsetAtExactInstallDir = async (args: {
+  plan: ExactSkillsetRemovalPlan;
+}): Promise<void> => {
+  const { plan } = args;
+  if (plan.instructionsUpdate != null) {
+    await fs.writeFile(
+      plan.instructionsUpdate.filePath,
+      plan.instructionsUpdate.content,
+    );
+  }
+  for (const filePath of plan.filePaths) {
+    await fs.rm(filePath, { force: true });
+  }
+  await fs.rm(plan.manifestPath, { force: true });
+  await fs.rm(plan.markerPath, { force: true });
 };
 
 export const detectLocalChanges = async (args: {
