@@ -15,15 +15,14 @@ const git = async (
 
 type CommitArgs = {
   slug: string;
-  manifestName?: string;
-  marker: string;
+  marker?: string;
   manifest?: Record<string, unknown>;
   files?: Record<string, string>;
 };
 
-export const createTestGitRepository = async (args: { root: string }) => {
-  const remote = path.join(args.root, "remote.git");
-  const authorCheckout = path.join(args.root, "author");
+export const createTestGitRepository = async (root: string) => {
+  const remote = path.join(root, "remote.git");
+  const authorCheckout = path.join(root, "author");
 
   await fs.mkdir(remote, { recursive: true });
   await git(remote, "init", "--bare");
@@ -34,15 +33,14 @@ export const createTestGitRepository = async (args: { root: string }) => {
   const commit = async (commitArgs: CommitArgs): Promise<string> => {
     const {
       slug,
-      manifestName = slug,
-      marker,
+      marker = "test skillset",
       manifest = {},
       files = {},
     } = commitArgs;
     await fs.writeFile(
       path.join(authorCheckout, "nori.json"),
       JSON.stringify({
-        name: manifestName,
+        name: slug,
         version: "1.0.0",
         type: "skillset",
         ...manifest,

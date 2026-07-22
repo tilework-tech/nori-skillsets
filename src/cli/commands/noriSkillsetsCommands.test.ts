@@ -3,7 +3,7 @@
  */
 
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const commandDelegates = vi.hoisted(() => ({
   gitInstall: vi.fn().mockResolvedValue({
@@ -32,40 +32,36 @@ import {
 } from "./noriSkillsetsCommands.js";
 
 describe("registerNoriSkillsetsInstallCommand", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    commandDelegates.gitInstall.mockResolvedValue({
-      success: true,
-      cancelled: false,
-      message: "installed from git",
-    });
-    commandDelegates.registryInstall.mockResolvedValue({
-      success: true,
-      cancelled: false,
-      message: "installed from registry",
-    });
-  });
+  const gitArgs = [
+    "reviewer",
+    "--from",
+    "/tmp/skillsets.git",
+    "--trust-source",
+  ];
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("uses the Git source path exclusively when --from is supplied", async () => {
+  const runInstall = (...args: Array<string>) => {
     const program = new Command();
     program.exitOverride();
     program.option("--silent");
     registerNoriSkillsetsInstallCommand({ program });
+    return program.parseAsync(["node", "sks", "install", ...args]);
+  };
 
-    await program.parseAsync([
-      "node",
-      "sks",
-      "install",
-      "reviewer",
-      "--from",
-      "/tmp/skillsets.git",
-      "--trust-source",
-      "--silent",
-    ]);
+  const expectInstallFailure = async (...args: Array<string>) => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit 1");
+    }) as never);
+    try {
+      await expect(runInstall(...args)).rejects.toThrow("exit 1");
+    } finally {
+      exit.mockRestore();
+    }
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("uses the Git source path exclusively when --from is supplied", async () => {
+    await runInstall(...gitArgs, "--silent");
 
     expect(commandDelegates.gitInstall).toHaveBeenCalledWith({
       slug: "reviewer",
@@ -79,11 +75,7 @@ describe("registerNoriSkillsetsInstallCommand", () => {
   });
 
   it("preserves the Registry install path when --from is absent", async () => {
-    const program = new Command();
-    program.exitOverride();
-    registerNoriSkillsetsInstallCommand({ program });
-
-    await program.parseAsync(["node", "sks", "install", "reviewer"]);
+    await runInstall("reviewer");
 
     expect(commandDelegates.registryInstall).toHaveBeenCalledWith({
       packageSpec: "reviewer",
@@ -100,50 +92,16 @@ describe("registerNoriSkillsetsInstallCommand", () => {
       cancelled: false,
       message: "git failed",
     });
-    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
-      throw new Error("exit 1");
-    }) as never);
-    const program = new Command();
-    program.exitOverride();
-    registerNoriSkillsetsInstallCommand({ program });
-
-    await expect(
-      program.parseAsync([
-        "node",
-        "sks",
-        "install",
-        "reviewer",
-        "--from",
-        "/tmp/skillsets.git",
-        "--trust-source",
-      ]),
-    ).rejects.toThrow("exit 1");
+    await expectInstallFailure(...gitArgs);
 
     expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
-    exit.mockRestore();
   });
 
   it("rejects Git-only options when no Git source is supplied", async () => {
-    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
-      throw new Error("exit 1");
-    }) as never);
-    const program = new Command();
-    program.exitOverride();
-    registerNoriSkillsetsInstallCommand({ program });
-
-    await expect(
-      program.parseAsync([
-        "node",
-        "sks",
-        "install",
-        "reviewer",
-        "--trust-source",
-      ]),
-    ).rejects.toThrow("exit 1");
+    await expectInstallFailure("reviewer", "--trust-source");
 
     expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
     expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
-    exit.mockRestore();
   });
 });
 

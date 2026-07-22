@@ -33,9 +33,9 @@ describe("gitInstallMain", () => {
     target = path.join(testRoot, ".nori", "profiles", "personal", "reviewer");
     previousGlobalConfig = process.env.NORI_GLOBAL_CONFIG;
     process.env.NORI_GLOBAL_CONFIG = testRoot;
-    repository = await createTestGitRepository({
-      root: path.join(testRoot, "repository"),
-    });
+    repository = await createTestGitRepository(
+      path.join(testRoot, "repository"),
+    );
   });
 
   afterEach(async () => {
@@ -65,6 +65,11 @@ describe("gitInstallMain", () => {
   ) => {
     expect(result.success).toBe(false);
     expect(result.message).toMatch(error);
+  };
+
+  const expectRejectedCheckout = async (error: RegExp) => {
+    expectFailure(await install(), error);
+    await expect(fs.access(target)).rejects.toThrow();
   };
 
   it("installs and activates the current tip of the derived branch", async () => {
@@ -99,33 +104,28 @@ describe("gitInstallMain", () => {
   it.each([
     {
       label: "name",
-      manifestName: "different-name",
-      manifest: {},
+      manifest: { name: "different-name" },
       error: /manifest.*different-name.*reviewer/i,
     },
     {
       label: "type",
-      manifestName: "reviewer",
       manifest: { type: "skill" },
       error: /type must be skillset/i,
     },
   ])(
     "rejects a manifest with the wrong $label",
-    async ({ manifestName, manifest, error }) => {
+    async ({ manifest, error }) => {
       await repository.commit({
         slug: "reviewer",
-        manifestName,
         manifest,
-        marker: "invalid manifest",
       });
 
-      expectFailure(await install(), error);
-      await expect(fs.access(target)).rejects.toThrow();
+      await expectRejectedCheckout(error);
     },
   );
 
   it("preserves an existing destination", async () => {
-    await repository.commit({ slug: "reviewer", marker: "remote content" });
+    await repository.commit({ slug: "reviewer" });
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, "sentinel"), "keep me");
 
@@ -136,14 +136,14 @@ describe("gitInstallMain", () => {
   });
 
   it("requires explicit trust in non-interactive mode", async () => {
-    await repository.commit({ slug: "reviewer", marker: "untrusted" });
+    await repository.commit({ slug: "reviewer" });
 
     expectFailure(await install({ trustSource: null }), /--trust-source/);
     await expect(fs.access(target)).rejects.toThrow();
   });
 
   it("installs after interactive approval", async () => {
-    await repository.commit({ slug: "reviewer", marker: "approved" });
+    await repository.commit({ slug: "reviewer" });
     prompt.confirm.mockResolvedValueOnce(true);
 
     const result = await install({
@@ -157,7 +157,7 @@ describe("gitInstallMain", () => {
   });
 
   it("leaves no checkout after interactive decline", async () => {
-    await repository.commit({ slug: "reviewer", marker: "declined" });
+    await repository.commit({ slug: "reviewer" });
     prompt.confirm.mockResolvedValueOnce(false);
 
     const result = await install({
@@ -173,12 +173,10 @@ describe("gitInstallMain", () => {
   it("rejects Registry provenance", async () => {
     await repository.commit({
       slug: "reviewer",
-      marker: "mixed provenance",
       files: { ".nori-version": "https://registry.example.invalid\n1.0.0\n" },
     });
 
-    expectFailure(await install(), /Registry provenance|\.nori-version/i);
-    await expect(fs.access(target)).rejects.toThrow();
+    await expectRejectedCheckout(/Registry provenance|\.nori-version/i);
   });
 
   it("rejects symbolic links", async () => {
@@ -186,17 +184,13 @@ describe("gitInstallMain", () => {
       "AGENTS.md",
       path.join(repository.authorCheckout, "linked"),
     );
-    await repository.commit({ slug: "reviewer", marker: "linked content" });
+    await repository.commit({ slug: "reviewer" });
 
-    expectFailure(await install(), /symbolic links/i);
-    await expect(fs.access(target)).rejects.toThrow();
+    await expectRejectedCheckout(/symbolic links/i);
   });
 
   it("rejects submodules", async () => {
-    const commit = await repository.commit({
-      slug: "reviewer",
-      marker: "base content",
-    });
+    const commit = await repository.commit({ slug: "reviewer" });
     await execFileAsync(
       "git",
       ["update-index", "--add", "--cacheinfo", `160000,${commit},nested`],
@@ -211,7 +205,6 @@ describe("gitInstallMain", () => {
       { cwd: repository.authorCheckout },
     );
 
-    expectFailure(await install(), /submodules/i);
-    await expect(fs.access(target)).rejects.toThrow();
+    await expectRejectedCheckout(/submodules/i);
   });
 });
