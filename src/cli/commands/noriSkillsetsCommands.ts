@@ -449,26 +449,59 @@ export const registerNoriSkillsetsInstallCommand = (args: {
   program
     .command("install <package>")
     .description(
-      "Download, install, and activate a skillset in one step (bare names use the configured default org, else the public registry)",
+      "Install and activate a skillset from the Registry or an explicit Git remote",
     )
-    .action(async (packageSpec: string) => {
-      const { registryInstallMain } =
-        await import("@/cli/commands/registry-install/registryInstall.js");
-      const globalOpts = program.opts();
+    .option("--from <remote>", "Install from a Git remote")
+    .option("--pin <sha>", "Install an exact commit from the skillset branch")
+    .option(
+      "--trust-source",
+      "Trust the Git source without prompting (required in non-interactive mode)",
+    )
+    .action(
+      async (
+        packageSpec: string,
+        options: { from?: string; pin?: string; trustSource?: boolean },
+      ) => {
+        const globalOpts = program.opts();
 
-      await wrapWithFraming({
-        title: "Install Skillset",
-        exitOnFailure: true,
-        silent: globalOpts.silent || null,
-        action: () =>
-          registryInstallMain({
-            packageSpec,
-            installDir: globalOpts.installDir || null,
-            nonInteractive: globalOpts.nonInteractive || null,
-            silent: globalOpts.silent || null,
-          }),
-      });
-    });
+        await wrapWithFraming({
+          title: "Install Skillset",
+          exitOnFailure: true,
+          silent: globalOpts.silent || null,
+          action: async () => {
+            if (options.from != null) {
+              const { gitInstallMain } =
+                await import("@/cli/commands/git-install/gitInstall.js");
+              return gitInstallMain({
+                slug: packageSpec,
+                remote: options.from,
+                pin: options.pin ?? null,
+                installDir: globalOpts.installDir || null,
+                nonInteractive:
+                  globalOpts.nonInteractive || globalOpts.silent || null,
+                silent: globalOpts.silent || null,
+                trustSource: options.trustSource ?? null,
+              });
+            }
+            if (options.pin != null || options.trustSource === true) {
+              return {
+                success: false,
+                cancelled: false,
+                message: "--pin and --trust-source require --from <git-remote>",
+              };
+            }
+            const { registryInstallMain } =
+              await import("@/cli/commands/registry-install/registryInstall.js");
+            return registryInstallMain({
+              packageSpec,
+              installDir: globalOpts.installDir || null,
+              nonInteractive: globalOpts.nonInteractive || null,
+              silent: globalOpts.silent || null,
+            });
+          },
+        });
+      },
+    );
 };
 
 /**

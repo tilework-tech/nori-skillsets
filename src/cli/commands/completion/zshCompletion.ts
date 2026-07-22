@@ -91,7 +91,9 @@ _nori_skillsets() {
         install)
           _arguments \\
             '1:package:' \\
-            '--user[Install to user home directory]' \\
+            '--from[Install from a Git remote]:remote:' \\
+            '--pin[Install an exact commit from the skillset branch]:sha:' \\
+            '--trust-source[Trust the Git source without prompting]' \\
             \$global_opts
           ;;
         switch)

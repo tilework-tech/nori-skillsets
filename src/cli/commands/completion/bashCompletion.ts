@@ -41,7 +41,7 @@ _nori_skillsets_completions() {
       COMPREPLY=( $(compgen -W "--registry --list-versions \${global_opts}" -- "\${cur}") )
       ;;
     install)
-      COMPREPLY=( $(compgen -W "--user \${global_opts}" -- "\${cur}") )
+      COMPREPLY=( $(compgen -W "--from --pin --trust-source \${global_opts}" -- "\${cur}") )
       ;;
     switch)
       if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then

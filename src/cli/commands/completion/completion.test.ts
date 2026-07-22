@@ -125,6 +125,13 @@ describe("generateBashCompletion", () => {
     expect(result).toContain("--list-versions");
   });
 
+  it("should contain Git install flags", () => {
+    const result = generateBashCompletion();
+    expect(result).toMatch(/install\)[\s\S]*--from/);
+    expect(result).toMatch(/install\)[\s\S]*--pin/);
+    expect(result).toMatch(/install\)[\s\S]*--trust-source/);
+  });
+
   it("should contain external-specific flags", () => {
     const result = generateBashCompletion();
     expect(result).toContain("--skillset");
@@ -227,6 +234,10 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("--skill");
     expect(result).toContain("--all");
     expect(result).toContain("--ref");
+    // Git install flags
+    expect(result).toContain("--from");
+    expect(result).toContain("--pin");
+    expect(result).toContain("--trust-source");
   });
 
   it("should reference list for dynamic switch completion", () => {

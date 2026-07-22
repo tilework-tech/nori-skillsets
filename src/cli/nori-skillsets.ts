@@ -139,7 +139,8 @@ Examples:
   $ nori-skillsets upload myorg/my-skillset
   $ nori-skillsets upload my-skillset --list-versions
   $ nori-skillsets install my-skillset
-  $ nori-skillsets install my-skillset --user
+  $ nori-skillsets install my-skillset --from git@github.com:myorg/skillsets.git
+  $ nori-skillsets install my-skillset --from git@github.com:myorg/skillsets.git --pin abc1234
   $ nori-skillsets switch senior-swe
   $ nori-skillsets list
   $ nori-skillsets current

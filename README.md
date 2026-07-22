@@ -52,6 +52,20 @@ Switch to using the new skillset.
 nori-skillsets switch senior-swe
 ```
 
+Install and activate a self-contained skillset directly from a Git repository:
+
+```bash
+sks install my-skillset --from git@github.com:myorg/skillsets.git
+```
+
+The repository must expose a `skillsets/my-skillset` branch whose root
+`nori.json` has `"name": "my-skillset"`. By default the install follows the
+current branch tip. To install an earlier revision, add `--pin <commit-sha>`.
+Interactive installs ask you to trust the source; unattended installs must add
+`--trust-source`. Git-backed packages must be self-contained and cannot rely on
+Registry dependency resolution; any declared skills, subagents, or slash
+commands must already be present in the checkout.
+
 ## How Skillsets Work
 
 Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client writes its contents into the relevant locations for each configured agent (e.g., `.claude/` for Claude Code, `.cursor/` for Cursor, `.codex/` for Codex, `.gemini/` for Gemini CLI). Configure which agents to target with `nori-skillsets config`.
