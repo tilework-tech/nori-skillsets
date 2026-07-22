@@ -119,7 +119,8 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
    ```
 
    This initializes a repository without creating a commit, remote, or
-   authentication requirement.
+   authentication requirement. Git init templates are disabled so ambient
+   template configuration cannot populate the new repository or add a remote.
 
 2. Open the skillset and add an `AGENTS.md` file with your custom instructions:
 

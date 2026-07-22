@@ -1,4 +1,6 @@
 import * as fs from "fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import * as os from "os";
 import * as path from "path";
 
@@ -12,6 +14,8 @@ import {
   isGzipped,
   verifyArchiveChecksum,
 } from "./archive.js";
+
+const execFileAsync = promisify(execFile);
 
 let tempDir: string;
 
@@ -126,6 +130,125 @@ describe("createArchive + extractArchive roundtrip", () => {
         "utf-8",
       ),
     ).toBe("# linked");
+  });
+
+  it("excludes directory and file symlink aliases into Git metadata", async () => {
+    const sourceDir = await seedSourceDir();
+    await fs.mkdir(path.join(sourceDir, ".git", "objects"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(sourceDir, ".git", "config"),
+      '[remote "origin"]\nurl = https://secret@example.test/repo.git\n',
+    );
+    await fs.writeFile(
+      path.join(sourceDir, ".git", "objects", "secret"),
+      "object data",
+    );
+    await fs.symlink(".git", path.join(sourceDir, "metadata"), "dir");
+    await fs.symlink(
+      path.join(".git", "config"),
+      path.join(sourceDir, "metadata-config"),
+      "file",
+    );
+
+    const archive = await createArchive({ sourceDir });
+    const destDir = path.join(tempDir, "dest-git-aliases");
+    await fs.mkdir(destDir, { recursive: true });
+    await extractArchive({
+      tarballData: toArrayBuffer({ buf: archive }),
+      targetDir: destDir,
+    });
+
+    await expect(fs.access(path.join(destDir, "metadata"))).rejects.toThrow();
+    await expect(
+      fs.access(path.join(destDir, "metadata-config")),
+    ).rejects.toThrow();
+  });
+
+  it("excludes aliases into a linked worktree's common Git metadata", async () => {
+    const repositoryDir = path.join(tempDir, "repository");
+    const commonMetadataDir = path.join(tempDir, "shared-metadata");
+    const worktreeDir = path.join(tempDir, "linked-worktree");
+    await execFileAsync(
+      "git",
+      [
+        "init",
+        "--quiet",
+        "--separate-git-dir",
+        commonMetadataDir,
+        repositoryDir,
+      ],
+      { cwd: tempDir },
+    );
+    await fs.writeFile(
+      path.join(repositoryDir, "nori.json"),
+      '{"name":"linked"}',
+    );
+    await execFileAsync("git", ["add", "nori.json"], { cwd: repositoryDir });
+    await execFileAsync(
+      "git",
+      [
+        "-c",
+        "user.name=Nori Test",
+        "-c",
+        "user.email=nori-test@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "initial",
+      ],
+      { cwd: repositoryDir },
+    );
+    await execFileAsync(
+      "git",
+      ["worktree", "add", "--quiet", "--detach", worktreeDir],
+      { cwd: repositoryDir },
+    );
+    await fs.symlink(
+      commonMetadataDir,
+      path.join(worktreeDir, "metadata"),
+      "dir",
+    );
+
+    const archive = await createArchive({ sourceDir: worktreeDir });
+    const destDir = path.join(tempDir, "dest-linked-worktree");
+    await fs.mkdir(destDir);
+    await extractArchive({
+      tarballData: toArrayBuffer({ buf: archive }),
+      targetDir: destDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    ).resolves.toContain('"name":"linked"');
+    await expect(fs.access(path.join(destDir, "metadata"))).rejects.toThrow();
+  });
+
+  it("excludes aliases into ancestor Git metadata for a subdirectory upload", async () => {
+    const repositoryDir = path.join(tempDir, "skill-repository");
+    const skillDir = path.join(repositoryDir, "skills", "demo");
+    await fs.mkdir(skillDir, { recursive: true });
+    await execFileAsync("git", ["init", "--quiet"], { cwd: repositoryDir });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), "# demo");
+    await fs.symlink(
+      path.join(repositoryDir, ".git"),
+      path.join(skillDir, "metadata"),
+      "dir",
+    );
+
+    const archive = await createArchive({ sourceDir: skillDir });
+    const destDir = path.join(tempDir, "dest-subdirectory");
+    await fs.mkdir(destDir);
+    await extractArchive({
+      tarballData: toArrayBuffer({ buf: archive }),
+      targetDir: destDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, "SKILL.md"), "utf-8"),
+    ).resolves.toBe("# demo");
+    await expect(fs.access(path.join(destDir, "metadata"))).rejects.toThrow();
   });
 
   it("extracts plain (non-gzipped) tarballs too", async () => {

@@ -52,7 +52,7 @@ const gitEnvironment = (): NodeJS.ProcessEnv => {
 const initializeGitRepository = (args: { dir: string }): void => {
   const { dir } = args;
   try {
-    execFileSync("git", ["init", "--quiet"], {
+    execFileSync("git", ["init", "--quiet", "--template="], {
       cwd: dir,
       env: gitEnvironment(),
       stdio: "pipe",

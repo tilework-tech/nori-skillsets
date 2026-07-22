@@ -215,6 +215,38 @@ describe("newSkillsetMain", () => {
     },
   );
 
+  it.sequential(
+    "does not inherit Git templates that configure a remote",
+    async () => {
+      const templateDir = path.join(testHomeDir, "git-template");
+      await fs.mkdir(templateDir);
+      await fs.writeFile(
+        path.join(templateDir, "config"),
+        '[remote "origin"]\n\turl = https://example.invalid/repo.git\n',
+      );
+      vi.stubEnv("GIT_TEMPLATE_DIR", templateDir);
+      vi.stubEnv("GIT_CONFIG_COUNT", "1");
+      vi.stubEnv("GIT_CONFIG_KEY_0", "init.templateDir");
+      vi.stubEnv("GIT_CONFIG_VALUE_0", templateDir);
+
+      const result = await newSkillsetMain({
+        skillsetName: "template-independent",
+      });
+      expect(result.success).toBe(true);
+      vi.unstubAllEnvs();
+
+      const destDir = path.join(
+        skillsetsDir,
+        "personal",
+        "template-independent",
+      );
+      const { stdout: remotes } = await execFileAsync("git", ["remote"], {
+        cwd: destDir,
+      });
+      expect(remotes.trim()).toBe("");
+    },
+  );
+
   it("should create a namespaced skillset with parent directories", async () => {
     mockNewSkillsetFlow.mockResolvedValueOnce({
       name: "myorg/custom-profile",
