@@ -5,6 +5,19 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as clackPrompts from "@clack/prompts";
+
+const framing = vi.hoisted(() => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+}));
+
+vi.mock("@clack/prompts", async (importOriginal) => ({
+  ...(await importOriginal<typeof clackPrompts>()),
+  intro: framing.intro,
+  outro: framing.outro,
+}));
+
 const commandDelegates = vi.hoisted(() => ({
   gitInstall: vi.fn().mockResolvedValue({
     success: true,
@@ -108,8 +121,21 @@ describe("registerNoriSkillsetsInstallCommand", () => {
 
       expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
       expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+      expect(framing.outro).toHaveBeenCalledWith(
+        expect.stringContaining("--from <git-remote>"),
+      );
     },
   );
+
+  it("describes the accepted full object ID lengths in install help", () => {
+    const program = new Command();
+    registerNoriSkillsetsInstallCommand({ program });
+    const installCommand = program.commands.find(
+      (command) => command.name() === "install",
+    );
+
+    expect(installCommand?.helpInformation()).toMatch(/--pin.*full.*40.*64/is);
+  });
 });
 
 describe("registerNoriSkillsetsUploadSkillCommand", () => {

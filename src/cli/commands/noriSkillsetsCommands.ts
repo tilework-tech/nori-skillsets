@@ -452,7 +452,10 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       "Install and activate a skillset from the Registry or an explicit Git remote",
     )
     .option("--from <remote>", "Install from a Git remote")
-    .option("--pin <sha>", "Install an exact commit from the skillset branch")
+    .option(
+      "--pin <sha>",
+      "Install an exact full 40- or 64-character commit SHA from the skillset branch",
+    )
     .option(
       "--trust-source",
       "Trust the Git source without prompting (required in non-interactive mode)",

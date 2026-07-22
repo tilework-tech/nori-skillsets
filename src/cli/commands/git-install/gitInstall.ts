@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
 
 import { confirm, isCancel } from "@clack/prompts";
 
@@ -16,7 +15,6 @@ import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
-const execFileAsync = promisify(execFile);
 const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
 
 type GitInstallArgs = {
@@ -29,10 +27,13 @@ type GitInstallArgs = {
   silent?: boolean | null;
 };
 
-const sanitizeGitError = (value: string): string =>
+const sanitizeGitText = (value: string): string =>
   value
     .replace(/(https?:\/\/)[^@\s/]+@/giu, "$1***@")
-    .replace(/([?&](?:access_token|key|signature|token)=)[^&\s]+/giu, "$1***");
+    .replace(
+      /([?&](?:access_token|api_key|key|password|private_token|sig|signature|token|x-amz-credential|x-amz-security-token|x-amz-signature)=)[^&\s'"]+/giu,
+      "$1***",
+    );
 
 const GIT_ROUTING_ENVIRONMENT = [
   "GIT_DIR",
@@ -41,6 +42,7 @@ const GIT_ROUTING_ENVIRONMENT = [
   "GIT_INDEX_FILE",
   "GIT_OBJECT_DIRECTORY",
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_SHALLOW_FILE",
 ] as const;
 
 const gitEnvironment = (): NodeJS.ProcessEnv => {
@@ -49,27 +51,57 @@ const gitEnvironment = (): NodeJS.ProcessEnv => {
   return environment;
 };
 
-const gitErrorDetail = (error: unknown): string => {
-  const detail =
-    error != null && typeof error === "object" && "stderr" in error
-      ? String(error.stderr).trim() ||
-        (error instanceof Error ? error.message : String(error))
-      : String(error);
-  return sanitizeGitError(detail);
+type GitExecution = {
+  error: unknown;
+  exitCode: string | number | null;
+  stderr: string;
+  stdout: string;
 };
 
-const runGit = async (args: Array<string>, cwd?: string): Promise<string> => {
-  try {
-    return (
-      await execFileAsync("git", args, {
+const gitErrorDetail = (result: GitExecution): string => {
+  const detail =
+    result.stderr ||
+    (result.error instanceof Error
+      ? result.error.message
+      : String(result.error));
+  return sanitizeGitText(detail);
+};
+
+const executeGit = async (args: {
+  command: Array<string>;
+  cwd?: string;
+  input?: string;
+}): Promise<GitExecution> => {
+  const { command, cwd, input } = args;
+  return new Promise((resolve) => {
+    const child = execFile(
+      "git",
+      command,
+      {
         cwd,
         env: gitEnvironment(),
         maxBuffer: 10 * 1024 * 1024,
-      })
-    ).stdout.trim();
-  } catch (error) {
-    throw new Error(`Git command failed: ${gitErrorDetail(error)}`);
-  }
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          error,
+          exitCode: error != null && "code" in error ? (error.code ?? null) : 0,
+          stderr: String(stderr).trim(),
+          stdout: String(stdout).trim(),
+        });
+      },
+    );
+    child.stdin?.end(input);
+  });
+};
+
+const failedGitCommand = (result: GitExecution): Error =>
+  new Error(`Git command failed: ${gitErrorDetail(result)}`);
+
+const runGit = async (args: Array<string>, cwd?: string): Promise<string> => {
+  const result = await executeGit({ command: args, cwd });
+  if (result.exitCode !== 0) throw failedGitCommand(result);
+  return result.stdout;
 };
 
 const isAncestor = async (args: {
@@ -78,36 +110,74 @@ const isAncestor = async (args: {
   checkoutDir: string;
 }): Promise<boolean> => {
   const { ancestor, descendant, checkoutDir } = args;
-  try {
-    await execFileAsync(
-      "git",
-      ["merge-base", "--is-ancestor", ancestor, descendant],
-      {
-        cwd: checkoutDir,
-        env: gitEnvironment(),
-        maxBuffer: 10 * 1024 * 1024,
-      },
-    );
-    return true;
-  } catch (error) {
-    if (
-      error != null &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === 1
-    ) {
-      return false;
-    }
-    throw new Error(`Git command failed: ${gitErrorDetail(error)}`);
+  const result = await executeGit({
+    command: ["merge-base", "--is-ancestor", ancestor, descendant],
+    cwd: checkoutDir,
+  });
+  if (result.exitCode === 0) return true;
+  if (result.exitCode === 1) return false;
+  throw failedGitCommand(result);
+};
+
+const resolveRequiredBranchTip = async (args: {
+  branch: string;
+  checkoutDir: string;
+}): Promise<string> => {
+  const { branch, checkoutDir } = args;
+  const result = await executeGit({
+    command: [
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      "--end-of-options",
+      `refs/heads/${branch}`,
+    ],
+    cwd: checkoutDir,
+  });
+  if (result.exitCode === 0) return result.stdout;
+  if (result.exitCode === 1) {
+    throw new Error(`Required branch "${branch}" was not found in Git source`);
   }
+  throw failedGitCommand(result);
+};
+
+const inspectPinnedObject = async (args: {
+  checkoutDir: string;
+  pin: string;
+}): Promise<{ objectType: string; resolvedCommit: string } | null> => {
+  const { checkoutDir, pin } = args;
+  const result = await executeGit({
+    command: ["cat-file", "--batch-check=%(objectname) %(objecttype)"],
+    cwd: checkoutDir,
+    input: `${pin}\n`,
+  });
+  if (result.exitCode !== 0) throw failedGitCommand(result);
+  const [resolvedCommit, objectType, ...extra] = result.stdout.split(" ");
+  if (
+    objectType === "missing" &&
+    resolvedCommit === pin &&
+    extra.length === 0
+  ) {
+    return null;
+  }
+  if (
+    resolvedCommit == null ||
+    objectType == null ||
+    extra.length > 0 ||
+    !FULL_COMMIT_SHA.test(resolvedCommit)
+  ) {
+    throw new Error("Git returned invalid object inspection output");
+  }
+  return { objectType, resolvedCommit };
 };
 
 const selectPinnedCommit = async (args: {
   branch: string;
+  branchTip: string;
   checkoutDir: string;
   pin: string;
 }): Promise<string> => {
-  const { branch, checkoutDir, pin } = args;
+  const { branch, branchTip, checkoutDir, pin } = args;
   const shallow = await runGit(
     ["rev-parse", "--is-shallow-repository"],
     checkoutDir,
@@ -118,23 +188,21 @@ const selectPinnedCommit = async (args: {
     );
   }
 
-  const branchTip = await runGit(["rev-parse", "HEAD"], checkoutDir);
-  let objectType: string;
-  try {
-    objectType = await runGit(["cat-file", "-t", pin], checkoutDir);
-  } catch {
+  const inspectedObject = await inspectPinnedObject({ checkoutDir, pin });
+  if (inspectedObject == null) {
     throw new Error(
       `Pinned commit "${pin}" was not found in ${branch} history`,
+    );
+  }
+  const { objectType, resolvedCommit } = inspectedObject;
+  if (resolvedCommit.toLowerCase() !== pin.toLowerCase()) {
+    throw new Error(
+      "--pin must be a full hexadecimal commit SHA (40 or 64 characters)",
     );
   }
   if (objectType !== "commit") {
     throw new Error(`Pinned object "${pin}" does not identify a commit`);
   }
-
-  const resolvedCommit = await runGit(
-    ["rev-parse", "--verify", "--end-of-options", pin],
-    checkoutDir,
-  );
   if (
     !(await isAncestor({
       ancestor: resolvedCommit,
@@ -156,6 +224,19 @@ const validateCheckout = async (args: {
   slug: string;
 }): Promise<void> => {
   const { checkoutDir, slug } = args;
+  const entries = await runGit(["ls-files", "--stage"], checkoutDir);
+  if (/^\d{6} [0-9a-f]+ \d+\t\.nori-version$/mu.test(entries)) {
+    throw new Error(
+      "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
+    );
+  }
+  if (/^120000 /mu.test(entries)) {
+    throw new Error("Git-backed skillsets cannot contain symbolic links");
+  }
+  if (/^160000 /mu.test(entries)) {
+    throw new Error("Git-backed skillsets cannot contain submodules");
+  }
+
   let metadata;
   try {
     metadata = await readSkillsetMetadata({ skillsetDir: checkoutDir });
@@ -169,19 +250,6 @@ const validateCheckout = async (args: {
   }
   if (metadata.type !== "skillset") {
     throw new Error("Invalid skillset manifest: type must be skillset");
-  }
-
-  const entries = await runGit(["ls-files", "--stage"], checkoutDir);
-  if (/^\d{6} [0-9a-f]+ \d+\t\.nori-version$/mu.test(entries)) {
-    throw new Error(
-      "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
-    );
-  }
-  if (/^120000 /mu.test(entries)) {
-    throw new Error("Git-backed skillsets cannot contain symbolic links");
-  }
-  if (/^160000 /mu.test(entries)) {
-    throw new Error("Git-backed skillsets cannot contain submodules");
   }
 };
 
@@ -198,8 +266,11 @@ const acquireGitCheckout = async (args: {
   cloneArgs.push("--", remote, checkoutDir);
   await runGit(cloneArgs);
 
+  const branchTip = await resolveRequiredBranchTip({ branch, checkoutDir });
   const resolvedCommit =
-    pin == null ? null : await selectPinnedCommit({ branch, checkoutDir, pin });
+    pin == null
+      ? null
+      : await selectPinnedCommit({ branch, branchTip, checkoutDir, pin });
   await validateCheckout({ checkoutDir, slug });
   return resolvedCommit;
 };
@@ -228,7 +299,7 @@ export const gitInstallMain = async (
         );
       }
       const approved = await confirm({
-        message: `Trust and install ${branch} from ${remote}?`,
+        message: `Trust and install ${branch} from ${sanitizeGitText(remote)}?`,
         initialValue: false,
       });
       if (isCancel(approved) || approved !== true) {

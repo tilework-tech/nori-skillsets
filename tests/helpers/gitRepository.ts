@@ -121,11 +121,10 @@ export const createTestGitRepository = async (args: {
     slug: string;
   }): Promise<string> => {
     const { slug } = args;
-    const shallowRemote = path.join(root, "shallow.git");
+    const shallowRemote = path.join(root, "limited-source");
     await git(
       undefined,
       "clone",
-      "--bare",
       "--depth",
       "1",
       "--branch",
@@ -136,6 +135,22 @@ export const createTestGitRepository = async (args: {
     return shallowRemote;
   };
 
+  const replaceBranchWithTag = async (args: {
+    slug: string;
+  }): Promise<void> => {
+    const { slug } = args;
+    const refName = `skillsets/${slug}`;
+    await git(authorCheckout, "tag", "--force", refName, "HEAD");
+    await git(
+      authorCheckout,
+      "push",
+      "--force",
+      remote,
+      `refs/tags/${refName}`,
+    );
+    await git(authorCheckout, "push", remote, `:refs/heads/${refName}`);
+  };
+
   return {
     remote,
     authorCheckout,
@@ -143,5 +158,6 @@ export const createTestGitRepository = async (args: {
     commitUnrelated,
     mergeSecondParent,
     createShallowRemote,
+    replaceBranchWithTag,
   };
 };
