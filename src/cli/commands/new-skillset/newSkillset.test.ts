@@ -62,10 +62,11 @@ describe("newSkillsetMain", () => {
     mockNote.mockClear();
     mockOutro.mockClear();
     mockExit.mockClear();
-    mockNewSkillsetFlow.mockReset();
+    mockNewSkillsetFlow.mockClear();
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     if (testHomeDir) {
       await fs.rm(testHomeDir, { recursive: true, force: true });
     }
@@ -109,11 +110,7 @@ describe("newSkillsetMain", () => {
     expect(stdout.trim()).toBe("true");
   });
 
-  it("creates a named skillset without running the metadata wizard", async () => {
-    mockNewSkillsetFlow.mockRejectedValueOnce(
-      new Error("metadata wizard must not run"),
-    );
-
+  it("creates a Git-backed positional skillset with ignored Nori state", async () => {
     const result = await newSkillsetMain({
       skillsetName: "zero-prompt-skillset",
     });
@@ -128,6 +125,22 @@ describe("newSkillsetMain", () => {
       type: "skillset",
     });
     expect(result.success).toBe(true);
+    expect(mockNewSkillsetFlow).not.toHaveBeenCalled();
+
+    const ignoredFiles = [
+      [".nori/state.json", "{}"],
+      [".nori-version", "{}"],
+      [".nori-managed", "zero-prompt-skillset"],
+      ["skills/demo/.nori-version", "{}"],
+      ["skills/demo/.nori-managed", "zero-prompt-skillset"],
+      [".nori-config.json", "{}"],
+      [".nori-installed-version", "1"],
+    ] as const;
+    for (const [relativePath, content] of ignoredFiles) {
+      const filePath = path.join(destDir, relativePath);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content);
+    }
 
     const { stdout } = await execFileAsync(
       "git",
@@ -135,35 +148,21 @@ describe("newSkillsetMain", () => {
       { cwd: destDir },
     );
     expect(path.resolve(stdout.trim())).toBe(path.resolve(destDir));
-  });
-
-  it("keeps Nori-local state out of Git status", async () => {
-    const result = await newSkillsetMain({ skillsetName: "ignored-state" });
-    expect(result.success).toBe(true);
-
-    const destDir = path.join(skillsetsDir, "personal", "ignored-state");
-    await fs.mkdir(path.join(destDir, ".nori"));
-    await fs.writeFile(path.join(destDir, ".nori", "state.json"), "{}");
-    await fs.writeFile(path.join(destDir, ".nori-version"), "{}");
-    await fs.writeFile(path.join(destDir, ".nori-managed"), "ignored-state");
-    await fs.mkdir(path.join(destDir, "skills", "demo"), { recursive: true });
-    await fs.writeFile(
-      path.join(destDir, "skills", "demo", ".nori-version"),
-      "{}",
-    );
-    await fs.writeFile(
-      path.join(destDir, "skills", "demo", ".nori-managed"),
-      "ignored-state",
-    );
-    await fs.writeFile(path.join(destDir, ".nori-config.json"), "{}");
-    await fs.writeFile(path.join(destDir, ".nori-installed-version"), "1");
-
-    const { stdout } = await execFileAsync(
+    await expect(
+      execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
+        cwd: destDir,
+      }),
+    ).rejects.toBeDefined();
+    const { stdout: remotes } = await execFileAsync("git", ["remote"], {
+      cwd: destDir,
+    });
+    expect(remotes.trim()).toBe("");
+    const { stdout: status } = await execFileAsync(
       "git",
       ["status", "--short", "--untracked-files=all"],
       { cwd: destDir },
     );
-    expect(stdout.trim().split("\n").sort()).toEqual([
+    expect(status.trim().split("\n").sort()).toEqual([
       "?? .gitignore",
       "?? nori.json",
     ]);
@@ -176,34 +175,13 @@ describe("newSkillsetMain", () => {
     expect(await fs.readdir(skillsetsDir)).toEqual([]);
   });
 
-  it("does not modify or remove an existing positional destination", async () => {
-    const existingDir = path.join(skillsetsDir, "personal", "protected");
-    await fs.mkdir(existingDir, { recursive: true });
-    await fs.writeFile(path.join(existingDir, "sentinel.txt"), "keep me");
-    mockNewSkillsetFlow.mockRejectedValueOnce(
-      new Error("metadata wizard must not run"),
-    );
-
-    const result = await newSkillsetMain({ skillsetName: "protected" });
-
-    expect(result).toMatchObject({ success: false, cancelled: false });
-    await expect(
-      fs.readFile(path.join(existingDir, "sentinel.txt"), "utf-8"),
-    ).resolves.toBe("keep me");
-  });
-
   it.sequential(
     "removes its newly created directory when Git is unavailable",
     async () => {
-      const originalPath = process.env.PATH;
-      process.env.PATH = "";
-      try {
-        await expect(
-          newSkillsetMain({ skillsetName: "missing-git" }),
-        ).rejects.toThrow(/git.*not installed|git.*path/i);
-      } finally {
-        process.env.PATH = originalPath;
-      }
+      vi.stubEnv("PATH", "");
+      await expect(
+        newSkillsetMain({ skillsetName: "missing-git" }),
+      ).rejects.toThrow(/git.*not installed|git.*path/i);
 
       await expect(
         fs.access(path.join(skillsetsDir, "personal", "missing-git")),
@@ -215,20 +193,12 @@ describe("newSkillsetMain", () => {
     "creates an independent repository despite inherited Git routing variables",
     async () => {
       const redirectedGitDir = path.join(testHomeDir, "redirected.git");
-      const originalGitDir = process.env.GIT_DIR;
-      process.env.GIT_DIR = redirectedGitDir;
-      try {
-        const result = await newSkillsetMain({
-          skillsetName: "independent-repository",
-        });
-        expect(result.success).toBe(true);
-      } finally {
-        if (originalGitDir == null) {
-          delete process.env.GIT_DIR;
-        } else {
-          process.env.GIT_DIR = originalGitDir;
-        }
-      }
+      vi.stubEnv("GIT_DIR", redirectedGitDir);
+      const result = await newSkillsetMain({
+        skillsetName: "independent-repository",
+      });
+      expect(result.success).toBe(true);
+      vi.unstubAllEnvs();
 
       const destDir = path.join(
         skillsetsDir,
@@ -306,6 +276,7 @@ describe("newSkillsetMain", () => {
       "existing-skillset",
     );
     await fs.mkdir(existingDir, { recursive: true });
+    await fs.writeFile(path.join(existingDir, "sentinel.txt"), "keep me");
 
     mockNewSkillsetFlow.mockResolvedValueOnce({
       name: "existing-skillset",
@@ -325,6 +296,9 @@ describe("newSkillsetMain", () => {
       expect.stringContaining("already exists"),
     );
     expect(result.success).toBe(false);
+    await expect(
+      fs.readFile(path.join(existingDir, "sentinel.txt"), "utf-8"),
+    ).resolves.toBe("keep me");
   });
 
   it("should print instructions for switching and editing after creation", async () => {

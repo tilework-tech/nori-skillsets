@@ -167,16 +167,9 @@ describe("writeJsonFileAtomic", () => {
         const entries = await fs.readdir(tempDir);
         for (const entry of entries) {
           if (entry.startsWith("secret.json.tmp-")) {
-            try {
-              const mode =
-                (await fs.stat(path.join(tempDir, entry))).mode & 0o777;
-              observedModes.add(mode);
-            } catch (err) {
-              // The atomic rename can occur between readdir and stat.
-              if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-                throw err;
-              }
-            }
+            const mode =
+              (await fs.stat(path.join(tempDir, entry))).mode & 0o777;
+            observedModes.add(mode);
           }
         }
         await new Promise((resolve) => setImmediate(resolve));

@@ -16,20 +16,14 @@ describe("shouldExcludeFromUpload", () => {
     );
   });
 
-  it("excludes Git repository metadata and worktree pointer files", () => {
-    expect(shouldExcludeFromUpload({ relativePath: ".git" })).toBe(true);
-    expect(
-      shouldExcludeFromUpload({ relativePath: ".git/objects/ab/cdef" }),
-    ).toBe(true);
-    expect(
-      shouldExcludeFromUpload({ relativePath: "nested/.git/config" }),
-    ).toBe(true);
-    expect(
-      shouldExcludeFromUpload({ relativePath: "nested\\.git\\HEAD" }),
-    ).toBe(true);
-    expect(
-      shouldExcludeFromUpload({ relativePath: "nested\\worktree\\.git" }),
-    ).toBe(true);
+  it.each([
+    ".git",
+    ".git/objects/ab/cdef",
+    "nested/.git/config",
+    "nested\\.git\\HEAD",
+    "nested\\worktree\\.git",
+  ])("excludes Git metadata at %s", (relativePath) => {
+    expect(shouldExcludeFromUpload({ relativePath })).toBe(true);
   });
 
   it("keeps the authored Git ignore file", () => {

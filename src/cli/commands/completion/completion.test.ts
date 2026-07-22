@@ -43,7 +43,6 @@ const VISIBLE_SUBCOMMANDS = [
   "watch",
   "dir",
   "fork",
-  "new",
   "edit",
   "install-location",
   "factory-reset",
@@ -86,12 +85,6 @@ describe("generateBashCompletion", () => {
     for (const cmd of VISIBLE_SUBCOMMANDS) {
       expect(result).toContain(cmd);
     }
-  });
-
-  it("should offer new as a top-level completion candidate", () => {
-    const result = generateBashCompletion();
-    const commands = result.match(/commands="([^"]*)"/)?.[1].split(/\s+/);
-    expect(commands).toContain("new");
   });
 
   it("should NOT contain hidden aliases", () => {
@@ -187,11 +180,6 @@ describe("generateZshCompletion", () => {
     for (const cmd of VISIBLE_SUBCOMMANDS) {
       expect(result).toContain(cmd);
     }
-  });
-
-  it("should offer new as a top-level completion candidate", () => {
-    const result = generateZshCompletion();
-    expect(result).toMatch(/^\s*'new:[^']+'/m);
   });
 
   it("should NOT contain hidden aliases", () => {

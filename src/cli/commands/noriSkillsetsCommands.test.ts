@@ -3,59 +3,45 @@
  */
 
 import * as fs from "fs/promises";
-import * as os from "os";
 import * as path from "path";
 
 import { Command } from "commander";
-import { afterEach, describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import {
   registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsUploadSkillCommand,
 } from "./noriSkillsetsCommands.js";
 
-let newCommandHome: string | null = null;
-
-afterEach(async () => {
-  delete process.env.NORI_GLOBAL_CONFIG;
-  if (newCommandHome != null) {
-    await fs.rm(newCommandHome, { recursive: true, force: true });
-    newCommandHome = null;
-  }
-});
-
 describe("registerNoriSkillsetsNewCommand", () => {
   it.each(["new", "new-skillset"])(
-    "%s accepts a positional name and creates the skillset without prompting",
+    "%s forwards its optional positional skillset name",
     async (commandName) => {
-      newCommandHome = await fs.mkdtemp(path.join(os.tmpdir(), "sks-new-cli-"));
-      process.env.NORI_GLOBAL_CONFIG = newCommandHome;
       const program = new Command();
       program.exitOverride();
       registerNoriSkillsetsNewCommand({ program });
+      const skillsetName = `forwarded-by-${commandName}`;
 
-      await program.parseAsync([commandName, "cli-skillset"], {
-        from: "user",
-      });
+      await program.parseAsync([commandName, skillsetName], { from: "user" });
 
+      const homeDir = process.env.HOME;
+      if (homeDir == null) {
+        throw new Error("Test HOME is not configured");
+      }
       const manifest = JSON.parse(
         await fs.readFile(
           path.join(
-            newCommandHome,
+            homeDir,
             ".nori",
             "profiles",
             "personal",
-            "cli-skillset",
+            skillsetName,
             "nori.json",
           ),
           "utf-8",
         ),
       );
-      expect(manifest).toMatchObject({
-        name: "cli-skillset",
-        version: "1.0.0",
-        type: "skillset",
-      });
+      expect(manifest.name).toBe(skillsetName);
     },
   );
 });

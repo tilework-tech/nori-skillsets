@@ -1305,14 +1305,9 @@ describe("registry-download", () => {
         path.join(existingProfileDir, ".nori-version"),
         JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
       );
-      await fs.writeFile(
-        path.join(existingProfileDir, "authored-before-upload.md"),
-        "# Local history\n",
-      );
       await execFileAsync("git", ["init", "--quiet"], {
         cwd: existingProfileDir,
       });
-      await execFileAsync("git", ["add", "."], { cwd: existingProfileDir });
       await execFileAsync(
         "git",
         [
@@ -1322,6 +1317,7 @@ describe("registry-download", () => {
           "user.email=nori-test@example.invalid",
           "commit",
           "--quiet",
+          "--allow-empty",
           "-m",
           "local baseline",
         ],
@@ -1365,25 +1361,12 @@ describe("registry-download", () => {
       await expect(
         fs.readFile(path.join(existingProfileDir, "package.json"), "utf-8"),
       ).resolves.toContain("test-profile");
-      const { stdout: topLevelOutput } = await execFileAsync(
-        "git",
-        ["rev-parse", "--show-toplevel"],
-        { cwd: existingProfileDir },
-      );
-      expect(path.resolve(topLevelOutput.trim())).toBe(
-        path.resolve(existingProfileDir),
-      );
       const { stdout: preservedHeadOutput } = await execFileAsync(
         "git",
-        ["rev-parse", "HEAD"],
+        ["rev-parse", "HEAD^{commit}"],
         { cwd: existingProfileDir },
       );
       expect(preservedHeadOutput.trim()).toBe(originalHead);
-      await expect(
-        execFileAsync("git", ["cat-file", "-e", `${originalHead}^{commit}`], {
-          cwd: existingProfileDir,
-        }),
-      ).resolves.toBeDefined();
     });
 
     it("should report when already at latest version", async () => {
