@@ -173,6 +173,9 @@ jobs:
         with:
           node-version-file: ".nvmrc"
 
+      - name: Install zsh for completion validation
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
       - name: Install dependencies
         run: rm -f package-lock.json && npm install
 

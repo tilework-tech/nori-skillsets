@@ -60,9 +60,11 @@ sks install my-skillset --from git@github.com:myorg/skillsets.git
 
 The repository must expose a `skillsets/my-skillset` branch whose root
 `nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
-clones the branch's current tip once into `~/.nori/profiles/personal/my-skillset/`
-and keeps it as a Git working tree. Interactive installs ask you to trust the
-source; unattended installs must add `--trust-source`:
+requires Git 2.29 or newer and fetches only that exact branch head at depth one,
+without tags, into `~/.nori/profiles/personal/my-skillset/`. A same-named tag is
+never accepted in place of the branch. The checkout remains a Git working tree.
+Interactive installs ask you to trust the source; unattended installs must add
+`--trust-source`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
@@ -72,7 +74,15 @@ This initial version does not pin revisions or automatically fetch later
 commits. Run the command only for a new local name: an existing
 `personal/my-skillset` is never overwritten. Git-backed installs reject
 symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry.
+fall back to the Registry. Credential-bearing URL components are redacted from
+output and omitted from the stored origin. The Git 2.29 requirement allows
+`--no-write-fetch-head`, which keeps the credential-bearing fetch URL out of
+`FETCH_HEAD`. Unattended SSH installs use OpenSSH batch mode by default, while
+preserving an existing `GIT_SSH_COMMAND` or `core.sshCommand`. If activation
+fails, the validated checkout is retained and the error includes a recovery
+command with the original install-directory and effective single-agent options
+when applicable. Its dynamic arguments are POSIX-shell-quoted, so paths with
+spaces or shell metacharacters replay literally when pasted.
 
 ## How Skillsets Work
 

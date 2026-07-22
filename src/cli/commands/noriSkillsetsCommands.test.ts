@@ -97,6 +97,25 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
   });
 
+  it("does not exit or fall back when a Git install is cancelled", async () => {
+    commandDelegates.gitInstall.mockResolvedValueOnce({
+      success: false,
+      cancelled: true,
+      message: "",
+    });
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("unexpected exit");
+    }) as never);
+
+    try {
+      await runInstall(...gitArgs);
+    } finally {
+      exit.mockRestore();
+    }
+
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+  });
+
   it("rejects Git-only options when no Git source is supplied", async () => {
     await expectInstallFailure("reviewer", "--trust-source");
 

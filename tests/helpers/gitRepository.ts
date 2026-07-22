@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +23,7 @@ type CommitArgs = {
 
 export const createTestGitRepository = async (root: string) => {
   const remote = path.join(root, "remote.git");
+  const fileRemote = pathToFileURL(remote).href;
   const authorCheckout = path.join(root, "author");
 
   await fs.mkdir(remote, { recursive: true });
@@ -55,9 +57,15 @@ export const createTestGitRepository = async (root: string) => {
     await git(authorCheckout, "add", ".");
     await git(authorCheckout, "commit", "-m", marker);
     await git(authorCheckout, "branch", "-M", `skillsets/${slug}`);
-    await git(authorCheckout, "push", "--force", remote, `skillsets/${slug}`);
+    await git(
+      authorCheckout,
+      "push",
+      "--force",
+      remote,
+      `refs/heads/skillsets/${slug}`,
+    );
     return git(authorCheckout, "rev-parse", "HEAD");
   };
 
-  return { remote, authorCheckout, commit };
+  return { remote, fileRemote, authorCheckout, commit };
 };

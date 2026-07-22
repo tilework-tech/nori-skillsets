@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -8,6 +8,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { generateBashCompletion } from "./bashCompletion.js";
 import { completionMain } from "./completion.js";
 import { generateZshCompletion } from "./zshCompletion.js";
+
+const hasZsh = (() => {
+  try {
+    execFileSync("zsh", ["--version"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 // Mock @clack/prompts for error output
 const mockLogError = vi.fn();
@@ -165,7 +174,7 @@ describe("generateBashCompletion", () => {
     );
     try {
       fs.writeFileSync(tmpFile, result);
-      execSync(`bash -n "${tmpFile}"`, { stdio: "pipe" });
+      execFileSync("bash", ["-n", tmpFile], { stdio: "pipe" });
     } finally {
       fs.unlinkSync(tmpFile);
     }
@@ -248,27 +257,30 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("stop");
   });
 
-  it("should generate syntactically valid zsh", () => {
-    let hasZsh = false;
-    try {
-      execSync("which zsh", { stdio: "pipe" });
-      hasZsh = true;
-    } catch {
-      // zsh not available
-    }
-    if (!hasZsh) {
-      return;
-    }
+  it.runIf(hasZsh)("should load as a zsh completion function", () => {
     const result = generateZshCompletion();
-    const tmpFile = path.join(
-      os.tmpdir(),
-      `nori-zsh-completion-test-${Date.now()}.zsh`,
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "nori-zsh-completion-test-"),
     );
+    const tmpFile = path.join(tmpDir, "completion.zsh");
+    const zcompdump = path.join(tmpDir, ".zcompdump");
     try {
       fs.writeFileSync(tmpFile, result);
-      execSync(`zsh -n "${tmpFile}"`, { stdio: "pipe" });
+      const functionType = execFileSync(
+        "zsh",
+        [
+          "-f",
+          "-c",
+          'set -e; autoload -Uz compinit; compinit -d "$2"; source "$1"; whence -w _nori_skillsets',
+          "zsh",
+          tmpFile,
+          zcompdump,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
+      expect(functionType.trim()).toBe("_nori_skillsets: function");
     } finally {
-      fs.unlinkSync(tmpFile);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 });

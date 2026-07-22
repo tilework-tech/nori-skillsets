@@ -7,7 +7,9 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
+import { installSkillset } from "@/cli/features/agentOperations.js";
 import { saveTestingConfig } from "@/cli/test-utils/config.js";
+import { getHomeDir } from "@/utils/home.js";
 
 import type * as versionModule from "@/cli/version.js";
 
@@ -355,5 +357,28 @@ describe("install noninteractive", () => {
     const configPath = getConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(config.activeSkillset).toBe("senior-swe");
+  });
+
+  it("removes the progress marker when activation fails", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    vi.mocked(installSkillset).mockRejectedValueOnce(
+      new Error("loader failed"),
+    );
+
+    await expect(
+      noninteractive({
+        installDir: tempDir,
+        skillset: "senior-swe",
+      }),
+    ).rejects.toThrow("loader failed");
+
+    await expect(
+      fsPromises.access(path.join(getHomeDir(), ".nori-install-in-progress")),
+    ).rejects.toThrow();
   });
 });

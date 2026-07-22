@@ -19,6 +19,9 @@ jobs:
         with:
           node-version-file: ".nvmrc"
 
+      - name: Install zsh for completion validation
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
       - name: Install dependencies
         # Delete package-lock.json to work around npm bug with platform-specific optional deps
         # See: https://github.com/npm/cli/issues/4828
