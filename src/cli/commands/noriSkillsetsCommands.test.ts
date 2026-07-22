@@ -6,9 +6,10 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { Command } from "commander";
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsUploadSkillCommand,
 } from "./noriSkillsetsCommands.js";
@@ -44,6 +45,101 @@ describe("registerNoriSkillsetsNewCommand", () => {
       expect(manifest.name).toBe(skillsetName);
     },
   );
+});
+
+const commandDelegates = vi.hoisted(() => ({
+  gitInstall: vi.fn().mockResolvedValue({
+    success: true,
+    cancelled: false,
+    message: "installed from git",
+  }),
+  registryInstall: vi.fn().mockResolvedValue({
+    success: true,
+    cancelled: false,
+    message: "installed from registry",
+  }),
+}));
+
+vi.mock("@/cli/commands/git-install/gitInstall.js", () => ({
+  gitInstallMain: commandDelegates.gitInstall,
+}));
+
+vi.mock("@/cli/commands/registry-install/registryInstall.js", () => ({
+  registryInstallMain: commandDelegates.registryInstall,
+}));
+
+describe("registerNoriSkillsetsInstallCommand", () => {
+  const gitArgs = [
+    "reviewer",
+    "--from",
+    "/tmp/skillsets.git",
+    "--trust-source",
+  ];
+
+  const runInstall = (...args: Array<string>) => {
+    const program = new Command();
+    program.exitOverride();
+    program.option("--silent");
+    registerNoriSkillsetsInstallCommand({ program });
+    return program.parseAsync(["node", "sks", "install", ...args]);
+  };
+
+  const expectInstallFailure = async (...args: Array<string>) => {
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit 1");
+    }) as never);
+    try {
+      await expect(runInstall(...args)).rejects.toThrow("exit 1");
+    } finally {
+      exit.mockRestore();
+    }
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("uses the Git source path exclusively when --from is supplied", async () => {
+    await runInstall(...gitArgs, "--silent");
+
+    expect(commandDelegates.gitInstall).toHaveBeenCalledWith({
+      slug: "reviewer",
+      remote: "/tmp/skillsets.git",
+      installDir: null,
+      nonInteractive: true,
+      silent: true,
+      trustSource: true,
+    });
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+  });
+
+  it("preserves the Registry install path when --from is absent", async () => {
+    await runInstall("reviewer");
+
+    expect(commandDelegates.registryInstall).toHaveBeenCalledWith({
+      packageSpec: "reviewer",
+      installDir: null,
+      nonInteractive: null,
+      silent: null,
+    });
+    expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to the Registry when a Git install fails", async () => {
+    commandDelegates.gitInstall.mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "git failed",
+    });
+    await expectInstallFailure(...gitArgs);
+
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+  });
+
+  it("rejects Git-only options when no Git source is supplied", async () => {
+    await expectInstallFailure("reviewer", "--trust-source");
+
+    expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+  });
 });
 
 describe("registerNoriSkillsetsUploadSkillCommand", () => {
