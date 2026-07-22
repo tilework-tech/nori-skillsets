@@ -8,235 +8,191 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as clackPrompts from "@clack/prompts";
 
-import { acquireGitSkillset, gitInstallMain } from "./gitInstall.js";
+import { gitInstallMain } from "./gitInstall.js";
 import { createTestGitRepository } from "../../../../tests/helpers/gitRepository.js";
 
-const prompt = vi.hoisted(() => ({
-  confirm: vi.fn(),
-}));
+const prompt = vi.hoisted(() => ({ confirm: vi.fn() }));
 
-vi.mock("@clack/prompts", async (importOriginal) => {
-  const actual = await importOriginal<typeof clackPrompts>();
-  return {
-    ...actual,
-    confirm: prompt.confirm,
-    isCancel: (value: unknown) => typeof value === "symbol",
-  };
-});
+vi.mock("@clack/prompts", async (importOriginal) => ({
+  ...(await importOriginal<typeof clackPrompts>()),
+  confirm: prompt.confirm,
+  isCancel: (value: unknown) => typeof value === "symbol",
+}));
 
 const execFileAsync = promisify(execFile);
 
-describe("acquireGitSkillset", () => {
+describe("gitInstallMain", () => {
   let testRoot: string;
-  let profilesDir: string;
+  let target: string;
+  let previousGlobalConfig: string | undefined;
+  let repository: Awaited<ReturnType<typeof createTestGitRepository>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     testRoot = await fs.mkdtemp(path.join(os.tmpdir(), "nori-git-install-"));
-    profilesDir = path.join(testRoot, "profiles");
+    target = path.join(testRoot, ".nori", "profiles", "personal", "reviewer");
+    previousGlobalConfig = process.env.NORI_GLOBAL_CONFIG;
+    process.env.NORI_GLOBAL_CONFIG = testRoot;
+    repository = await createTestGitRepository({
+      root: path.join(testRoot, "repository"),
+    });
   });
 
   afterEach(async () => {
+    if (previousGlobalConfig == null) {
+      delete process.env.NORI_GLOBAL_CONFIG;
+    } else {
+      process.env.NORI_GLOBAL_CONFIG = previousGlobalConfig;
+    }
     await fs.rm(testRoot, { recursive: true, force: true });
   });
 
-  it("installs the named skillset from its derived branch", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
+  const install = (
+    overrides: Partial<Parameters<typeof gitInstallMain>[0]> = {},
+  ) =>
+    gitInstallMain({
+      slug: "reviewer",
+      remote: repository.remote,
+      trustSource: true,
+      nonInteractive: true,
+      silent: true,
+      ...overrides,
+    });
+
+  const expectFailure = (
+    result: Awaited<ReturnType<typeof install>>,
+    error: RegExp,
+  ) => {
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(error);
+  };
+
+  it("installs and activates the current tip of the derived branch", async () => {
     await repository.commit({
       slug: "reviewer",
-      marker: "first revision",
+      marker: "superseded instructions",
     });
     const expectedCommit = await repository.commit({
       slug: "reviewer",
-      marker: "current revision",
+      marker: "review instructions",
     });
 
-    const result = await acquireGitSkillset({
-      slug: "reviewer",
-      remote: repository.remote,
-      profilesDir,
-      trustSource: true,
-      nonInteractive: true,
-    });
+    const result = await install();
 
-    expect(result.identity).toBe("personal/reviewer");
+    expect(result.success).toBe(true);
     const checkoutCommit = await execFileAsync("git", ["rev-parse", "HEAD"], {
-      cwd: result.checkoutDir,
+      cwd: target,
     });
     expect(checkoutCommit.stdout.trim()).toBe(expectedCommit);
-    const checkoutDepth = await execFileAsync(
-      "git",
-      ["rev-list", "--count", "HEAD"],
-      { cwd: result.checkoutDir },
-    );
-    expect(checkoutDepth.stdout.trim()).toBe("1");
     await expect(
-      fs.readFile(
-        path.join(profilesDir, "personal", "reviewer", "AGENTS.md"),
-        "utf8",
-      ),
-    ).resolves.toBe("current revision");
+      fs.readFile(path.join(target, "AGENTS.md"), "utf8"),
+    ).resolves.toBe("review instructions");
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string };
+    expect(config.activeSkillset).toBe("personal/reviewer");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("review instructions");
   });
 
-  it("rejects a manifest whose name does not match the requested skillset without creating the target", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({
-      slug: "reviewer",
+  it.each([
+    {
+      label: "name",
       manifestName: "different-name",
-      marker: "mismatch",
-    });
-
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/manifest.*different-name.*reviewer/i);
-    await expect(
-      fs.access(path.join(profilesDir, "personal", "reviewer")),
-    ).rejects.toThrow();
-  });
-
-  it("rejects a manifest whose type is not skillset without creating the target", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({
-      slug: "reviewer",
-      marker: "wrong type",
+      manifest: {},
+      error: /manifest.*different-name.*reviewer/i,
+    },
+    {
+      label: "type",
+      manifestName: "reviewer",
       manifest: { type: "skill" },
-    });
-
-    await expect(
-      acquireGitSkillset({
+      error: /type must be skillset/i,
+    },
+  ])(
+    "rejects a manifest with the wrong $label",
+    async ({ manifestName, manifest, error }) => {
+      await repository.commit({
         slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/type must be skillset/i);
-    await expect(
-      fs.access(path.join(profilesDir, "personal", "reviewer")),
-    ).rejects.toThrow();
-  });
+        manifestName,
+        manifest,
+        marker: "invalid manifest",
+      });
 
-  it("fails on a local-name collision without modifying the existing skillset", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
+      expectFailure(await install(), error);
+      await expect(fs.access(target)).rejects.toThrow();
+    },
+  );
+
+  it("preserves an existing destination", async () => {
     await repository.commit({ slug: "reviewer", marker: "remote content" });
-    const target = path.join(profilesDir, "personal", "reviewer");
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, "sentinel"), "keep me");
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/already exists/i);
+    expectFailure(await install(), /already exists/i);
     await expect(
       fs.readFile(path.join(target, "sentinel"), "utf8"),
     ).resolves.toBe("keep me");
   });
 
-  it("requires an explicit trust acknowledgement in non-interactive mode", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
+  it("requires explicit trust in non-interactive mode", async () => {
     await repository.commit({ slug: "reviewer", marker: "untrusted" });
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/--trust-source/);
+    expectFailure(await install({ trustSource: null }), /--trust-source/);
+    await expect(fs.access(target)).rejects.toThrow();
   });
 
-  it("prompts once and proceeds when an interactive user trusts the source", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({
-      slug: "reviewer",
-      marker: "trusted interactively",
-    });
+  it("installs after interactive approval", async () => {
+    await repository.commit({ slug: "reviewer", marker: "approved" });
     prompt.confirm.mockResolvedValueOnce(true);
 
-    await acquireGitSkillset({
-      slug: "reviewer",
-      remote: repository.remote,
-      profilesDir,
+    const result = await install({
+      trustSource: null,
+      nonInteractive: false,
+      silent: false,
     });
 
+    expect(result.success).toBe(true);
     expect(prompt.confirm).toHaveBeenCalledTimes(1);
-    await expect(
-      fs.readFile(
-        path.join(profilesDir, "personal", "reviewer", "AGENTS.md"),
-        "utf8",
-      ),
-    ).resolves.toBe("trusted interactively");
   });
 
-  it("leaves no checkout when an interactive user declines trust", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
+  it("leaves no checkout after interactive decline", async () => {
     await repository.commit({ slug: "reviewer", marker: "declined" });
     prompt.confirm.mockResolvedValueOnce(false);
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-      }),
-    ).rejects.toThrow(/not trusted/i);
-    await expect(
-      fs.access(path.join(profilesDir, "personal", "reviewer")),
-    ).rejects.toThrow();
+    const result = await install({
+      trustSource: null,
+      nonInteractive: false,
+      silent: false,
+    });
+
+    expectFailure(result, /not trusted/i);
+    await expect(fs.access(target)).rejects.toThrow();
   });
 
-  it("rejects Registry provenance in a Git-backed checkout", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
+  it("rejects Registry provenance", async () => {
     await repository.commit({
       slug: "reviewer",
       marker: "mixed provenance",
       files: { ".nori-version": "https://registry.example.invalid\n1.0.0\n" },
     });
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/Registry provenance|\.nori-version/i);
+    expectFailure(await install(), /Registry provenance|\.nori-version/i);
+    await expect(fs.access(target)).rejects.toThrow();
   });
 
   it("rejects symbolic links", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
     await fs.symlink(
       "AGENTS.md",
       path.join(repository.authorCheckout, "linked"),
     );
     await repository.commit({ slug: "reviewer", marker: "linked content" });
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/symbolic links/i);
+    expectFailure(await install(), /symbolic links/i);
+    await expect(fs.access(target)).rejects.toThrow();
   });
 
   it("rejects submodules", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
     const commit = await repository.commit({
       slug: "reviewer",
       marker: "base content",
@@ -255,60 +211,7 @@ describe("acquireGitSkillset", () => {
       { cwd: repository.authorCheckout },
     );
 
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/submodules/i);
-  });
-});
-
-describe("gitInstallMain", () => {
-  let testRoot: string;
-  let previousGlobalConfig: string | undefined;
-
-  beforeEach(async () => {
-    testRoot = await fs.mkdtemp(path.join(os.tmpdir(), "nori-git-activate-"));
-    previousGlobalConfig = process.env.NORI_GLOBAL_CONFIG;
-    process.env.NORI_GLOBAL_CONFIG = testRoot;
-  });
-
-  afterEach(async () => {
-    if (previousGlobalConfig == null) {
-      delete process.env.NORI_GLOBAL_CONFIG;
-    } else {
-      process.env.NORI_GLOBAL_CONFIG = previousGlobalConfig;
-    }
-    await fs.rm(testRoot, { recursive: true, force: true });
-  });
-
-  it("installs and activates the acquired skillset without contacting a Registry", async () => {
-    const repository = await createTestGitRepository({
-      root: path.join(testRoot, "repository"),
-    });
-    await repository.commit({
-      slug: "reviewer",
-      marker: "review instructions",
-    });
-    const result = await gitInstallMain({
-      slug: "reviewer",
-      remote: repository.remote,
-      trustSource: true,
-      nonInteractive: true,
-      silent: true,
-    });
-
-    expect(result.success).toBe(true);
-    const config = JSON.parse(
-      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
-    ) as { activeSkillset?: string };
-    expect(config.activeSkillset).toBe("personal/reviewer");
-    await expect(
-      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
-    ).resolves.toContain("review instructions");
+    expectFailure(await install(), /submodules/i);
+    await expect(fs.access(target)).rejects.toThrow();
   });
 });

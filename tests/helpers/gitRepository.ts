@@ -5,52 +5,33 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const git = async (args: {
-  cwd?: string;
-  command: ReadonlyArray<string>;
-}): Promise<string> => {
-  const { cwd, command } = args;
+const git = async (
+  cwd: string | undefined,
+  ...command: Array<string>
+): Promise<string> => {
   const result = await execFileAsync("git", command, { cwd });
   return result.stdout.trim();
 };
 
-export type TestGitRepository = {
-  remote: string;
-  authorCheckout: string;
-  commit: (args: {
-    slug: string;
-    manifestName?: string;
-    marker: string;
-    manifest?: Record<string, unknown>;
-    files?: Record<string, string>;
-  }) => Promise<string>;
+type CommitArgs = {
+  slug: string;
+  manifestName?: string;
+  marker: string;
+  manifest?: Record<string, unknown>;
+  files?: Record<string, string>;
 };
 
-export const createTestGitRepository = async (args: {
-  root: string;
-}): Promise<TestGitRepository> => {
+export const createTestGitRepository = async (args: { root: string }) => {
   const remote = path.join(args.root, "remote.git");
   const authorCheckout = path.join(args.root, "author");
 
   await fs.mkdir(remote, { recursive: true });
-  await git({ cwd: remote, command: ["init", "--bare"] });
-  await git({ command: ["init", authorCheckout] });
-  await git({
-    cwd: authorCheckout,
-    command: ["config", "user.email", "tests@nori.invalid"],
-  });
-  await git({
-    cwd: authorCheckout,
-    command: ["config", "user.name", "Nori Tests"],
-  });
+  await git(remote, "init", "--bare");
+  await git(undefined, "init", authorCheckout);
+  await git(authorCheckout, "config", "user.email", "tests@nori.invalid");
+  await git(authorCheckout, "config", "user.name", "Nori Tests");
 
-  const commit = async (commitArgs: {
-    slug: string;
-    manifestName?: string;
-    marker: string;
-    manifest?: Record<string, unknown>;
-    files?: Record<string, string>;
-  }): Promise<string> => {
+  const commit = async (commitArgs: CommitArgs): Promise<string> => {
     const {
       slug,
       manifestName = slug,
@@ -73,17 +54,11 @@ export const createTestGitRepository = async (args: {
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, contents);
     }
-    await git({ cwd: authorCheckout, command: ["add", "."] });
-    await git({ cwd: authorCheckout, command: ["commit", "-m", marker] });
-    await git({
-      cwd: authorCheckout,
-      command: ["branch", "-M", `skillsets/${slug}`],
-    });
-    await git({
-      cwd: authorCheckout,
-      command: ["push", "--force", remote, `skillsets/${slug}`],
-    });
-    return git({ cwd: authorCheckout, command: ["rev-parse", "HEAD"] });
+    await git(authorCheckout, "add", ".");
+    await git(authorCheckout, "commit", "-m", marker);
+    await git(authorCheckout, "branch", "-M", `skillsets/${slug}`);
+    await git(authorCheckout, "push", "--force", remote, `skillsets/${slug}`);
+    return git(authorCheckout, "rev-parse", "HEAD");
   };
 
   return { remote, authorCheckout, commit };
