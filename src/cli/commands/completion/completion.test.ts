@@ -271,12 +271,16 @@ describe("generateZshCompletion", () => {
         [
           "-f",
           "-c",
-          'set -e; autoload -Uz compinit; compinit -d "$2"; source "$1"; whence -w _nori_skillsets',
+          'set -e; autoload -Uz compinit; compinit -u -d "$2"; source "$1"; whence -w _nori_skillsets',
           "zsh",
           tmpFile,
           zcompdump,
         ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 10_000,
+        },
       );
       expect(functionType.trim()).toBe("_nori_skillsets: function");
     } finally {
