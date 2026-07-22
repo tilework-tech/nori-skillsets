@@ -3,6 +3,8 @@
  */
 
 import * as fs from "fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tmpdir } from "os";
 import * as path from "path";
 
@@ -106,6 +108,8 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Create a CLAUDE.md managed block marker for Nori installation detection
@@ -1287,7 +1291,11 @@ describe("registry-download", () => {
   describe("version comparison and update", () => {
     it("should update existing profile when newer version is available", async () => {
       // Create existing profile with old version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1297,6 +1305,34 @@ describe("registry-download", () => {
         path.join(existingProfileDir, ".nori-version"),
         JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
       );
+      await fs.writeFile(
+        path.join(existingProfileDir, "authored-before-upload.md"),
+        "# Local history\n",
+      );
+      await execFileAsync("git", ["init", "--quiet"], {
+        cwd: existingProfileDir,
+      });
+      await execFileAsync("git", ["add", "."], { cwd: existingProfileDir });
+      await execFileAsync(
+        "git",
+        [
+          "-c",
+          "user.name=Nori Test",
+          "-c",
+          "user.email=nori-test@example.invalid",
+          "commit",
+          "--quiet",
+          "-m",
+          "local baseline",
+        ],
+        { cwd: existingProfileDir },
+      );
+      const { stdout: originalHeadOutput } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        { cwd: existingProfileDir },
+      );
+      const originalHead = originalHeadOutput.trim();
 
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,
@@ -1326,6 +1362,28 @@ describe("registry-download", () => {
       // Verify success output (installed to, switch hint via note)
       const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("installed");
+      await expect(
+        fs.readFile(path.join(existingProfileDir, "package.json"), "utf-8"),
+      ).resolves.toContain("test-profile");
+      const { stdout: topLevelOutput } = await execFileAsync(
+        "git",
+        ["rev-parse", "--show-toplevel"],
+        { cwd: existingProfileDir },
+      );
+      expect(path.resolve(topLevelOutput.trim())).toBe(
+        path.resolve(existingProfileDir),
+      );
+      const { stdout: preservedHeadOutput } = await execFileAsync(
+        "git",
+        ["rev-parse", "HEAD"],
+        { cwd: existingProfileDir },
+      );
+      expect(preservedHeadOutput.trim()).toBe(originalHead);
+      await expect(
+        execFileAsync("git", ["cat-file", "-e", `${originalHead}^{commit}`], {
+          cwd: existingProfileDir,
+        }),
+      ).resolves.toBeDefined();
     });
 
     it("should report when already at latest version", async () => {

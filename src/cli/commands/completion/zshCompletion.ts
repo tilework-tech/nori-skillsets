@@ -33,6 +33,7 @@ _nori_skillsets() {
     'watch:Watch Claude Code sessions and save transcripts'
     'dir:Open the Nori skillsets directory'
     'fork:Fork an existing skillset to a new name'
+    'new:Create a local Git-backed skillset'
     'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
     'clear:Remove all Nori-managed configuration from the install directory'
@@ -68,6 +69,11 @@ _nori_skillsets() {
           _arguments \\
             '1:base-skillset:' \\
             '2:new-skillset:' \\
+            \$global_opts
+          ;;
+        new)
+          _arguments \
+            '1:skillset:' \
             \$global_opts
           ;;
         edit)

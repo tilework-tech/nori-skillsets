@@ -60,6 +60,15 @@ describe("isGzipped", () => {
 describe("createArchive + extractArchive roundtrip", () => {
   it("packs files, excludes upload-filtered paths, and extracts them back", async () => {
     const sourceDir = await seedSourceDir();
+    await fs.mkdir(path.join(sourceDir, ".git", "objects"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(sourceDir, ".git", "config"),
+      '[remote "origin"]\nurl = git@example.test:private/repo.git\n',
+    );
+    await fs.writeFile(path.join(sourceDir, ".git", "objects", "secret"), "x");
+    await fs.writeFile(path.join(sourceDir, ".gitignore"), ".nori/\n");
     const archive = await createArchive({ sourceDir });
     expect(isGzipped({ buffer: archive })).toBe(true);
 
@@ -86,6 +95,10 @@ describe("createArchive + extractArchive roundtrip", () => {
     await expect(
       fs.access(path.join(destDir, "node_modules")),
     ).rejects.toThrow();
+    await expect(fs.access(path.join(destDir, ".git"))).rejects.toThrow();
+    await expect(
+      fs.readFile(path.join(destDir, ".gitignore"), "utf-8"),
+    ).resolves.toBe(".nori/\n");
   });
 
   it("packs files from symlinked directories", async () => {

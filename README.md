@@ -56,9 +56,11 @@ nori-skillsets switch senior-swe
 
 Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client writes its contents into the relevant locations for each configured agent (e.g., `.claude/` for Claude Code, `.cursor/` for Cursor, `.codex/` for Codex, `.gemini/` for Gemini CLI). Configure which agents to target with `nori-skillsets config`.
 
-**Skillset Structure:**
+**Local structure created by `sks new` (with no configured default organization):**
 ```
-~/.nori/profiles/my-skillset/
+~/.nori/profiles/personal/my-skillset/
+├── .git/                   # Independent local version history
+├── .gitignore              # Nori-local state excluded from commits
 ├── AGENTS.md              # Custom instructions (CLAUDE.md also supported)
 ├── nori.json              # Skillset manifest (name, version, dependencies, requiredEnv)
 ├── skills/                # Skill definitions
@@ -81,17 +83,28 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
+- Git available on `PATH` when creating local skillsets with `sks new`
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
 ## Creating custom skillsets or making changes to skillsets
 
-1. Create the skillset directory:
+1. Create a local, Git-backed skillset. Supplying the name skips the metadata
+   wizard; run `sks new` without a name to use the wizard instead.
+
    ```bash
-   mkdir -p ~/.nori/profiles/my-skillset
+   sks new my-skillset
    ```
 
-2. Add an `AGENTS.md` file with your custom instructions:
+   This initializes a repository without creating a commit, remote, or
+   authentication requirement.
+
+2. Open the skillset and add an `AGENTS.md` file with your custom instructions:
+
+   ```bash
+   sks edit my-skillset
+   ```
+
    ```markdown
    # My Custom Skillset
 
@@ -107,7 +120,21 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
    nori-skillsets switch my-skillset
    ```
 
-Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/<skillset-name>/` directory instead.
+4. Version it with normal Git commands. With no configured default
+   organization, a bare name is created in the `personal/` namespace:
+
+   ```bash
+   cd ~/.nori/profiles/personal/my-skillset
+   git status
+   ```
+
+   When `defaultOrg` is configured, use
+   `~/.nori/profiles/<org>/my-skillset` instead.
+
+Local Git metadata stays on your machine when the skillset is uploaded to or
+updated from a registrar; registrar packages remain tarball-based.
+
+Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/personal/<skillset-name>/` directory instead (or the corresponding `~/.nori/profiles/<org>/<skillset-name>/` directory for an organization skillset).
 
 ## Private Skillsets for Teams
 

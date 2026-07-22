@@ -16,6 +16,26 @@ describe("shouldExcludeFromUpload", () => {
     );
   });
 
+  it("excludes Git repository metadata and worktree pointer files", () => {
+    expect(shouldExcludeFromUpload({ relativePath: ".git" })).toBe(true);
+    expect(
+      shouldExcludeFromUpload({ relativePath: ".git/objects/ab/cdef" }),
+    ).toBe(true);
+    expect(
+      shouldExcludeFromUpload({ relativePath: "nested/.git/config" }),
+    ).toBe(true);
+    expect(
+      shouldExcludeFromUpload({ relativePath: "nested\\.git\\HEAD" }),
+    ).toBe(true);
+    expect(
+      shouldExcludeFromUpload({ relativePath: "nested\\worktree\\.git" }),
+    ).toBe(true);
+  });
+
+  it("keeps the authored Git ignore file", () => {
+    expect(shouldExcludeFromUpload({ relativePath: ".gitignore" })).toBe(false);
+  });
+
   it("excludes vim swap files (.swp/.swo)", () => {
     expect(shouldExcludeFromUpload({ relativePath: ".SKILL.md.swp" })).toBe(
       true,

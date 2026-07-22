@@ -128,24 +128,26 @@ export const registerNoriSkillsetsNewCommand = (args: {
 }): void => {
   const { program } = args;
 
-  const newAction = async () => {
+  const newAction = async (skillsetName: string | undefined) => {
     const { newSkillsetMain } =
       await import("@/cli/commands/new-skillset/newSkillset.js");
     await wrapWithFraming({
       title: "Create New Skillset",
       exitOnFailure: true,
-      action: () => newSkillsetMain(),
+      action: () => newSkillsetMain({ skillsetName: skillsetName ?? null }),
     });
   };
 
   // Primary command: new
   program
-    .command("new")
+    .command("new [skillset]")
     .description("Create a new empty skillset")
     .action(newAction);
 
   // Hidden alias: new-skillset
-  program.command("new-skillset", { hidden: true }).action(newAction);
+  program
+    .command("new-skillset [skillset]", { hidden: true })
+    .action(newAction);
 };
 
 /**

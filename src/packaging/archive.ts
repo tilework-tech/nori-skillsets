@@ -80,6 +80,9 @@ const collectArchiveFilePaths = async (args: {
   for (const entry of entries) {
     const absolutePath = path.join(dir, entry.name);
     const relativePath = path.join(relativeDir, entry.name);
+    if (shouldExcludeFromUpload({ relativePath })) {
+      continue;
+    }
     const stat = await fs.stat(absolutePath).catch(() => null);
     if (stat == null) {
       continue;

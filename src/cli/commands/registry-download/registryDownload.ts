@@ -799,7 +799,12 @@ export const registryDownloadMain = async (args: {
               await replaceDirContentsWithArchive({
                 tarballData,
                 targetDir,
-                preserveEntries: [".nori-version", "skills", "subagents"],
+                preserveEntries: [
+                  ".git",
+                  ".nori-version",
+                  "skills",
+                  "subagents",
+                ],
               });
             } else {
               await extractArchiveToNewDir({ tarballData, targetDir });

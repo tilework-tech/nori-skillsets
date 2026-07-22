@@ -2,10 +2,63 @@
  * Tests for nori-skillsets command registration.
  */
 
-import { Command } from "commander";
-import { describe, it, expect } from "vitest";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
 
-import { registerNoriSkillsetsUploadSkillCommand } from "./noriSkillsetsCommands.js";
+import { Command } from "commander";
+import { afterEach, describe, it, expect } from "vitest";
+
+import {
+  registerNoriSkillsetsNewCommand,
+  registerNoriSkillsetsUploadSkillCommand,
+} from "./noriSkillsetsCommands.js";
+
+let newCommandHome: string | null = null;
+
+afterEach(async () => {
+  delete process.env.NORI_GLOBAL_CONFIG;
+  if (newCommandHome != null) {
+    await fs.rm(newCommandHome, { recursive: true, force: true });
+    newCommandHome = null;
+  }
+});
+
+describe("registerNoriSkillsetsNewCommand", () => {
+  it.each(["new", "new-skillset"])(
+    "%s accepts a positional name and creates the skillset without prompting",
+    async (commandName) => {
+      newCommandHome = await fs.mkdtemp(path.join(os.tmpdir(), "sks-new-cli-"));
+      process.env.NORI_GLOBAL_CONFIG = newCommandHome;
+      const program = new Command();
+      program.exitOverride();
+      registerNoriSkillsetsNewCommand({ program });
+
+      await program.parseAsync([commandName, "cli-skillset"], {
+        from: "user",
+      });
+
+      const manifest = JSON.parse(
+        await fs.readFile(
+          path.join(
+            newCommandHome,
+            ".nori",
+            "profiles",
+            "personal",
+            "cli-skillset",
+            "nori.json",
+          ),
+          "utf-8",
+        ),
+      );
+      expect(manifest).toMatchObject({
+        name: "cli-skillset",
+        version: "1.0.0",
+        type: "skillset",
+      });
+    },
+  );
+});
 
 describe("registerNoriSkillsetsUploadSkillCommand", () => {
   const buildUploadSkillCommand = (): Command => {
