@@ -452,7 +452,6 @@ export const registerNoriSkillsetsInstallCommand = (args: {
       "Install and activate a skillset from the Registry or an explicit Git remote",
     )
     .option("--from <remote>", "Install from a Git remote")
-    .option("--pin <sha>", "Install an exact commit from the skillset branch")
     .option(
       "--trust-source",
       "Trust the Git source without prompting (required in non-interactive mode)",
@@ -460,7 +459,7 @@ export const registerNoriSkillsetsInstallCommand = (args: {
     .action(
       async (
         packageSpec: string,
-        options: { from?: string; pin?: string; trustSource?: boolean },
+        options: { from?: string; trustSource?: boolean },
       ) => {
         const globalOpts = program.opts();
 
@@ -475,7 +474,6 @@ export const registerNoriSkillsetsInstallCommand = (args: {
               return gitInstallMain({
                 slug: packageSpec,
                 remote: options.from,
-                pin: options.pin ?? null,
                 installDir: globalOpts.installDir || null,
                 nonInteractive:
                   globalOpts.nonInteractive || globalOpts.silent || null,
@@ -483,11 +481,11 @@ export const registerNoriSkillsetsInstallCommand = (args: {
                 trustSource: options.trustSource ?? null,
               });
             }
-            if (options.pin != null || options.trustSource === true) {
+            if (options.trustSource === true) {
               return {
                 success: false,
                 cancelled: false,
-                message: "--pin and --trust-source require --from <git-remote>",
+                message: "--trust-source requires --from <git-remote>",
               };
             }
             const { registryInstallMain } =

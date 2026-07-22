@@ -128,7 +128,6 @@ describe("generateBashCompletion", () => {
   it("should contain Git install flags", () => {
     const result = generateBashCompletion();
     expect(result).toMatch(/install\)[\s\S]*--from/);
-    expect(result).toMatch(/install\)[\s\S]*--pin/);
     expect(result).toMatch(/install\)[\s\S]*--trust-source/);
   });
 
@@ -236,7 +235,6 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("--ref");
     // Git install flags
     expect(result).toContain("--from");
-    expect(result).toContain("--pin");
     expect(result).toContain("--trust-source");
   });
 

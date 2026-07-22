@@ -24,7 +24,6 @@ export type TestGitRepository = {
     manifest?: Record<string, unknown>;
     files?: Record<string, string>;
   }) => Promise<string>;
-  commitUnrelated: (args: { marker: string }) => Promise<string>;
 };
 
 export const createTestGitRepository = async (args: {
@@ -87,33 +86,5 @@ export const createTestGitRepository = async (args: {
     return git({ cwd: authorCheckout, command: ["rev-parse", "HEAD"] });
   };
 
-  const commitUnrelated = async (commitArgs: {
-    marker: string;
-  }): Promise<string> => {
-    await git({
-      cwd: authorCheckout,
-      command: ["checkout", "--orphan", "unrelated"],
-    });
-    await git({ cwd: authorCheckout, command: ["rm", "-rf", "."] });
-    await fs.writeFile(
-      path.join(authorCheckout, "nori.json"),
-      JSON.stringify({ name: "unrelated", version: "1.0.0", type: "skillset" }),
-    );
-    await fs.writeFile(
-      path.join(authorCheckout, "AGENTS.md"),
-      commitArgs.marker,
-    );
-    await git({ cwd: authorCheckout, command: ["add", "."] });
-    await git({
-      cwd: authorCheckout,
-      command: ["commit", "-m", commitArgs.marker],
-    });
-    await git({
-      cwd: authorCheckout,
-      command: ["push", remote, "HEAD:refs/heads/unrelated"],
-    });
-    return git({ cwd: authorCheckout, command: ["rev-parse", "HEAD"] });
-  };
-
-  return { remote, authorCheckout, commit, commitUnrelated };
+  return { remote, authorCheckout, commit };
 };

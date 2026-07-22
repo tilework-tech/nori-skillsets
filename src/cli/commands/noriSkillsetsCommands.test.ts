@@ -53,37 +53,6 @@ describe("registerNoriSkillsetsInstallCommand", () => {
   it("uses the Git source path exclusively when --from is supplied", async () => {
     const program = new Command();
     program.exitOverride();
-    program.option("--non-interactive");
-    registerNoriSkillsetsInstallCommand({ program });
-
-    await program.parseAsync([
-      "node",
-      "sks",
-      "install",
-      "reviewer",
-      "--from",
-      "/tmp/skillsets.git",
-      "--pin",
-      "abc123",
-      "--trust-source",
-      "--non-interactive",
-    ]);
-
-    expect(commandDelegates.gitInstall).toHaveBeenCalledWith({
-      slug: "reviewer",
-      remote: "/tmp/skillsets.git",
-      pin: "abc123",
-      installDir: null,
-      nonInteractive: true,
-      silent: null,
-      trustSource: true,
-    });
-    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
-  });
-
-  it("treats silent Git installs as non-interactive", async () => {
-    const program = new Command();
-    program.exitOverride();
     program.option("--silent");
     registerNoriSkillsetsInstallCommand({ program });
 
@@ -98,9 +67,15 @@ describe("registerNoriSkillsetsInstallCommand", () => {
       "--silent",
     ]);
 
-    expect(commandDelegates.gitInstall).toHaveBeenCalledWith(
-      expect.objectContaining({ nonInteractive: true, silent: true }),
-    );
+    expect(commandDelegates.gitInstall).toHaveBeenCalledWith({
+      slug: "reviewer",
+      remote: "/tmp/skillsets.git",
+      installDir: null,
+      nonInteractive: true,
+      silent: true,
+      trustSource: true,
+    });
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
   });
 
   it("preserves the Registry install path when --from is absent", async () => {
@@ -162,8 +137,7 @@ describe("registerNoriSkillsetsInstallCommand", () => {
         "sks",
         "install",
         "reviewer",
-        "--pin",
-        "abc123",
+        "--trust-source",
       ]),
     ).rejects.toThrow("exit 1");
 

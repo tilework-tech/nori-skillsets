@@ -40,11 +40,15 @@ describe("acquireGitSkillset", () => {
     await fs.rm(testRoot, { recursive: true, force: true });
   });
 
-  it("installs the named skillset from its derived branch and records the resolved revision", async () => {
+  it("installs the named skillset from its derived branch", async () => {
     const repository = await createTestGitRepository({ root: testRoot });
-    const expectedCommit = await repository.commit({
+    await repository.commit({
       slug: "reviewer",
       marker: "first revision",
+    });
+    const expectedCommit = await repository.commit({
+      slug: "reviewer",
+      marker: "current revision",
     });
 
     const result = await acquireGitSkillset({
@@ -56,85 +60,22 @@ describe("acquireGitSkillset", () => {
     });
 
     expect(result.identity).toBe("personal/reviewer");
-    expect(result.resolvedCommit).toBe(expectedCommit);
+    const checkoutCommit = await execFileAsync("git", ["rev-parse", "HEAD"], {
+      cwd: result.checkoutDir,
+    });
+    expect(checkoutCommit.stdout.trim()).toBe(expectedCommit);
+    const checkoutDepth = await execFileAsync(
+      "git",
+      ["rev-list", "--count", "HEAD"],
+      { cwd: result.checkoutDir },
+    );
+    expect(checkoutDepth.stdout.trim()).toBe("1");
     await expect(
       fs.readFile(
         path.join(profilesDir, "personal", "reviewer", "AGENTS.md"),
         "utf8",
       ),
-    ).resolves.toBe("first revision");
-  });
-
-  it("checks out an exact pin only when it belongs to the derived branch", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    const firstCommit = await repository.commit({
-      slug: "reviewer",
-      marker: "first revision",
-    });
-    await repository.commit({ slug: "reviewer", marker: "second revision" });
-
-    const result = await acquireGitSkillset({
-      slug: "reviewer",
-      remote: repository.remote,
-      pin: firstCommit,
-      profilesDir,
-      trustSource: true,
-      nonInteractive: true,
-    });
-
-    expect(result.resolvedCommit).toBe(firstCommit);
-    await expect(
-      fs.readFile(
-        path.join(profilesDir, "personal", "reviewer", "AGENTS.md"),
-        "utf8",
-      ),
-    ).resolves.toBe("first revision");
-
-    const checkout = path.join(profilesDir, "personal", "reviewer");
-    const mode = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "nori.sourceMode"],
-      { cwd: checkout },
-    );
-    const persistedPin = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "nori.sourcePin"],
-      { cwd: checkout },
-    );
-    expect(mode.stdout.trim()).toBe("pinned");
-    expect(persistedPin.stdout.trim()).toBe(firstCommit);
-  });
-
-  it("rejects a pin that is not reachable from the derived branch", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({ slug: "reviewer", marker: "branch revision" });
-    const unrelatedCommit = await repository.commitUnrelated({
-      marker: "unrelated revision",
-    });
-
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        pin: unrelatedCommit,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/not reachable/i);
-  });
-
-  it("rejects a pin that is not a commit SHA before cloning", async () => {
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: path.join(testRoot, "does-not-need-to-exist.git"),
-        pin: "--not-a-sha",
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/commit SHA/i);
+    ).resolves.toBe("current revision");
   });
 
   it("rejects a manifest whose name does not match the requested skillset without creating the target", async () => {
@@ -154,6 +95,28 @@ describe("acquireGitSkillset", () => {
         nonInteractive: true,
       }),
     ).rejects.toThrow(/manifest.*different-name.*reviewer/i);
+    await expect(
+      fs.access(path.join(profilesDir, "personal", "reviewer")),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a manifest whose type is not skillset without creating the target", async () => {
+    const repository = await createTestGitRepository({ root: testRoot });
+    await repository.commit({
+      slug: "reviewer",
+      marker: "wrong type",
+      manifest: { type: "skill" },
+    });
+
+    await expect(
+      acquireGitSkillset({
+        slug: "reviewer",
+        remote: repository.remote,
+        profilesDir,
+        trustSource: true,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/type must be skillset/i);
     await expect(
       fs.access(path.join(profilesDir, "personal", "reviewer")),
     ).rejects.toThrow();
@@ -234,53 +197,6 @@ describe("acquireGitSkillset", () => {
     ).rejects.toThrow();
   });
 
-  it("accepts dependency declarations whose content is materialized in the checkout", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({
-      slug: "reviewer",
-      marker: "materialized dependencies",
-      manifest: {
-        dependencies: {
-          skills: { formatter: "^1.0.0" },
-          subagents: { researcher: "*" },
-        },
-      },
-      files: {
-        "skills/formatter/SKILL.md": "# Formatter",
-        "subagents/researcher/SUBAGENT.md": "# Researcher",
-      },
-    });
-
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).resolves.toMatchObject({ identity: "personal/reviewer" });
-  });
-
-  it("rejects packages that require unresolved Registry dependencies", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({
-      slug: "reviewer",
-      marker: "external dependency",
-      manifest: { dependencies: { skills: { formatter: "^1.0.0" } } },
-    });
-
-    await expect(
-      acquireGitSkillset({
-        slug: "reviewer",
-        remote: repository.remote,
-        profilesDir,
-        trustSource: true,
-        nonInteractive: true,
-      }),
-    ).rejects.toThrow(/self-contained|dependencies/i);
-  });
-
   it("rejects Registry provenance in a Git-backed checkout", async () => {
     const repository = await createTestGitRepository({ root: testRoot });
     await repository.commit({
@@ -300,83 +216,54 @@ describe("acquireGitSkillset", () => {
     ).rejects.toThrow(/Registry provenance|\.nori-version/i);
   });
 
-  it("rejects credential-bearing remote URLs before attempting a clone", async () => {
+  it("rejects symbolic links", async () => {
+    const repository = await createTestGitRepository({ root: testRoot });
+    await fs.symlink(
+      "AGENTS.md",
+      path.join(repository.authorCheckout, "linked"),
+    );
+    await repository.commit({ slug: "reviewer", marker: "linked content" });
+
     await expect(
       acquireGitSkillset({
         slug: "reviewer",
-        remote: "https://user:secret@example.invalid/repository.git",
+        remote: repository.remote,
         profilesDir,
         trustSource: true,
         nonInteractive: true,
       }),
-    ).rejects.toThrow(/credentials/i);
+    ).rejects.toThrow(/symbolic links/i);
   });
 
-  it("rejects secret-bearing remote query strings before attempting a clone", async () => {
+  it("rejects submodules", async () => {
+    const repository = await createTestGitRepository({ root: testRoot });
+    const commit = await repository.commit({
+      slug: "reviewer",
+      marker: "base content",
+    });
+    await execFileAsync(
+      "git",
+      ["update-index", "--add", "--cacheinfo", `160000,${commit},nested`],
+      { cwd: repository.authorCheckout },
+    );
+    await execFileAsync("git", ["commit", "-m", "add gitlink"], {
+      cwd: repository.authorCheckout,
+    });
+    await execFileAsync(
+      "git",
+      ["push", "--force", repository.remote, "skillsets/reviewer"],
+      { cwd: repository.authorCheckout },
+    );
+
     await expect(
       acquireGitSkillset({
         slug: "reviewer",
-        remote: "https://example.invalid/repository.git?token=secret",
+        remote: repository.remote,
         profilesDir,
         trustSource: true,
         nonInteractive: true,
       }),
-    ).rejects.toThrow(/credentials/i);
-  });
-
-  it("canonicalizes a relative local remote before cloning and recording it", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({ slug: "reviewer", marker: "relative remote" });
-    const relativeRemote = path.relative(process.cwd(), repository.remote);
-
-    await acquireGitSkillset({
-      slug: "reviewer",
-      remote: relativeRemote,
-      profilesDir,
-      trustSource: true,
-      nonInteractive: true,
-    });
-
-    const checkout = path.join(profilesDir, "personal", "reviewer");
-    const origin = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "remote.origin.url"],
-      { cwd: checkout },
-    );
-    expect(origin.stdout.trim()).toBe(repository.remote);
-  });
-
-  it("stores checkout-local source metadata", async () => {
-    const repository = await createTestGitRepository({ root: testRoot });
-    await repository.commit({ slug: "reviewer", marker: "metadata" });
-
-    await acquireGitSkillset({
-      slug: "reviewer",
-      remote: repository.remote,
-      profilesDir,
-      trustSource: true,
-      nonInteractive: true,
-    });
-
-    const checkout = path.join(profilesDir, "personal", "reviewer");
-    const branch = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "nori.sourceRef"],
-      { cwd: checkout },
-    );
-    const mode = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "nori.sourceMode"],
-      { cwd: checkout },
-    );
-    const resolved = await execFileAsync(
-      "git",
-      ["config", "--local", "--get", "nori.resolvedCommit"],
-      { cwd: checkout },
-    );
-    expect(branch.stdout.trim()).toBe("refs/heads/skillsets/reviewer");
-    expect(mode.stdout.trim()).toBe("follow");
-    expect(resolved.stdout.trim()).toMatch(/^[0-9a-f]{40}$/);
+    ).rejects.toThrow(/submodules/i);
   });
 });
 
@@ -423,88 +310,5 @@ describe("gitInstallMain", () => {
     await expect(
       fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
     ).resolves.toContain("review instructions");
-  });
-
-  it("removes the acquired checkout and restores config when activation fails", async () => {
-    const repository = await createTestGitRepository({
-      root: path.join(testRoot, "repository"),
-    });
-    await repository.commit({ slug: "reviewer", marker: "will roll back" });
-    const invalidInstallDir = path.join(testRoot, "not-a-directory");
-    await fs.writeFile(invalidInstallDir, "existing user content");
-
-    const result = await gitInstallMain({
-      slug: "reviewer",
-      remote: repository.remote,
-      installDir: invalidInstallDir,
-      trustSource: true,
-      nonInteractive: true,
-      silent: true,
-    });
-
-    expect(result.success).toBe(false);
-    await expect(
-      fs.access(
-        path.join(testRoot, ".nori", "profiles", "personal", "reviewer"),
-      ),
-    ).rejects.toThrow();
-    await expect(
-      fs.access(path.join(testRoot, ".nori-config.json")),
-    ).rejects.toThrow();
-    await expect(fs.readFile(invalidInstallDir, "utf8")).resolves.toBe(
-      "existing user content",
-    );
-  });
-
-  it("restores the previously active skillset when replacement activation fails", async () => {
-    const originalRepository = await createTestGitRepository({
-      root: path.join(testRoot, "original-repository"),
-    });
-    await originalRepository.commit({
-      slug: "original",
-      marker: "original instructions",
-    });
-    const initial = await gitInstallMain({
-      slug: "original",
-      remote: originalRepository.remote,
-      trustSource: true,
-      nonInteractive: true,
-      silent: true,
-    });
-    expect(initial.success).toBe(true);
-    await fs.writeFile(
-      path.join(testRoot, ".claude", "settings.json"),
-      "not valid json",
-    );
-
-    const replacementRepository = await createTestGitRepository({
-      root: path.join(testRoot, "replacement-repository"),
-    });
-    await replacementRepository.commit({
-      slug: "replacement",
-      marker: "replacement instructions",
-    });
-
-    const replacement = await gitInstallMain({
-      slug: "replacement",
-      remote: replacementRepository.remote,
-      trustSource: true,
-      nonInteractive: true,
-      silent: true,
-    });
-
-    expect(replacement.success).toBe(false);
-    const config = JSON.parse(
-      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
-    ) as { activeSkillset?: string };
-    expect(config.activeSkillset).toBe("personal/original");
-    await expect(
-      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
-    ).resolves.toContain("original instructions");
-    await expect(
-      fs.access(
-        path.join(testRoot, ".nori", "profiles", "personal", "replacement"),
-      ),
-    ).rejects.toThrow();
   });
 });

@@ -52,19 +52,27 @@ Switch to using the new skillset.
 nori-skillsets switch senior-swe
 ```
 
-Install and activate a self-contained skillset directly from a Git repository:
+Install and activate a skillset directly from a Git repository:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git
 ```
 
 The repository must expose a `skillsets/my-skillset` branch whose root
-`nori.json` has `"name": "my-skillset"`. By default the install follows the
-current branch tip. To install an earlier revision, add `--pin <commit-sha>`.
-Interactive installs ask you to trust the source; unattended installs must add
-`--trust-source`. Git-backed packages must be self-contained and cannot rely on
-Registry dependency resolution; any declared skills, subagents, or slash
-commands must already be present in the checkout.
+`nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
+clones the branch's current tip once into `~/.nori/profiles/personal/my-skillset/`
+and keeps it as a Git working tree. Interactive installs ask you to trust the
+source; unattended installs must add `--trust-source`:
+
+```bash
+sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
+```
+
+This initial version does not pin revisions or automatically fetch later
+commits. Run the command only for a new local name: an existing
+`personal/my-skillset` is never overwritten. Git-backed installs reject
+symbolic links, submodules, and Registry `.nori-version` files, and they never
+fall back to the Registry.
 
 ## How Skillsets Work
 
