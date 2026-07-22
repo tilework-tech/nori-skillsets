@@ -36,6 +36,8 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     "reviewer",
     "--from",
     "/tmp/skillsets.git",
+    "--pin",
+    "0123456789012345678901234567890123456789",
     "--trust-source",
   ];
 
@@ -68,6 +70,7 @@ describe("registerNoriSkillsetsInstallCommand", () => {
       remote: "/tmp/skillsets.git",
       installDir: null,
       nonInteractive: true,
+      pin: "0123456789012345678901234567890123456789",
       silent: true,
       trustSource: true,
     });
@@ -97,12 +100,16 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
   });
 
-  it("rejects Git-only options when no Git source is supplied", async () => {
-    await expectInstallFailure("reviewer", "--trust-source");
+  it.each(["--trust-source", "--pin"])(
+    "rejects Git-only option %s when no Git source is supplied",
+    async (option) => {
+      const args = option === "--pin" ? [option, "0".repeat(40)] : [option];
+      await expectInstallFailure("reviewer", ...args);
 
-    expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
-    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
-  });
+      expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+      expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("registerNoriSkillsetsUploadSkillCommand", () => {

@@ -17,10 +17,12 @@ import { resolveInstallDir } from "@/utils/path.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 const execFileAsync = promisify(execFile);
+const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
 
 type GitInstallArgs = {
   slug: string;
   remote: string;
+  pin?: string | null;
   installDir?: string | null;
   trustSource?: boolean | null;
   nonInteractive?: boolean | null;
@@ -32,19 +34,121 @@ const sanitizeGitError = (value: string): string =>
     .replace(/(https?:\/\/)[^@\s/]+@/giu, "$1***@")
     .replace(/([?&](?:access_token|key|signature|token)=)[^&\s]+/giu, "$1***");
 
+const GIT_ROUTING_ENVIRONMENT = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+] as const;
+
+const gitEnvironment = (): NodeJS.ProcessEnv => {
+  const environment = { ...process.env };
+  for (const name of GIT_ROUTING_ENVIRONMENT) delete environment[name];
+  return environment;
+};
+
+const gitErrorDetail = (error: unknown): string => {
+  const detail =
+    error != null && typeof error === "object" && "stderr" in error
+      ? String(error.stderr).trim() ||
+        (error instanceof Error ? error.message : String(error))
+      : String(error);
+  return sanitizeGitError(detail);
+};
+
 const runGit = async (args: Array<string>, cwd?: string): Promise<string> => {
   try {
     return (
-      await execFileAsync("git", args, { cwd, maxBuffer: 10 * 1024 * 1024 })
+      await execFileAsync("git", args, {
+        cwd,
+        env: gitEnvironment(),
+        maxBuffer: 10 * 1024 * 1024,
+      })
     ).stdout.trim();
   } catch (error) {
-    const detail =
-      error != null && typeof error === "object" && "stderr" in error
-        ? String(error.stderr).trim() ||
-          (error instanceof Error ? error.message : String(error))
-        : String(error);
-    throw new Error(`Git command failed: ${sanitizeGitError(detail)}`);
+    throw new Error(`Git command failed: ${gitErrorDetail(error)}`);
   }
+};
+
+const isAncestor = async (args: {
+  ancestor: string;
+  descendant: string;
+  checkoutDir: string;
+}): Promise<boolean> => {
+  const { ancestor, descendant, checkoutDir } = args;
+  try {
+    await execFileAsync(
+      "git",
+      ["merge-base", "--is-ancestor", ancestor, descendant],
+      {
+        cwd: checkoutDir,
+        env: gitEnvironment(),
+        maxBuffer: 10 * 1024 * 1024,
+      },
+    );
+    return true;
+  } catch (error) {
+    if (
+      error != null &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === 1
+    ) {
+      return false;
+    }
+    throw new Error(`Git command failed: ${gitErrorDetail(error)}`);
+  }
+};
+
+const selectPinnedCommit = async (args: {
+  branch: string;
+  checkoutDir: string;
+  pin: string;
+}): Promise<string> => {
+  const { branch, checkoutDir, pin } = args;
+  const shallow = await runGit(
+    ["rev-parse", "--is-shallow-repository"],
+    checkoutDir,
+  );
+  if (shallow === "true") {
+    throw new Error(
+      "Pinned installs require complete history; the Git source is shallow",
+    );
+  }
+
+  const branchTip = await runGit(["rev-parse", "HEAD"], checkoutDir);
+  let objectType: string;
+  try {
+    objectType = await runGit(["cat-file", "-t", pin], checkoutDir);
+  } catch {
+    throw new Error(
+      `Pinned commit "${pin}" was not found in ${branch} history`,
+    );
+  }
+  if (objectType !== "commit") {
+    throw new Error(`Pinned object "${pin}" does not identify a commit`);
+  }
+
+  const resolvedCommit = await runGit(
+    ["rev-parse", "--verify", "--end-of-options", pin],
+    checkoutDir,
+  );
+  if (
+    !(await isAncestor({
+      ancestor: resolvedCommit,
+      descendant: branchTip,
+      checkoutDir,
+    }))
+  ) {
+    throw new Error(
+      `Pinned commit "${pin}" was not found in ${branch} history`,
+    );
+  }
+
+  await runGit(["checkout", "--detach", resolvedCommit], checkoutDir);
+  return resolvedCommit;
 };
 
 const validateCheckout = async (args: {
@@ -81,16 +185,40 @@ const validateCheckout = async (args: {
   }
 };
 
+const acquireGitCheckout = async (args: {
+  branch: string;
+  checkoutDir: string;
+  pin?: string | null;
+  remote: string;
+  slug: string;
+}): Promise<string | null> => {
+  const { branch, checkoutDir, pin, remote, slug } = args;
+  const cloneArgs = ["clone", "--single-branch", "--branch", branch];
+  if (pin != null) cloneArgs.push("--no-checkout");
+  cloneArgs.push("--", remote, checkoutDir);
+  await runGit(cloneArgs);
+
+  const resolvedCommit =
+    pin == null ? null : await selectPinnedCommit({ branch, checkoutDir, pin });
+  await validateCheckout({ checkoutDir, slug });
+  return resolvedCommit;
+};
+
 export const gitInstallMain = async (
   args: GitInstallArgs,
 ): Promise<CommandStatus> => {
-  const { slug, remote, installDir, trustSource, nonInteractive, silent } =
+  const { slug, remote, pin, installDir, trustSource, nonInteractive, silent } =
     args;
   if (silent === true) setSilentMode({ silent: true });
 
   try {
     const nameError = validateSkillsetName({ value: slug });
     if (nameError != null) throw new Error(nameError);
+    if (pin != null && !FULL_COMMIT_SHA.test(pin)) {
+      throw new Error(
+        "--pin must be a full hexadecimal commit SHA (40 or 64 characters)",
+      );
+    }
 
     const branch = `skillsets/${slug}`;
     if (trustSource !== true) {
@@ -128,17 +256,15 @@ export const gitInstallMain = async (
       throw error;
     }
 
+    let resolvedCommit: string | null = null;
     try {
-      await runGit([
-        "clone",
-        "--single-branch",
-        "--branch",
+      resolvedCommit = await acquireGitCheckout({
         branch,
-        "--",
-        remote,
         checkoutDir,
-      ]);
-      await validateCheckout({ checkoutDir, slug });
+        pin,
+        remote,
+        slug,
+      });
     } catch (error) {
       await fs.rm(checkoutDir, { recursive: true, force: true });
       throw error;
@@ -156,7 +282,10 @@ export const gitInstallMain = async (
     return {
       success: true,
       cancelled: false,
-      message: `Installed and activated Git-backed skillset "${identity}"`,
+      message:
+        resolvedCommit == null
+          ? `Installed and activated Git-backed skillset "${identity}"`
+          : `Installed and activated Git-backed skillset "${identity}" at ${resolvedCommit}`,
     };
   } catch (error) {
     return {

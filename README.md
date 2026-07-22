@@ -60,19 +60,34 @@ sks install my-skillset --from git@github.com:myorg/skillsets.git
 
 The repository must expose a `skillsets/my-skillset` branch whose root
 `nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
-clones the branch's current tip once into `~/.nori/profiles/personal/my-skillset/`
-and keeps it as a Git working tree. Interactive installs ask you to trust the
-source; unattended installs must add `--trust-source`:
+clones the branch's complete history into
+`~/.nori/profiles/personal/my-skillset/` and keeps it as a Git working tree. By
+default, the checkout remains attached to the branch's current tip. To install
+an exact historical commit, pass its full SHA-1 or SHA-256 object ID:
+
+```bash
+sks install my-skillset --from git@github.com:myorg/skillsets.git \
+  --pin 0123456789abcdef0123456789abcdef01234567
+```
+
+Pinned installs accept only full 40- or 64-character hexadecimal commit IDs.
+The commit must be reachable through the complete parent history of the
+observed `skillsets/my-skillset` branch tip. A pinned checkout has detached
+`HEAD`, validates the selected historical tree, and reports the resolved SHA;
+shallow sources are rejected because their complete ancestry cannot be proven.
+
+Interactive installs ask you to trust the source; unattended installs must add
+`--trust-source`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
 ```
 
-This initial version does not pin revisions or automatically fetch later
-commits. Run the command only for a new local name: an existing
-`personal/my-skillset` is never overwritten. Git-backed installs reject
-symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry.
+Git-backed installs do not automatically fetch later commits. Run the command
+only for a new local name: an existing `personal/my-skillset` is never
+overwritten. They reject symbolic links, submodules, and Registry
+`.nori-version` files, never fall back to the Registry, and do not persist
+Nori-specific source provenance or trust state.
 
 ## How Skillsets Work
 
