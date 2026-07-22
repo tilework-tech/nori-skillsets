@@ -54,6 +54,10 @@ import type { VersionInfo } from "@/packaging/provenance.js";
 import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
 
+export type RegistryDownloadStatus = CommandStatus & {
+  failureKind?: "source-authority";
+};
+
 /**
  * Read the nori.json file from a skillset directory
  * @param args - The function arguments
@@ -391,7 +395,7 @@ export const registryDownloadMain = async (args: {
   cliName?: CliName | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-}): Promise<CommandStatus> => {
+}): Promise<RegistryDownloadStatus> => {
   const {
     packageSpec,
     installDir,
@@ -478,6 +482,27 @@ export const registryDownloadMain = async (args: {
     existingVersionInfo = await readVersionInfo({ dir: targetDir });
   } catch {
     // Directory doesn't exist - continue
+  }
+
+  if (profileExists && listVersions !== true) {
+    try {
+      await fs.lstat(path.join(targetDir, ".git"));
+      return {
+        success: false,
+        cancelled: false,
+        message: `Git working tree detected at "${targetDir}"; Registrar update refused to protect local history.`,
+        failureKind: "source-authority",
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        return {
+          success: false,
+          cancelled: false,
+          message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
+          failureKind: "source-authority",
+        };
+      }
+    }
   }
 
   // Closure variables shared between onSearch and onDownload callbacks
@@ -799,12 +824,7 @@ export const registryDownloadMain = async (args: {
               await replaceDirContentsWithArchive({
                 tarballData,
                 targetDir,
-                preserveEntries: [
-                  ".git",
-                  ".nori-version",
-                  "skills",
-                  "subagents",
-                ],
+                preserveEntries: [".nori-version", "skills", "subagents"],
               });
             } else {
               await extractArchiveToNewDir({ tarballData, targetDir });

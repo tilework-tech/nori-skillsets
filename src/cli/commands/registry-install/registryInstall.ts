@@ -111,6 +111,14 @@ export const registryInstallMain = async (
 
   // If download failed, check if skillset exists locally as fallback
   if (!downloadResult.success) {
+    if (downloadResult.failureKind === "source-authority") {
+      return {
+        success: false,
+        cancelled: downloadResult.cancelled,
+        message: downloadResult.message,
+      };
+    }
+
     const localExists = await checkLocalSkillsetExists({
       skillsetName,
     });

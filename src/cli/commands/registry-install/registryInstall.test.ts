@@ -363,6 +363,35 @@ describe("registry-install", () => {
     expect(result.success).toBe(true);
   });
 
+  it("refuses to activate a local skillset after a source-authority conflict", async () => {
+    vi.mocked(registryDownloadMain).mockResolvedValueOnce({
+      success: false,
+      cancelled: false,
+      message: "Registrar update refused for a Git working tree",
+      failureKind: "source-authority",
+    });
+    vi.mocked(fs.stat).mockResolvedValue({
+      isDirectory: () => true,
+    } as never);
+    vi.mocked(hasExistingInstallation).mockReturnValue(true);
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    vi.mocked(fs.stat).mockRejectedValue(new Error("ENOENT"));
+    vi.mocked(hasExistingInstallation).mockReturnValue(false);
+
+    expect(result).toMatchObject({
+      success: false,
+      message: "Registrar update refused for a Git working tree",
+    });
+    expect(fs.stat).not.toHaveBeenCalled();
+    expect(clack.log.warn).not.toHaveBeenCalled();
+    expect(mockSwitchSkillset).not.toHaveBeenCalled();
+    expect(installMain).not.toHaveBeenCalled();
+  });
+
   it("should fail when download fails and skillset does not exist locally", async () => {
     // Download fails
     vi.mocked(registryDownloadMain).mockResolvedValueOnce({

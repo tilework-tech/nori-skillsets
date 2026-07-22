@@ -131,8 +131,12 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
    When `defaultOrg` is configured, use
    `~/.nori/profiles/<org>/my-skillset` instead.
 
-Local Git metadata stays on your machine when the skillset is uploaded to or
-updated from a registrar; registrar packages remain tarball-based.
+You can upload a Git-backed skillset to a Registrar: the package includes
+authored files such as `.gitignore`, but excludes the repository's `.git`
+metadata. A Registrar download will not update an existing Git working tree in
+place. Use Git lifecycle operations for that local skillset; Registrar
+downloads manage only non-Git targets. Read-only version listing remains
+available with `sks download <skillset> --list-versions`.
 
 Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/personal/<skillset-name>/` directory instead (or the corresponding `~/.nori/profiles/<org>/<skillset-name>/` directory for an organization skillset).
 
