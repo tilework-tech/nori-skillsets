@@ -8,6 +8,7 @@ import { cancel, confirm, isCancel } from "@clack/prompts";
 import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
@@ -27,6 +28,12 @@ type GitInstallArgs = {
   trustSource?: boolean | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
+};
+
+const assertSupportedRemote = (args: { remote: string }): void => {
+  if (/^[^:/\\]+::/u.test(args.remote)) {
+    throw new Error("Git remote-helper URLs are not supported");
+  }
 };
 
 const redactRemote = (args: { remote: string }): string => {
@@ -173,7 +180,11 @@ const runGit = async (args: {
     env.GIT_ASKPASS = "true";
     env.SSH_ASKPASS = "true";
     env.SSH_ASKPASS_REQUIRE = "never";
-    if (useDefaultSshBatchMode === true && env.GIT_SSH_COMMAND == null) {
+    if (
+      useDefaultSshBatchMode === true &&
+      env.GIT_SSH_COMMAND == null &&
+      env.GIT_SSH == null
+    ) {
       env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
     }
   }
@@ -275,6 +286,7 @@ const acquireCheckout = async (args: {
   const useDefaultSshBatchMode =
     sshRemote &&
     process.env.GIT_SSH_COMMAND == null &&
+    process.env.GIT_SSH == null &&
     configuredSshCommand == null;
   try {
     await runGit({
@@ -333,7 +345,7 @@ const acquireCheckout = async (args: {
   });
 };
 
-export const gitInstallMain = async (
+const gitInstallMainImpl = async (
   args: GitInstallArgs,
 ): Promise<CommandStatus> => {
   const { slug, remote, installDir, trustSource, nonInteractive, silent } =
@@ -342,8 +354,7 @@ export const gitInstallMain = async (
   if (silent === true) setSilentMode({ silent: true });
 
   try {
-    const nameError = validateSkillsetName({ value: slug });
-    if (nameError != null) throw new Error(nameError);
+    assertSupportedRemote({ remote });
 
     const branch = `skillsets/${slug}`;
     if (trustSource !== true) {
@@ -451,5 +462,30 @@ export const gitInstallMain = async (
     };
   } finally {
     if (silent === true) setSilentMode({ silent: wasSilent });
+  }
+};
+
+export const gitInstallMain = async (
+  args: GitInstallArgs,
+): Promise<CommandStatus> => {
+  const nameError = validateSkillsetName({ value: args.slug });
+  if (nameError != null) {
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to install Git-backed skillset: ${nameError}`,
+    };
+  }
+
+  try {
+    return await withInstallLock({
+      operation: () => gitInstallMainImpl(args),
+    });
+  } catch (error) {
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to install Git-backed skillset "${args.slug}": ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 };

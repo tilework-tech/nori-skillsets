@@ -7,6 +7,32 @@ import * as fs from "fs/promises";
 import * as clack from "@clack/prompts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mockInstallLock = vi.hoisted(() => {
+  let active = false;
+  return {
+    reset: () => {
+      active = false;
+    },
+    withInstallLock: vi.fn(
+      async <T>(args: { operation: () => Promise<T> }): Promise<T> => {
+        if (active) {
+          throw new Error("Another Nori installation is already in progress");
+        }
+        active = true;
+        try {
+          return await args.operation();
+        } finally {
+          active = false;
+        }
+      },
+    ),
+  };
+});
+
+vi.mock("@/cli/features/install/installLock.js", () => ({
+  withInstallLock: mockInstallLock.withInstallLock,
+}));
+
 vi.mock("os", async () => {
   const actual: any = await vi.importActual("os");
   return {
@@ -125,6 +151,35 @@ import { registryInstallMain } from "./registryInstall.js";
 describe("registry-install", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInstallLock.reset();
+  });
+
+  it("rejects a concurrent registry transaction while its download is still running", async () => {
+    let releaseDownload!: () => void;
+    let markDownloadStarted!: () => void;
+    const downloadStarted = new Promise<void>((resolve) => {
+      markDownloadStarted = resolve;
+    });
+    const downloadCanFinish = new Promise<void>((resolve) => {
+      releaseDownload = resolve;
+    });
+    vi.mocked(registryDownloadMain).mockImplementationOnce(async () => {
+      markDownloadStarted();
+      await downloadCanFinish;
+      return { success: true, cancelled: false, message: "" };
+    });
+
+    const first = registryInstallMain({ packageSpec: "senior-swe" });
+    await downloadStarted;
+
+    try {
+      await expect(
+        registryInstallMain({ packageSpec: "product-manager" }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+    } finally {
+      releaseDownload();
+      await first;
+    }
   });
 
   it("should download skillset first, then run install when no existing installation", async () => {

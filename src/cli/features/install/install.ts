@@ -30,6 +30,7 @@ import {
   displaySeaweedBed,
 } from "@/cli/features/install/asciiArt.js";
 import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -248,30 +249,33 @@ const noninteractiveImpl = async (args?: NoninteractiveArgs): Promise<void> => {
 
 export const noninteractive = async (
   args?: NoninteractiveArgs,
-): Promise<void> => {
-  const silent = args?.silent === true;
-  const wasSilent = isSilentMode();
-  const originalConsoleLog = console.log;
-  const originalStdoutWrite = process.stdout.write;
-  const originalStderrWrite = process.stderr.write;
-  if (silent) {
-    setSilentMode({ silent: true });
-    console.log = () => undefined;
-    process.stdout.write = (() => true) as typeof process.stdout.write;
-    process.stderr.write = (() => true) as typeof process.stderr.write;
-  }
+): Promise<void> =>
+  withInstallLock({
+    operation: async () => {
+      const silent = args?.silent === true;
+      const wasSilent = isSilentMode();
+      const originalConsoleLog = console.log;
+      const originalStdoutWrite = process.stdout.write;
+      const originalStderrWrite = process.stderr.write;
+      if (silent) {
+        setSilentMode({ silent: true });
+        console.log = () => undefined;
+        process.stdout.write = (() => true) as typeof process.stdout.write;
+        process.stderr.write = (() => true) as typeof process.stderr.write;
+      }
 
-  try {
-    await noninteractiveImpl(args);
-  } finally {
-    if (silent) {
-      console.log = originalConsoleLog;
-      process.stdout.write = originalStdoutWrite;
-      process.stderr.write = originalStderrWrite;
-      setSilentMode({ silent: wasSilent });
-    }
-  }
-};
+      try {
+        await noninteractiveImpl(args);
+      } finally {
+        if (silent) {
+          console.log = originalConsoleLog;
+          process.stdout.write = originalStdoutWrite;
+          process.stderr.write = originalStderrWrite;
+          setSilentMode({ silent: wasSilent });
+        }
+      }
+    },
+  });
 
 /**
  * Main installer entry point

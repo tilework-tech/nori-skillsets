@@ -11,6 +11,32 @@ import * as path from "path";
 import { Command } from "commander";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+const mockInstallLock = vi.hoisted(() => {
+  let active = false;
+  return {
+    reset: () => {
+      active = false;
+    },
+    withInstallLock: vi.fn(
+      async <T>(args: { operation: () => Promise<T> }): Promise<T> => {
+        if (active) {
+          throw new Error("Another Nori installation is already in progress");
+        }
+        active = true;
+        try {
+          return await args.operation();
+        } finally {
+          active = false;
+        }
+      },
+    ),
+  };
+});
+
+vi.mock("@/cli/features/install/installLock.js", () => ({
+  withInstallLock: mockInstallLock.withInstallLock,
+}));
+
 import {
   setGlobalAgentOverride,
   resetGlobalAgentOverride,
@@ -21,7 +47,14 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
-import { registerSwitchSkillsetCommand } from "./switchSkillset.js";
+import {
+  registerSwitchSkillsetCommand,
+  switchSkillsetAction,
+} from "./switchSkillset.js";
+
+afterEach(() => {
+  mockInstallLock.reset();
+});
 
 const addAgentOverrideHook = (program: Command): void => {
   program.hook("preAction", (thisCommand) => {
@@ -772,6 +805,45 @@ describe("switch-skillset broadcasts to all default agents", () => {
         silent: true,
       }),
     );
+  });
+
+  it("rejects a concurrent switch while the first multi-agent transaction is running", async () => {
+    let releaseInstall!: () => void;
+    let markInstallStarted!: () => void;
+    const installStarted = new Promise<void>((resolve) => {
+      markInstallStarted = resolve;
+    });
+    const installCanFinish = new Promise<void>((resolve) => {
+      releaseInstall = resolve;
+    });
+    mockInstallMain.mockImplementationOnce(async () => {
+      markInstallStarted();
+      await installCanFinish;
+    });
+    const program = new Command()
+      .option("-d, --install-dir <path>")
+      .option("-n, --non-interactive")
+      .parse(["node", "sks", "--non-interactive"]);
+
+    const first = switchSkillsetAction({
+      name: "product-manager",
+      options: {},
+      program,
+    });
+    await installStarted;
+
+    try {
+      await expect(
+        switchSkillsetAction({
+          name: "senior-swe",
+          options: {},
+          program,
+        }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+    } finally {
+      releaseInstall();
+      await first;
+    }
   });
 });
 

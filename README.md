@@ -74,15 +74,20 @@ This initial version does not pin revisions or automatically fetch later
 commits. Run the command only for a new local name: an existing
 `personal/my-skillset` is never overwritten. Git-backed installs reject
 symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry. Credential-bearing URL components are redacted from
-output and omitted from the stored origin. The Git 2.29 requirement allows
+fall back to the Registry. Git remote-helper syntax is rejected before the
+source-trust prompt; credential-bearing URL components are redacted from output
+and omitted from the stored origin. The Git 2.29 requirement allows
 `--no-write-fetch-head`, which keeps the credential-bearing fetch URL out of
 `FETCH_HEAD`. Unattended SSH installs use OpenSSH batch mode by default, while
-preserving an existing `GIT_SSH_COMMAND` or `core.sshCommand`. If activation
-fails, the validated checkout is retained and the error includes a recovery
-command with the original install-directory and effective single-agent options
-when applicable. Its dynamic arguments are POSIX-shell-quoted, so paths with
-spaces or shell metacharacters replay literally when pasted.
+preserving an existing `GIT_SSH`, `GIT_SSH_COMMAND`, or `core.sshCommand`.
+Git, registry, and switch install transactions are serialized end to end by a
+global lock, including their multi-agent activation loops. Nested installer
+calls reuse the owning transaction, while an independent concurrent attempt
+fails instead of interleaving changes. If activation fails, the validated
+checkout is retained and the error includes a recovery command with the
+original install-directory and effective single-agent options when applicable.
+Its dynamic arguments are POSIX-shell-quoted, so paths with spaces or shell
+metacharacters replay literally when pasted.
 
 ## How Skillsets Work
 

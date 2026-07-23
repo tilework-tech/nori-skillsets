@@ -15,6 +15,7 @@ import {
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { main as installMain } from "@/cli/features/install/install.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
@@ -56,7 +57,7 @@ const checkLocalSkillsetExists = async (args: {
  *
  * @returns Result indicating success or failure
  */
-export const registryInstallMain = async (
+const registryInstallMainImpl = async (
   args: RegistryInstallArgs,
 ): Promise<CommandStatus> => {
   const { packageSpec, installDir, nonInteractive, silent } = args;
@@ -206,6 +207,11 @@ export const registryInstallMain = async (
     };
   }
 };
+
+export const registryInstallMain = async (
+  args: RegistryInstallArgs,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => registryInstallMainImpl(args) });
 
 /**
  * Register the 'registry-install' command with commander

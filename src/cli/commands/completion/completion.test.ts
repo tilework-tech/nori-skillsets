@@ -287,6 +287,55 @@ describe("generateZshCompletion", () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it.runIf(hasZsh)("should offer Git install options", () => {
+    const result = generateZshCompletion();
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "nori-zsh-install-completion-test-"),
+    );
+    const tmpFile = path.join(tmpDir, "completion.zsh");
+    try {
+      fs.writeFileSync(tmpFile, result);
+      const options = execFileSync(
+        "zsh",
+        [
+          "-f",
+          "-c",
+          [
+            "compdef() { :; }",
+            'source "$1"',
+            "typeset -ga captured_options",
+            "typeset -gi arguments_call=0",
+            "_arguments() {",
+            "  (( arguments_call += 1 ))",
+            "  if (( arguments_call == 1 )); then",
+            "    state=args",
+            '    words=( "${words[@]:1}" )',
+            "    (( CURRENT -= 1 ))",
+            "  else",
+            '    captured_options=( "$@" )',
+            "  fi",
+            "}",
+            "words=(sks install '')",
+            "CURRENT=3",
+            "_nori_skillsets",
+            "print -rl -- $captured_options",
+          ].join("\n"),
+          "zsh",
+          tmpFile,
+        ],
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 10_000,
+        },
+      );
+      expect(options).toContain("--from");
+      expect(options).toContain("--trust-source");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("completionMain", () => {

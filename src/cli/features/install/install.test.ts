@@ -14,6 +14,7 @@ import { getHomeDir } from "@/utils/home.js";
 import type * as versionModule from "@/cli/version.js";
 
 import { noninteractive } from "./install.js";
+import { withInstallLock } from "./installLock.js";
 
 // Mock paths module to use test directory
 vi.mock("@/cli/features/claude-code/paths.js", () => {
@@ -380,5 +381,234 @@ describe("install noninteractive", () => {
     await expect(
       fsPromises.access(path.join(getHomeDir(), ".nori-install-in-progress")),
     ).rejects.toThrow();
+  });
+
+  it("rejects an overlapping install without disturbing the active install", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    let releaseFirst!: () => void;
+    let firstStarted!: () => void;
+    const firstStartedPromise = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const firstCanFinish = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    vi.mocked(installSkillset).mockImplementationOnce(async () => {
+      firstStarted();
+      await firstCanFinish;
+    });
+    const originalConsoleLog = console.log;
+    const originalStdoutWrite = process.stdout.write;
+    const originalStderrWrite = process.stderr.write;
+
+    const first = noninteractive({
+      installDir: tempDir,
+      skillset: "senior-swe",
+      silent: true,
+    });
+    await firstStartedPromise;
+
+    try {
+      const secondError = await noninteractive({
+        installDir: path.join(tempDir, "other-install-dir"),
+        skillset: "amol",
+        silent: true,
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(secondError).toBeInstanceOf(Error);
+      expect((secondError as Error).message).toMatch(
+        /another Nori installation is already in progress/i,
+      );
+      expect(installSkillset).toHaveBeenCalledTimes(1);
+      const config = JSON.parse(fs.readFileSync(getConfigPath(), "utf8")) as {
+        activeSkillset?: string;
+      };
+      expect(config.activeSkillset).toBe("senior-swe");
+      await expect(
+        fsPromises.access(path.join(getHomeDir(), ".nori-install-in-progress")),
+      ).resolves.toBeUndefined();
+    } finally {
+      releaseFirst();
+      await first;
+    }
+
+    expect(console.log).toBe(originalConsoleLog);
+    expect(process.stdout.write).toBe(originalStdoutWrite);
+    expect(process.stderr.write).toBe(originalStderrWrite);
+    await expect(
+      fsPromises.access(path.join(getHomeDir(), ".nori-install-in-progress")),
+    ).rejects.toThrow();
+  });
+
+  it("recovers an installation lock owned by a terminated process", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+    await fsPromises.mkdir(lockPath);
+    await fsPromises.writeFile(
+      path.join(lockPath, "owner.json"),
+      JSON.stringify({
+        pid: 2_147_483_647,
+        createdAt: "2000-01-01T00:00:00.000Z",
+      }),
+    );
+
+    try {
+      await noninteractive({
+        installDir: tempDir,
+        skillset: "senior-swe",
+      });
+
+      expect(installSkillset).toHaveBeenCalledTimes(1);
+      await expect(fsPromises.access(lockPath)).rejects.toThrow();
+    } finally {
+      await fsPromises.rm(lockPath, { recursive: true, force: true });
+    }
+  });
+
+  it("allows a nested installation operation to reuse its active lock", async () => {
+    let nestedOperationCompleted = false;
+
+    await withInstallLock({
+      operation: async () => {
+        await withInstallLock({
+          operation: async () => {
+            nestedOperationCompleted = true;
+          },
+        });
+      },
+    });
+
+    expect(nestedOperationCompleted).toBe(true);
+  });
+
+  it("does not let an expired predecessor remove its replacement lock", async () => {
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve;
+    });
+    const firstCanFinish = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let releaseSecond!: () => void;
+    let markSecondStarted!: () => void;
+    const secondStarted = new Promise<void>((resolve) => {
+      markSecondStarted = resolve;
+    });
+    const secondCanFinish = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+
+    const first = withInstallLock({
+      operation: async () => {
+        markFirstStarted();
+        await firstCanFinish;
+      },
+    });
+    await firstStarted;
+    const [ownerMarker] = (await fsPromises.readdir(lockPath)).filter((name) =>
+      name.startsWith("owner-"),
+    );
+    expect(ownerMarker).toBeDefined();
+    const expiredAt = new Date("2000-01-01T00:00:00.000Z");
+    await fsPromises.utimes(
+      path.join(lockPath, ownerMarker),
+      expiredAt,
+      expiredAt,
+    );
+
+    const second = withInstallLock({
+      operation: async () => {
+        markSecondStarted();
+        await secondCanFinish;
+      },
+    });
+    await secondStarted;
+
+    try {
+      releaseFirst();
+      await first;
+      await expect(
+        withInstallLock({ operation: async () => undefined }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+    } finally {
+      releaseFirst();
+      releaseSecond();
+      await Promise.allSettled([first, second]);
+      await fsPromises.rm(lockPath, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers an expired installation lock even when its PID has been reused", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+    await fsPromises.mkdir(lockPath);
+    await fsPromises.writeFile(
+      path.join(lockPath, "owner.json"),
+      JSON.stringify({
+        pid: process.pid,
+        createdAt: "2000-01-01T00:00:00.000Z",
+      }),
+    );
+
+    try {
+      await noninteractive({
+        installDir: tempDir,
+        skillset: "senior-swe",
+      });
+
+      expect(installSkillset).toHaveBeenCalledTimes(1);
+      await expect(fsPromises.access(lockPath)).rejects.toThrow();
+    } finally {
+      await fsPromises.rm(lockPath, { recursive: true, force: true });
+    }
+  });
+
+  it("releases the installation lock after failure so a retry can succeed", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    vi.mocked(installSkillset).mockRejectedValueOnce(
+      new Error("loader failed"),
+    );
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+
+    await expect(
+      noninteractive({
+        installDir: tempDir,
+        skillset: "senior-swe",
+      }),
+    ).rejects.toThrow("loader failed");
+    await expect(fsPromises.access(lockPath)).rejects.toThrow();
+
+    await noninteractive({
+      installDir: tempDir,
+      skillset: "senior-swe",
+    });
+
+    expect(installSkillset).toHaveBeenCalledTimes(2);
+    await expect(fsPromises.access(lockPath)).rejects.toThrow();
   });
 });
