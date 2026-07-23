@@ -436,6 +436,7 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
           cwd: testDir,
+          nonInteractive: true,
         });
 
         expect(result.success).toBe(false);
@@ -6153,7 +6154,7 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).toHaveBeenCalled();
       });
 
-      it("should detect symlinked skill subdirectories as inline candidates", async () => {
+      it("rejects a symlinked skill inside the skillset", async () => {
         // Create a skillset with a symlinked skill directory
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
@@ -6200,14 +6201,15 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
           cwd: testDir,
-          nonInteractive: true,
         });
 
-        expect(result.success).toBe(true);
-
-        // The tarball should include the symlinked skill's SKILL.md
-        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock.calls[0];
-        expect(uploadCall).toBeDefined();
+        expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(false);
+        expect(getClackOutput()).toMatch(/symbolic links?.*skills.*my-skill/i);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+        await expect(
+          fs.access(path.join(externalSkillDir, "nori.json")),
+        ).rejects.toThrow();
       });
     });
   });

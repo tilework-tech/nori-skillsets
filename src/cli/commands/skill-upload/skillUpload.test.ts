@@ -6,6 +6,7 @@ import * as fs from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
 
+import { log } from "@clack/prompts";
 import * as tar from "tar";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
@@ -298,6 +299,59 @@ describe("skill-upload", () => {
 
       expect(result.message).toContain("my-skill");
       expect(result.message).toContain("1.0.0");
+    });
+
+    it("reports an interior symlink as a normal upload failure", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+      await fs.symlink("SKILL.md", path.join(skillDir, "linked-skill.md"));
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toMatch(/symbolic links?.*linked-skill\.md/i);
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringMatching(/symbolic links?.*linked-skill\.md/i),
+      );
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+    });
+
+    it("uploads a linked skill when it is the selected package root", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+      const linkedTarget = path.join(testDir, "linked-skill-source");
+      await fs.rename(skillDir, linkedTarget);
+      await fs.symlink(linkedTarget, skillDir, "dir");
+
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      vi.mocked(registrarApi.getSkillPackument).mockRejectedValue(
+        Object.assign(new Error("Not found"), { statusCode: 404 }),
+      );
+      vi.mocked(registrarApi.uploadSkill).mockResolvedValue({
+        name: "my-skill",
+        version: "1.0.0",
+        tarballSha: "sha512-xyz",
+        createdAt: "2026-04-16T00:00:00.000Z",
+      } as never);
+
+      const result = await skillUploadMain({ skillSpec: "my-skill" });
+
+      expect(result.success).toBe(true);
+      expect(registrarApi.uploadSkill).toHaveBeenCalledTimes(1);
     });
 
     it("publishes the version supplied via the skill@version spec", async () => {

@@ -391,6 +391,7 @@ export const skillUploadMain = async (args: {
   }
 
   // Drive the upload flow
+  let uploadFailureMessage: string | null = null;
   const result = await skillUploadFlow({
     skillDisplayName,
     defaultVersion: localNoriJson?.version ?? "1.0.0",
@@ -437,16 +438,17 @@ export const skillUploadMain = async (args: {
       },
       onUpload: async ({ version }) => {
         if (semver.valid(version) == null) {
+          uploadFailureMessage = `Invalid version: "${version}"`;
           return {
             success: false,
-            error: `Invalid version: "${version}"`,
+            error: uploadFailureMessage,
           };
         }
-        const tarballBuffer = await createArchive({ sourceDir: skillDir });
-        const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
-        new Uint8Array(archiveData).set(tarballBuffer);
-
         try {
+          const tarballBuffer = await createArchive({ sourceDir: skillDir });
+          const archiveData = new ArrayBuffer(tarballBuffer.byteLength);
+          new Uint8Array(archiveData).set(tarballBuffer);
+
           await registrarApi.uploadSkill({
             skillName,
             version,
@@ -457,9 +459,11 @@ export const skillUploadMain = async (args: {
           });
           return { success: true, version };
         } catch (err) {
+          uploadFailureMessage =
+            err instanceof Error ? err.message : String(err);
           return {
             success: false,
-            error: err instanceof Error ? err.message : String(err),
+            error: uploadFailureMessage,
           };
         }
       },
@@ -467,6 +471,13 @@ export const skillUploadMain = async (args: {
   });
 
   if (result == null) {
+    if (uploadFailureMessage != null) {
+      return {
+        success: false,
+        cancelled: false,
+        message: uploadFailureMessage,
+      };
+    }
     return { success: false, cancelled: true, message: "" };
   }
 

@@ -12,6 +12,7 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import type * as npmRegistryCheckModule from "@/cli/updates/npmRegistryCheck.js";
 import type * as versionModule from "@/cli/version.js";
 
 import { main } from "./update-check.js";
@@ -22,6 +23,11 @@ vi.mock("@/cli/installTracking.js", () => ({
   getUserId: vi.fn().mockResolvedValue(null),
   sendAnalyticsEvent: vi.fn(),
 }));
+
+vi.mock("@/cli/updates/npmRegistryCheck.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof npmRegistryCheckModule>();
+  return { ...actual, refreshVersionCache: vi.fn() };
+});
 
 // Mock getCurrentPackageVersion so we can drive "running CLI version"
 const getCurrentPackageVersionMock = vi.fn<() => string | null>();

@@ -38,6 +38,7 @@ import {
 import { syncLocalStateAfterUpload } from "@/core/uploadSync.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
+import { validateArchiveSource } from "@/packaging/archive.js";
 import { isDirentDirectory } from "@/utils/dirent.js";
 import {
   parseNamespacedPackage,
@@ -869,6 +870,14 @@ export const registryUploadMain = async (args: {
     };
   }
 
+  try {
+    await validateArchiveSource({ sourceDir: skillsetDir });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(message);
+    return { success: false, cancelled: false, message };
+  }
+
   // Backfill type field on existing nori.json files before upload
   await backfillNoriJsonTypes({ skillsetDir });
 
@@ -981,6 +990,7 @@ export const registryUploadMain = async (args: {
   // Use the upload flow for interactive upload
   // Store upload version for callbacks closure
   let uploadVersion: string | null = null;
+  let uploadFailureMessage: string | null = null;
 
   const result = await uploadFlow({
     profileDisplayName,
@@ -1007,9 +1017,10 @@ export const registryUploadMain = async (args: {
       },
       onUpload: async (uploadCallbackArgs) => {
         if (uploadVersion == null) {
-          return { success: false, error: "Version not determined" };
+          uploadFailureMessage = "Version not determined";
+          return { success: false, error: uploadFailureMessage };
         }
-        return performUpload({
+        const uploadResult = await performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
           subagentResolutionStrategy:
             uploadCallbackArgs.subagentResolutionStrategy,
@@ -1017,6 +1028,10 @@ export const registryUploadMain = async (args: {
           inlineSubagents: uploadCallbackArgs.inlineSubagentIds,
           uploadVersion,
         });
+        if (!uploadResult.success && "error" in uploadResult) {
+          uploadFailureMessage = uploadResult.error;
+        }
+        return uploadResult;
       },
       onReadLocalSkillMd: async ({ skillId }) => {
         const skillMdPath = path.join(
@@ -1058,6 +1073,13 @@ export const registryUploadMain = async (args: {
   });
 
   if (result == null) {
+    if (uploadFailureMessage != null) {
+      return {
+        success: false,
+        cancelled: false,
+        message: uploadFailureMessage,
+      };
+    }
     return {
       success: false,
       cancelled: !(nonInteractive ?? false),

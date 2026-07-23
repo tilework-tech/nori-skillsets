@@ -60,56 +60,54 @@ export const extractArchive = async (args: {
   }
 };
 
-const collectArchiveFilePaths = async (args: {
-  ancestorRealDirs: ReadonlySet<string>;
+const isGitMetadataEntry = async (args: {
   dir: string;
-  excludedRealPaths: ReadonlyArray<string>;
+  entryName: string;
+}): Promise<boolean> => {
+  const { dir, entryName } = args;
+  if (entryName === ".git") return true;
+  if (entryName.toLowerCase() !== ".git") return false;
+
+  const [entryRealPath, dotGitRealPath] = await Promise.all([
+    fs.realpath(path.join(dir, entryName)).catch(() => null),
+    fs.realpath(path.join(dir, ".git")).catch(() => null),
+  ]);
+  return entryRealPath != null && entryRealPath === dotGitRealPath;
+};
+
+const collectArchiveFilePaths = async (args: {
+  dir: string;
   relativeDir: string;
 }): Promise<Array<string>> => {
-  const { ancestorRealDirs, dir, excludedRealPaths, relativeDir } = args;
-  const realDir = await fs.realpath(dir);
-  if (ancestorRealDirs.has(realDir)) {
-    return [];
-  }
-
-  const nextAncestorRealDirs = new Set(ancestorRealDirs);
-  nextAncestorRealDirs.add(realDir);
-
+  const { dir, relativeDir } = args;
   const entries = await fs.readdir(dir, { withFileTypes: true });
+  const hasCargoManifest = entries.some(
+    (entry) => entry.name === "Cargo.toml" && entry.isFile(),
+  );
   const files: Array<string> = [];
 
   for (const entry of entries) {
     const absolutePath = path.join(dir, entry.name);
     const relativePath = path.join(relativeDir, entry.name);
+    if (await isGitMetadataEntry({ dir, entryName: entry.name })) {
+      continue;
+    }
     if (shouldExcludeFromUpload({ relativePath })) {
       continue;
     }
-    const realPath = await fs.realpath(absolutePath).catch(() => null);
-    if (
-      realPath == null ||
-      realPath.split(path.sep).some((segment) => segment === ".git") ||
-      excludedRealPaths.some((excludedPath) => {
-        const relativeToExcluded = path.relative(excludedPath, realPath);
-        return (
-          relativeToExcluded === "" ||
-          (!path.isAbsolute(relativeToExcluded) &&
-            relativeToExcluded !== ".." &&
-            !relativeToExcluded.startsWith(`..${path.sep}`))
-        );
-      })
-    ) {
+    if (hasCargoManifest && entry.name === "target" && entry.isDirectory()) {
       continue;
     }
-    const stat = await fs.stat(absolutePath).catch(() => null);
-    if (stat == null) {
-      continue;
+    const stat = await fs.lstat(absolutePath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Upload archives cannot contain symbolic links: ${relativePath}`,
+      );
     }
     if (stat.isDirectory()) {
       files.push(
         ...(await collectArchiveFilePaths({
-          ancestorRealDirs: nextAncestorRealDirs,
           dir: absolutePath,
-          excludedRealPaths,
           relativeDir: relativePath,
         })),
       );
@@ -123,148 +121,37 @@ const collectArchiveFilePaths = async (args: {
   return files;
 };
 
-const findAncestorGitEntries = async (args: {
+const inspectArchiveSource = async (args: {
   sourceDir: string;
-}): Promise<Array<string>> => {
-  let currentDir = await fs.realpath(args.sourceDir);
-  const gitEntries: Array<string> = [];
-  while (true) {
-    const candidate = path.join(currentDir, ".git");
-    if ((await fs.lstat(candidate).catch(() => null)) != null) {
-      gitEntries.push(candidate);
-    }
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
-      return gitEntries;
-    }
-    currentDir = parentDir;
-  }
-};
-
-const isGitEntry = async (args: {
-  dir: string;
-  entryName: string;
-}): Promise<boolean> => {
-  const { dir, entryName } = args;
-  if (entryName === ".git") {
-    return true;
-  }
-  if (entryName.toLowerCase() !== ".git") {
-    return false;
-  }
-
-  const [entryRealPath, dotGitRealPath] = await Promise.all([
-    fs.realpath(path.join(dir, entryName)).catch(() => null),
-    fs.realpath(path.join(dir, ".git")).catch(() => null),
-  ]);
-  return entryRealPath != null && entryRealPath === dotGitRealPath;
-};
-
-const findReachableGitEntries = async (args: {
-  dir: string;
-  relativeDir: string;
-  visitedRealDirs: Set<string>;
-}): Promise<Array<string>> => {
-  const { dir, relativeDir, visitedRealDirs } = args;
-  const realDir = await fs.realpath(dir);
-  if (visitedRealDirs.has(realDir)) {
-    return [];
-  }
-  visitedRealDirs.add(realDir);
-
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  const gitEntries: Array<string> = [];
-  for (const entry of entries) {
-    const absolutePath = path.join(dir, entry.name);
-    const relativePath = path.join(relativeDir, entry.name);
-    if (await isGitEntry({ dir, entryName: entry.name })) {
-      gitEntries.push(absolutePath);
-      continue;
-    }
-    if (shouldExcludeFromUpload({ relativePath })) {
-      continue;
-    }
-    const stat = await fs.stat(absolutePath).catch(() => null);
-    if (stat?.isDirectory() === true) {
-      gitEntries.push(
-        ...(await findReachableGitEntries({
-          dir: absolutePath,
-          relativeDir: relativePath,
-          visitedRealDirs,
-        })),
-      );
-    }
-  }
-  return gitEntries;
-};
-
-const resolveGitMetadataRealPaths = async (args: {
-  dotGitPath: string;
-}): Promise<Array<string>> => {
-  const { dotGitPath } = args;
-  const dotGitRealPath = await fs.realpath(dotGitPath).catch(() => null);
-  if (dotGitRealPath == null) {
-    return [];
-  }
-
-  const excludedPaths = [dotGitRealPath];
-  const stat = await fs.stat(dotGitPath).catch(() => null);
-  let gitDirRealPath = stat?.isDirectory() === true ? dotGitRealPath : null;
-  if (stat?.isFile() === true) {
-    const pointer = await fs.readFile(dotGitPath, "utf-8").catch(() => null);
-    const gitDir = pointer?.match(/^gitdir:\s*(.+?)\s*$/i)?.[1];
-    if (gitDir != null) {
-      gitDirRealPath = await fs
-        .realpath(path.resolve(path.dirname(dotGitPath), gitDir))
-        .catch(() => null);
-    }
-  }
-  if (gitDirRealPath == null) {
-    return excludedPaths;
-  }
-  if (gitDirRealPath !== dotGitRealPath) {
-    excludedPaths.push(gitDirRealPath);
-  }
-
-  const commonDir = await fs
-    .readFile(path.join(gitDirRealPath, "commondir"), "utf-8")
-    .catch(() => null);
-  if (commonDir != null && commonDir.trim() !== "") {
-    const commonDirRealPath = await fs
-      .realpath(path.resolve(gitDirRealPath, commonDir.trim()))
-      .catch(() => null);
-    if (commonDirRealPath != null) {
-      excludedPaths.push(commonDirRealPath);
-    }
-  }
-  return excludedPaths;
-};
-
-const findGitMetadataRealPaths = async (args: {
-  sourceDir: string;
-}): Promise<Array<string>> => {
-  const { sourceDir } = args;
-  const gitEntries = await findReachableGitEntries({
-    dir: sourceDir,
+}): Promise<{ resolvedSourceDir: string; relPaths: Array<string> }> => {
+  const resolvedSourceDir = await fs.realpath(args.sourceDir);
+  const relPaths = await collectArchiveFilePaths({
+    dir: resolvedSourceDir,
     relativeDir: "",
-    visitedRealDirs: new Set(),
   });
-  gitEntries.push(...(await findAncestorGitEntries({ sourceDir })));
+  return { resolvedSourceDir, relPaths };
+};
 
-  const metadataPaths = await Promise.all(
-    [...new Set(gitEntries)].map((dotGitPath) =>
-      resolveGitMetadataRealPaths({ dotGitPath }),
-    ),
-  );
-  return [...new Set(metadataPaths.flat())];
+/**
+ * Validate that a package source contains no upload-eligible symbolic links.
+ * The package root itself may be linked; it is resolved before validation.
+ *
+ * @param args - The function arguments
+ * @param args.sourceDir - The package directory to validate
+ */
+export const validateArchiveSource = async (args: {
+  sourceDir: string;
+}): Promise<void> => {
+  await inspectArchiveSource(args);
 };
 
 /**
  * Create a gzipped tarball of a package source directory.
  *
- * Packs every file (following symlinks, so linked skillsets work) except
- * paths excluded by the upload filter (node_modules, build output, etc.).
- * Uses a temporary .tgz next to the source dir and always cleans it up.
+ * Resolves a linked package root, then packs regular files except paths
+ * excluded by the upload filter (Git metadata, build output, etc.).
+ * Upload-eligible symbolic links below the package root are rejected.
+ * Produces the archive in memory without writing beside the source directory.
  *
  * @param args - The function arguments
  * @param args.sourceDir - The package directory to pack
@@ -275,13 +162,8 @@ export const createArchive = async (args: {
   sourceDir: string;
 }): Promise<Buffer> => {
   const { sourceDir } = args;
-  const excludedRealPaths = await findGitMetadataRealPaths({ sourceDir });
-
-  const relPaths = await collectArchiveFilePaths({
-    ancestorRealDirs: new Set(),
-    dir: sourceDir,
-    excludedRealPaths,
-    relativeDir: "",
+  const { resolvedSourceDir, relPaths } = await inspectArchiveSource({
+    sourceDir,
   });
   const cargoManifestDirs = collectCargoManifestDirs({
     relativePaths: relPaths,
@@ -292,21 +174,34 @@ export const createArchive = async (args: {
       !shouldExcludeFromUpload({ relativePath, cargoManifestDirs }),
   );
 
-  const tempTarPath = path.join(
-    sourceDir,
-    "..",
-    `.${path.basename(sourceDir)}-upload.tgz`,
+  let packedSymlinkPath: string | null = null;
+  const archiveStream = tar.create(
+    {
+      cwd: resolvedSourceDir,
+      filter: (entryPath, stat) => {
+        if ("isSymbolicLink" in stat && stat.isSymbolicLink()) {
+          packedSymlinkPath = entryPath;
+          return false;
+        }
+        return true;
+      },
+      follow: false,
+      gzip: true,
+      noDirRecurse: true,
+      strict: true,
+    },
+    filesToPack.map((relativePath) => `./${relativePath}`),
   );
-
-  try {
-    await tar.create(
-      { gzip: true, file: tempTarPath, cwd: sourceDir, follow: true },
-      filesToPack,
-    );
-    return await fs.readFile(tempTarPath);
-  } finally {
-    await fs.unlink(tempTarPath).catch(() => undefined);
+  const chunks: Array<Buffer> = [];
+  for await (const chunk of archiveStream) {
+    chunks.push(Buffer.from(chunk));
   }
+  if (packedSymlinkPath != null) {
+    throw new Error(
+      `Upload archives cannot contain symbolic links: ${packedSymlinkPath}`,
+    );
+  }
+  return Buffer.concat(chunks);
 };
 
 /**
