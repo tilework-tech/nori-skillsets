@@ -12,6 +12,7 @@ import * as path from "path";
 import { log, note } from "@clack/prompts";
 
 import { loadConfig } from "@/cli/config.js";
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   ensureNoriGitignore,
   initializeGitRepository,
@@ -54,6 +55,14 @@ const EXCLUDED_PATH_SEGMENTS = new Set([
 
 const TOP_LEVEL_GENERATED_FILES = new Set([".mcp.json"]);
 const GIT_ENTRY_NAMES = new Set([".git"]);
+const NORI_MANAGED_MARKER = ".nori-managed";
+
+type ManagedOutputPlan = {
+  rootDir: string;
+  files: ReadonlyArray<string>;
+  dirs: ReadonlyArray<string>;
+  cleanupDirs: ReadonlyArray<string>;
+};
 
 const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
   try {
@@ -160,11 +169,183 @@ const rejectSubmodules = async (args: { sourceDir: string }): Promise<void> => {
   }
 };
 
+const collectManagedOutputPlan = async (args: {
+  sourceDir: string;
+  destDir: string;
+}): Promise<ManagedOutputPlan> => {
+  const { sourceDir, destDir } = args;
+  const files = new Set<string>();
+  const dirs = new Set<string>();
+  const cleanupDirs = new Set<string>();
+
+  for (const agent of AgentRegistry.getInstance().getAll()) {
+    const sourceAgentDir = agent.getAgentDir({ installDir: sourceDir });
+    const sourceAgentDirStat = await fs.lstat(sourceAgentDir).catch(() => null);
+    if (
+      sourceAgentDirStat == null ||
+      !sourceAgentDirStat.isDirectory() ||
+      sourceAgentDirStat.isSymbolicLink()
+    ) {
+      continue;
+    }
+    const markerStat = await fs
+      .lstat(path.join(sourceAgentDir, NORI_MANAGED_MARKER))
+      .catch(() => null);
+    if (markerStat == null) {
+      continue;
+    }
+    if (markerStat.isSymbolicLink()) {
+      throw new Error("Skillsets containing symbolic links cannot be forked");
+    }
+    if (!markerStat.isFile()) {
+      continue;
+    }
+
+    const destAgentDir = agent.getAgentDir({ installDir: destDir });
+    cleanupDirs.add(destAgentDir);
+    for (const dir of [
+      agent.getSkillsDir({ installDir: destDir }),
+      agent.getSubagentsDir({ installDir: destDir }),
+      agent.getSlashcommandsDir({ installDir: destDir }),
+    ]) {
+      dirs.add(dir);
+      cleanupDirs.add(dir);
+    }
+
+    const sourceInstructionsFile = agent.getInstructionsFilePath({
+      installDir: sourceDir,
+    });
+    if (path.dirname(sourceInstructionsFile) !== sourceDir) {
+      const destInstructionsFile = agent.getInstructionsFilePath({
+        installDir: destDir,
+      });
+      files.add(destInstructionsFile);
+      cleanupDirs.add(path.dirname(destInstructionsFile));
+    }
+    if (agent.getProjectMcpFile != null) {
+      files.add(agent.getProjectMcpFile({ installDir: destDir }));
+    }
+  }
+
+  return {
+    rootDir: destDir,
+    files: Array.from(files),
+    dirs: Array.from(dirs),
+    cleanupDirs: Array.from(cleanupDirs).sort(
+      (a, b) => b.split(path.sep).length - a.split(path.sep).length,
+    ),
+  };
+};
+
+const makeCleanupWritable = async (args: {
+  plan: ManagedOutputPlan;
+}): Promise<Array<{ dir: string; mode: number }>> => {
+  const candidates = new Set<string>();
+  for (const outputPath of [
+    ...args.plan.files.map((file) => path.dirname(file)),
+    ...args.plan.dirs,
+    ...args.plan.cleanupDirs,
+  ]) {
+    let dir = outputPath;
+    while (dir !== path.dirname(args.plan.rootDir)) {
+      const relative = path.relative(args.plan.rootDir, dir);
+      if (
+        path.isAbsolute(relative) ||
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`)
+      ) {
+        break;
+      }
+      candidates.add(dir);
+      if (dir === args.plan.rootDir) {
+        break;
+      }
+      dir = path.dirname(dir);
+    }
+  }
+
+  const originalModes: Array<{ dir: string; mode: number }> = [];
+  for (const dir of candidates) {
+    const stat = await fs.lstat(dir).catch(() => null);
+    if (stat == null || !stat.isDirectory() || stat.isSymbolicLink()) {
+      continue;
+    }
+    const mode = stat.mode & 0o7777;
+    originalModes.push({ dir, mode });
+    await fs.chmod(dir, mode | 0o300);
+  }
+  return originalModes;
+};
+
+const removeManagedOutput = async (args: {
+  plan: ManagedOutputPlan;
+}): Promise<void> => {
+  const originalModes = await makeCleanupWritable({ plan: args.plan });
+  for (const file of args.plan.files) {
+    await fs.rm(file, { force: true });
+  }
+  for (const dir of args.plan.dirs) {
+    const entries = await fs
+      .readdir(dir, { withFileTypes: true })
+      .catch(() => []);
+    for (const entry of entries) {
+      if (!entry.name.startsWith(".")) {
+        await fs.rm(path.join(dir, entry.name), {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+  }
+  for (const dir of args.plan.cleanupDirs) {
+    await fs.rmdir(dir).catch((error) => {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        ["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+          String((error as NodeJS.ErrnoException).code),
+        )
+      ) {
+        return;
+      }
+      throw error;
+    });
+  }
+  for (const { dir, mode } of originalModes.reverse()) {
+    await fs.chmod(dir, mode).catch((error) => {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        return;
+      }
+      throw error;
+    });
+  }
+};
+
+const makeOwnedTreeRemovable = async (args: { dir: string }): Promise<void> => {
+  const stat = await fs.lstat(args.dir).catch(() => null);
+  if (stat == null || stat.isSymbolicLink() || !stat.isDirectory()) {
+    return;
+  }
+  await fs.chmod(args.dir, (stat.mode & 0o7777) | 0o700);
+  const entries = await fs.readdir(args.dir);
+  for (const entry of entries) {
+    await makeOwnedTreeRemovable({ dir: path.join(args.dir, entry) });
+  }
+};
+
 const copyCanonicalContent = async (args: {
   sourceDir: string;
   destDir: string;
 }): Promise<void> => {
   const { sourceDir, destDir } = args;
+  const managedOutputPlan = await collectManagedOutputPlan({
+    sourceDir,
+    destDir,
+  });
   const entries = await fs.readdir(sourceDir);
   const copyEntry = async (entry: string): Promise<void> => {
     await fs.cp(path.join(sourceDir, entry), path.join(destDir, entry), {
@@ -211,16 +392,6 @@ const copyCanonicalContent = async (args: {
             "Skillsets containing symbolic links cannot be forked",
           );
         }
-        if (
-          segments.length === 1 &&
-          stat.isDirectory() &&
-          (await fs
-            .access(path.join(source, ".nori-managed"))
-            .then(() => true)
-            .catch(() => false))
-        ) {
-          return false;
-        }
         return true;
       },
     });
@@ -228,6 +399,7 @@ const copyCanonicalContent = async (args: {
   for (const entry of entries) {
     await copyEntry(entry);
   }
+  await removeManagedOutput({ plan: managedOutputPlan });
 };
 
 export const forkSkillsetMain = async (args: {
@@ -314,6 +486,9 @@ export const forkSkillsetMain = async (args: {
     initializeGitRepository({ dir: destPath });
   } catch (error) {
     if (ownsDestination) {
+      await makeOwnedTreeRemovable({ dir: destPath }).catch(() => {
+        // Best-effort preparation; preserve the original fork error.
+      });
       await fs.rm(destPath, { recursive: true, force: true }).catch(() => {
         // Best-effort rollback; preserve the original fork error.
       });

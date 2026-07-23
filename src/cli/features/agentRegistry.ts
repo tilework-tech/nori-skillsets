@@ -113,6 +113,7 @@ export type AgentConfig = {
   getSubagentsDir: (args: { installDir: string }) => string;
   getSlashcommandsDir: (args: { installDir: string }) => string;
   getInstructionsFilePath: (args: { installDir: string }) => string;
+  getProjectMcpFile?: ((args: { installDir: string }) => string) | null;
 
   getLoaders: () => Array<AgentLoader>;
 

@@ -202,6 +202,9 @@ describe("forkSkillsetMain", () => {
     expect(await fs.readFile(path.join(destDir, "README.md"), "utf8")).toBe(
       "# Authored docs\n",
     );
+    expect(
+      await fs.readFile(path.join(destDir, ".claude", "settings.json"), "utf8"),
+    ).toBe("{}\n");
     if (!gitIsCaseAlias) {
       expect(
         await fs.readFile(path.join(destDir, ".GIT", "authored.txt"), "utf8"),
@@ -232,7 +235,7 @@ describe("forkSkillsetMain", () => {
       ".nori-config.json",
       ".nori-installed-version",
       "node_modules",
-      ".claude",
+      path.join(".claude", ".nori-managed"),
       ".mcp.json",
       path.join("skills", "demo", ".nori-version"),
     ]) {
@@ -251,6 +254,264 @@ describe("forkSkillsetMain", () => {
       await fs.readFile(path.join(sourceDir, "nori.json"), "utf8"),
     );
     expect(sourceManifest.name).toBe("linked-source");
+  });
+
+  it("preserves authored GitHub content while removing marked Copilot output", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "copilot-source");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "copilot-source",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        ".github/.nori-managed": "copilot-source\n",
+        ".github/copilot-instructions.md": "generated instructions\n",
+        ".github/skills/demo/SKILL.md": "# Generated skill\n",
+        ".github/agents/reviewer.md": "generated agent\n",
+        ".github/prompts/review.md": "generated prompt\n",
+        ".github/workflows/ci.yml": "name: authored workflow\n",
+        ".github/CODEOWNERS": "* @maintainers\n",
+      },
+    });
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "copilot-source",
+      newSkillset: "copilot-fork",
+    });
+
+    const destGithubDir = path.join(
+      skillsetsDir,
+      "personal",
+      "copilot-fork",
+      ".github",
+    );
+    expect(result.success).toBe(true);
+    expect(
+      await fs.readFile(
+        path.join(destGithubDir, "workflows", "ci.yml"),
+        "utf8",
+      ),
+    ).toBe("name: authored workflow\n");
+    expect(
+      await fs.readFile(path.join(destGithubDir, "CODEOWNERS"), "utf8"),
+    ).toBe("* @maintainers\n");
+    for (const generatedPath of [
+      ".nori-managed",
+      "copilot-instructions.md",
+      "skills",
+      "agents",
+      "prompts",
+    ]) {
+      await expect(
+        fs.access(path.join(destGithubDir, generatedPath)),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("cleans marked output from a read-only shared provider directory", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "readonly-provider");
+    const destDir = path.join(
+      skillsetsDir,
+      "personal",
+      "readonly-provider-fork",
+    );
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "readonly-provider",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        ".github/.nori-managed": "readonly-provider\n",
+        ".github/agents/reviewer.md": "generated agent\n",
+        ".github/workflows/ci.yml": "name: authored workflow\n",
+      },
+    });
+    await fs.chmod(path.join(sourceDir, ".github"), 0o555);
+
+    try {
+      const result = await forkSkillsetMain({
+        baseSkillset: "readonly-provider",
+        newSkillset: "readonly-provider-fork",
+      });
+      expect(result.success).toBe(true);
+      expect(
+        await fs.readFile(
+          path.join(destDir, ".github", "workflows", "ci.yml"),
+          "utf8",
+        ),
+      ).toBe("name: authored workflow\n");
+      await expect(
+        fs.access(path.join(destDir, ".github", "agents")),
+      ).rejects.toThrow();
+      expect(
+        (await fs.stat(path.join(sourceDir, ".github"))).mode & 0o777,
+      ).toBe(0o555);
+      expect(
+        await fs.readFile(
+          path.join(sourceDir, ".github", "agents", "reviewer.md"),
+          "utf8",
+        ),
+      ).toBe("generated agent\n");
+    } finally {
+      await Promise.all(
+        [sourceDir, destDir].map((dir) =>
+          fs.chmod(path.join(dir, ".github"), 0o755).catch(() => undefined),
+        ),
+      );
+    }
+  });
+
+  it("removes nested marked Pi output while preserving Pi siblings", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "pi-source");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "pi-source",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        ".pi/settings.json": '{"authored":true}\n',
+        ".pi/agent/.nori-managed": "pi-source\n",
+        ".pi/agent/AGENTS.md": "generated instructions\n",
+        ".pi/agent/skills/demo/SKILL.md": "# Generated skill\n",
+        ".pi/agent/subagents/reviewer.md": "generated agent\n",
+        ".pi/agent/prompts/review.md": "generated prompt\n",
+      },
+    });
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "pi-source",
+      newSkillset: "pi-fork",
+    });
+
+    const destPiDir = path.join(skillsetsDir, "personal", "pi-fork", ".pi");
+    expect(result.success).toBe(true);
+    expect(
+      await fs.readFile(path.join(destPiDir, "settings.json"), "utf8"),
+    ).toBe('{"authored":true}\n');
+    await expect(fs.access(path.join(destPiDir, "agent"))).rejects.toThrow();
+  });
+
+  it("preserves authored Cursor and Codex files outside exact generated paths", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "mixed-providers");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "mixed-providers",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        "AGENTS.md": "# Canonical instructions\n",
+        ".cursor/.nori-managed": "mixed-providers\n",
+        ".cursor/rules/AGENTS.md": "generated instructions\n",
+        ".cursor/rules/custom.mdc": "authored rule\n",
+        ".codex/.nori-managed": "mixed-providers\n",
+        ".codex/AGENTS.md": "authored Codex notes\n",
+        ".codex/config.toml": "[mcp_servers.generated]\n",
+      },
+    });
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "mixed-providers",
+      newSkillset: "mixed-providers-fork",
+    });
+
+    const destDir = path.join(skillsetsDir, "personal", "mixed-providers-fork");
+    expect(result.success).toBe(true);
+    expect(await fs.readFile(path.join(destDir, "AGENTS.md"), "utf8")).toBe(
+      "# Canonical instructions\n",
+    );
+    expect(
+      await fs.readFile(
+        path.join(destDir, ".cursor", "rules", "custom.mdc"),
+        "utf8",
+      ),
+    ).toBe("authored rule\n");
+    expect(
+      await fs.readFile(path.join(destDir, ".codex", "AGENTS.md"), "utf8"),
+    ).toBe("authored Codex notes\n");
+    for (const generatedPath of [
+      path.join(".cursor", "rules", "AGENTS.md"),
+      path.join(".codex", "config.toml"),
+    ]) {
+      await expect(
+        fs.access(path.join(destDir, generatedPath)),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("rejects a symlinked managed marker without leaving a destination", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "linked-marker");
+    const markerTarget = path.join(testHomeDir, "marker-target");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "linked-marker",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        ".github/workflows/ci.yml": "name: authored workflow\n",
+      },
+    });
+    await fs.writeFile(markerTarget, "linked-marker\n");
+    await fs.symlink(
+      markerTarget,
+      path.join(sourceDir, ".github", ".nori-managed"),
+      "file",
+    );
+
+    await expect(
+      forkSkillsetMain({
+        baseSkillset: "linked-marker",
+        newSkillset: "rejected-linked-marker",
+      }),
+    ).rejects.toThrow(/symbolic link/i);
+    await expect(
+      fs.access(path.join(skillsetsDir, "personal", "rejected-linked-marker")),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a nested repository without leaving a destination", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "nested-repository");
+    const nestedDir = path.join(sourceDir, "nested");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "nested-repository",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        "nested/README.md": "# Nested repository\n",
+      },
+    });
+    await initializeCommittedRepository({ dir: nestedDir });
+    const nestedHead = await runGit({
+      cwd: nestedDir,
+      command: ["rev-parse", "HEAD"],
+    });
+
+    await expect(
+      forkSkillsetMain({
+        baseSkillset: "nested-repository",
+        newSkillset: "rejected-nested-repository",
+      }),
+    ).rejects.toThrow(/nested Git repositories/i);
+    await expect(
+      fs.access(
+        path.join(skillsetsDir, "personal", "rejected-nested-repository"),
+      ),
+    ).rejects.toThrow();
+    expect(
+      await runGit({ cwd: nestedDir, command: ["rev-parse", "HEAD"] }),
+    ).toBe(nestedHead);
   });
 
   it("treats case-only Nori path aliases according to filesystem semantics", async () => {
@@ -437,6 +698,8 @@ describe("forkSkillsetMain", () => {
     "removes the partial fork when Git is unavailable",
     async () => {
       const sourceDir = path.join(skillsetsDir, "personal", "base-profile");
+      const destDir = path.join(skillsetsDir, "personal", "failed-fork");
+      const readonlyDir = path.join(sourceDir, "readonly");
       await fs.mkdir(sourceDir, { recursive: true });
       await fs.writeFile(
         path.join(sourceDir, "nori.json"),
@@ -446,21 +709,35 @@ describe("forkSkillsetMain", () => {
           type: "skillset",
         }),
       );
+      await fs.mkdir(readonlyDir);
+      await fs.writeFile(path.join(readonlyDir, "authored.txt"), "authored\n");
+      await fs.chmod(readonlyDir, 0o555);
       vi.stubEnv("PATH", "");
 
-      await expect(
-        forkSkillsetMain({
-          baseSkillset: "base-profile",
-          newSkillset: "failed-fork",
-        }),
-      ).rejects.toThrow(/git.*not installed|git.*path/i);
-      await expect(
-        fs.access(path.join(skillsetsDir, "personal", "failed-fork")),
-      ).rejects.toThrow();
-      expect(
-        JSON.parse(await fs.readFile(path.join(sourceDir, "nori.json"), "utf8"))
-          .name,
-      ).toBe("base-profile");
+      try {
+        await expect(
+          forkSkillsetMain({
+            baseSkillset: "base-profile",
+            newSkillset: "failed-fork",
+          }),
+        ).rejects.toThrow(/git.*not installed|git.*path/i);
+        await expect(fs.access(destDir)).rejects.toThrow();
+        expect((await fs.stat(readonlyDir)).mode & 0o777).toBe(0o555);
+        expect(
+          await fs.readFile(path.join(readonlyDir, "authored.txt"), "utf8"),
+        ).toBe("authored\n");
+        expect(
+          JSON.parse(
+            await fs.readFile(path.join(sourceDir, "nori.json"), "utf8"),
+          ).name,
+        ).toBe("base-profile");
+      } finally {
+        await Promise.all(
+          [sourceDir, destDir].map((dir) =>
+            fs.chmod(path.join(dir, "readonly"), 0o755).catch(() => undefined),
+          ),
+        );
+      }
     },
   );
 
