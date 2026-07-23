@@ -38,6 +38,18 @@ const writeFixtureTree = async (args: {
   );
 };
 
+const pathsResolveToSameEntry = async (args: {
+  first: string;
+  second: string;
+}): Promise<boolean> => {
+  const [first, second] = await Promise.all(
+    [args.first, args.second].map((entry) =>
+      fs.realpath(entry).catch(() => null),
+    ),
+  );
+  return first != null && first === second;
+};
+
 const initializeCommittedRepository = async (args: {
   dir: string;
   forceAdd?: boolean | null;
@@ -139,12 +151,18 @@ describe("forkSkillsetMain", () => {
       },
     });
     await initializeCommittedRepository({ dir: sourceDir, forceAdd: true });
-    await writeFixtureTree({
-      root: sourceDir,
-      files: {
-        ".GIT/authored.txt": "case-sensitive authored content\n",
-      },
+    const gitIsCaseAlias = await pathsResolveToSameEntry({
+      first: path.join(sourceDir, ".git"),
+      second: path.join(sourceDir, ".GIT"),
     });
+    if (!gitIsCaseAlias) {
+      await writeFixtureTree({
+        root: sourceDir,
+        files: {
+          ".GIT/authored.txt": "case-sensitive authored content\n",
+        },
+      });
+    }
     await runGit({
       cwd: sourceDir,
       command: [
@@ -184,9 +202,11 @@ describe("forkSkillsetMain", () => {
     expect(await fs.readFile(path.join(destDir, "README.md"), "utf8")).toBe(
       "# Authored docs\n",
     );
-    expect(
-      await fs.readFile(path.join(destDir, ".GIT", "authored.txt"), "utf8"),
-    ).toBe("case-sensitive authored content\n");
+    if (!gitIsCaseAlias) {
+      expect(
+        await fs.readFile(path.join(destDir, ".GIT", "authored.txt"), "utf8"),
+      ).toBe("case-sensitive authored content\n");
+    }
     expect(
       await fs.readFile(
         path.join(destDir, ".github", "workflows", "ci.yml"),
@@ -231,6 +251,45 @@ describe("forkSkillsetMain", () => {
       await fs.readFile(path.join(sourceDir, "nori.json"), "utf8"),
     );
     expect(sourceManifest.name).toBe("linked-source");
+  });
+
+  it("treats case-only Nori path aliases according to filesystem semantics", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "case-alias");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "case-alias",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+        ".NORI-VERSION": "case-sensitive authored content\n",
+      },
+    });
+    const provenanceIsCaseAlias = await pathsResolveToSameEntry({
+      first: path.join(sourceDir, ".nori-version"),
+      second: path.join(sourceDir, ".NORI-VERSION"),
+    });
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "case-alias",
+      newSkillset: "case-alias-fork",
+    });
+
+    expect(result.success).toBe(true);
+    const copiedAlias = path.join(
+      skillsetsDir,
+      "personal",
+      "case-alias-fork",
+      ".NORI-VERSION",
+    );
+    if (provenanceIsCaseAlias) {
+      await expect(fs.access(copiedAlias)).rejects.toThrow();
+    } else {
+      expect(await fs.readFile(copiedAlias, "utf8")).toBe(
+        "case-sensitive authored content\n",
+      );
+    }
   });
 
   it("initializes a fresh repository without history or a remote", async () => {
@@ -426,6 +485,62 @@ describe("forkSkillsetMain", () => {
     await expect(
       fs.access(path.join(testHomeDir, ".nori", "escaped")),
     ).rejects.toThrow();
+  });
+
+  it("rejects an invalid default org before deriving the destination", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "base-profile");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "base-profile",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+      },
+    });
+    await fs.writeFile(
+      path.join(testHomeDir, ".nori-config.json"),
+      JSON.stringify({
+        defaultOrg: "../../escaped",
+        sendSessionTranscript: "disabled",
+      }),
+    );
+
+    const result = await forkSkillsetMain({
+      baseSkillset: "personal/base-profile",
+      newSkillset: "fork",
+    });
+
+    expect(result).toMatchObject({ success: false, cancelled: false });
+    await expect(
+      fs.access(path.join(testHomeDir, "escaped", "fork")),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a namespace symlink that redirects the destination outside profiles", async () => {
+    const sourceDir = path.join(skillsetsDir, "personal", "base-profile");
+    const outsideDir = path.join(testHomeDir, "outside");
+    await writeFixtureTree({
+      root: sourceDir,
+      files: {
+        "nori.json": JSON.stringify({
+          name: "base-profile",
+          version: "1.0.0",
+          type: "skillset",
+        }),
+      },
+    });
+    await fs.mkdir(outsideDir);
+    await fs.symlink(outsideDir, path.join(skillsetsDir, "org"), "dir");
+
+    await expect(
+      forkSkillsetMain({
+        baseSkillset: "personal/base-profile",
+        newSkillset: "org/fork",
+      }),
+    ).rejects.toThrow(/destination.*profiles/i);
+    await expect(fs.access(path.join(outsideDir, "fork"))).rejects.toThrow();
   });
 
   it("should copy a flat skillset to a new name with all contents", async () => {

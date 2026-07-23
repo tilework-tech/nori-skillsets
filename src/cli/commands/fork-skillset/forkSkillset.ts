@@ -30,6 +30,7 @@ import {
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
 import {
+  getNoriSkillsetsDir,
   MANIFEST_FILE,
   resolveSkillsetDir,
   skillsetCreateDir,
@@ -52,6 +53,7 @@ const EXCLUDED_PATH_SEGMENTS = new Set([
 ]);
 
 const TOP_LEVEL_GENERATED_FILES = new Set([".mcp.json"]);
+const GIT_ENTRY_NAMES = new Set([".git"]);
 
 const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
   try {
@@ -62,17 +64,51 @@ const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
   }
 };
 
-const isGitEntry = async (args: { entryPath: string }): Promise<boolean> => {
-  const { entryPath } = args;
-  if (path.basename(entryPath) === ".git") {
+const hasFilesystemName = async (args: {
+  entryPath: string;
+  names: ReadonlySet<string>;
+}): Promise<boolean> => {
+  const { entryPath, names } = args;
+  if (names.has(path.basename(entryPath))) {
     return true;
   }
 
-  const [entryRealPath, gitRealPath] = await Promise.all([
-    fs.realpath(entryPath).catch(() => null),
-    fs.realpath(path.join(path.dirname(entryPath), ".git")).catch(() => null),
+  const entryRealPath = await fs.realpath(entryPath).catch(() => null);
+  if (entryRealPath == null) {
+    return false;
+  }
+  for (const name of names) {
+    const namedRealPath = await fs
+      .realpath(path.join(path.dirname(entryPath), name))
+      .catch(() => null);
+    if (namedRealPath === entryRealPath) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const assertDestinationParentContained = async (args: {
+  destPath: string;
+}): Promise<void> => {
+  const profilesRoot = getNoriSkillsetsDir();
+  const parentDir = path.dirname(args.destPath);
+  await fs.mkdir(parentDir, { recursive: true });
+
+  const [profilesRootReal, parentDirReal] = await Promise.all([
+    fs.realpath(profilesRoot),
+    fs.realpath(parentDir),
   ]);
-  return entryRealPath != null && entryRealPath === gitRealPath;
+  const relativeParent = path.relative(profilesRootReal, parentDirReal);
+  if (
+    path.isAbsolute(relativeParent) ||
+    relativeParent === ".." ||
+    relativeParent.startsWith(`..${path.sep}`)
+  ) {
+    throw new Error(
+      "Fork destination must remain inside the profiles directory",
+    );
+  }
 };
 
 const rejectSubmodules = async (args: { sourceDir: string }): Promise<void> => {
@@ -138,7 +174,12 @@ const copyCanonicalContent = async (args: {
       filter: async (source) => {
         const relativePath = path.relative(sourceDir, source);
         const segments = relativePath.split(path.sep);
-        if (await isGitEntry({ entryPath: source })) {
+        if (
+          await hasFilesystemName({
+            entryPath: source,
+            names: GIT_ENTRY_NAMES,
+          })
+        ) {
           if (segments.length === 1) {
             return false;
           }
@@ -146,12 +187,20 @@ const copyCanonicalContent = async (args: {
             "Skillsets containing nested Git repositories or submodules cannot be forked",
           );
         }
-        if (segments.some((segment) => EXCLUDED_PATH_SEGMENTS.has(segment))) {
+        if (
+          await hasFilesystemName({
+            entryPath: source,
+            names: EXCLUDED_PATH_SEGMENTS,
+          })
+        ) {
           return false;
         }
         if (
           segments.length === 1 &&
-          TOP_LEVEL_GENERATED_FILES.has(segments[0]!)
+          (await hasFilesystemName({
+            entryPath: source,
+            names: TOP_LEVEL_GENERATED_FILES,
+          }))
         ) {
           return false;
         }
@@ -195,7 +244,7 @@ export const forkSkillsetMain = async (args: {
   });
 
   const validationError = validateNamespacedSkillsetName({
-    value: args.newSkillset,
+    value: newSkillset,
   });
   if (validationError != null) {
     log.error(validationError);
@@ -246,9 +295,7 @@ export const forkSkillsetMain = async (args: {
     };
   }
 
-  // Create parent directory if needed (for namespaced profiles like org/name)
-  const parentDir = path.dirname(destPath);
-  await fs.mkdir(parentDir, { recursive: true });
+  await assertDestinationParentContained({ destPath });
 
   await rejectSubmodules({ sourceDir });
 
