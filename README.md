@@ -86,10 +86,12 @@ prove complete ancestry.
 
 Interactive installs ask you to trust the source; unattended installs must add
 `--trust-source`. Unattended Git processes set `GIT_TERMINAL_PROMPT=0` and use
-SSH batch mode, so Git, SSH host-key confirmation, and SSH password/passphrase
-challenges fail instead of prompting. Credential-bearing URL components are
-redacted from trust prompts and Git errors; sensitive query keys are recognized
-after percent-decoding and may be separated by `&` or `;`:
+OpenSSH batch mode, so Git, SSH host-key confirmation, and SSH
+password/passphrase challenges fail instead of prompting. Arbitrary SSH command
+wrappers and clients that do not accept OpenSSH options are outside this
+feature's compatibility contract. Credential-bearing URL components are redacted
+from trust prompts and Git errors; sensitive query keys are recognized after
+percent-decoding and may be separated by `&` or `;`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
