@@ -29,9 +29,9 @@ type GitInstallArgs = {
 
 const sanitizeGitText = (value: string): string =>
   value
-    .replace(/(https?:\/\/)[^@\s/]+@/giu, "$1***@")
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/giu, "$1***@")
     .replace(
-      /([?&](?:access_token|api_key|key|password|private_token|sig|signature|token|x-amz-credential|x-amz-security-token|x-amz-signature)=)[^&\s'"]+/giu,
+      /([?&](?:access_token|api_key|client_secret|key|oauth_token|password|private_token|refresh_token|sig|signature|token|x-amz-credential|x-amz-security-token|x-amz-signature)=)[^&\s'"]+/giu,
       "$1***",
     );
 
@@ -45,9 +45,17 @@ const GIT_ROUTING_ENVIRONMENT = [
   "GIT_SHALLOW_FILE",
 ] as const;
 
-const gitEnvironment = (): NodeJS.ProcessEnv => {
+type GitExecutionSettings = {
+  disableTerminalPrompts: boolean;
+};
+
+const gitEnvironment = (args: {
+  settings: GitExecutionSettings;
+}): NodeJS.ProcessEnv => {
+  const { settings } = args;
   const environment = { ...process.env };
   for (const name of GIT_ROUTING_ENVIRONMENT) delete environment[name];
+  if (settings.disableTerminalPrompts) environment.GIT_TERMINAL_PROMPT = "0";
   return environment;
 };
 
@@ -71,15 +79,16 @@ const executeGit = async (args: {
   command: Array<string>;
   cwd?: string;
   input?: string;
+  settings: GitExecutionSettings;
 }): Promise<GitExecution> => {
-  const { command, cwd, input } = args;
+  const { command, cwd, input, settings } = args;
   return new Promise((resolve) => {
     const child = execFile(
       "git",
       command,
       {
         cwd,
-        env: gitEnvironment(),
+        env: gitEnvironment({ settings }),
         maxBuffer: 10 * 1024 * 1024,
       },
       (error, stdout, stderr) => {
@@ -98,8 +107,13 @@ const executeGit = async (args: {
 const failedGitCommand = (result: GitExecution): Error =>
   new Error(`Git command failed: ${gitErrorDetail(result)}`);
 
-const runGit = async (args: Array<string>, cwd?: string): Promise<string> => {
-  const result = await executeGit({ command: args, cwd });
+const runGit = async (args: {
+  command: Array<string>;
+  cwd?: string;
+  settings: GitExecutionSettings;
+}): Promise<string> => {
+  const { command, cwd, settings } = args;
+  const result = await executeGit({ command, cwd, settings });
   if (result.exitCode !== 0) throw failedGitCommand(result);
   return result.stdout;
 };
@@ -108,11 +122,13 @@ const isAncestor = async (args: {
   ancestor: string;
   descendant: string;
   checkoutDir: string;
+  settings: GitExecutionSettings;
 }): Promise<boolean> => {
-  const { ancestor, descendant, checkoutDir } = args;
+  const { ancestor, descendant, checkoutDir, settings } = args;
   const result = await executeGit({
     command: ["merge-base", "--is-ancestor", ancestor, descendant],
     cwd: checkoutDir,
+    settings,
   });
   if (result.exitCode === 0) return true;
   if (result.exitCode === 1) return false;
@@ -122,8 +138,9 @@ const isAncestor = async (args: {
 const resolveRequiredBranchTip = async (args: {
   branch: string;
   checkoutDir: string;
+  settings: GitExecutionSettings;
 }): Promise<string> => {
-  const { branch, checkoutDir } = args;
+  const { branch, checkoutDir, settings } = args;
   const result = await executeGit({
     command: [
       "rev-parse",
@@ -133,6 +150,7 @@ const resolveRequiredBranchTip = async (args: {
       `refs/heads/${branch}`,
     ],
     cwd: checkoutDir,
+    settings,
   });
   if (result.exitCode === 0) return result.stdout;
   if (result.exitCode === 1) {
@@ -144,12 +162,14 @@ const resolveRequiredBranchTip = async (args: {
 const inspectPinnedObject = async (args: {
   checkoutDir: string;
   pin: string;
+  settings: GitExecutionSettings;
 }): Promise<{ objectType: string; resolvedCommit: string } | null> => {
-  const { checkoutDir, pin } = args;
+  const { checkoutDir, pin, settings } = args;
   const result = await executeGit({
     command: ["cat-file", "--batch-check=%(objectname) %(objecttype)"],
     cwd: checkoutDir,
     input: `${pin}\n`,
+    settings,
   });
   if (result.exitCode !== 0) throw failedGitCommand(result);
   const [resolvedCommit, objectType, ...extra] = result.stdout.split(" ");
@@ -176,19 +196,25 @@ const selectPinnedCommit = async (args: {
   branchTip: string;
   checkoutDir: string;
   pin: string;
+  settings: GitExecutionSettings;
 }): Promise<string> => {
-  const { branch, branchTip, checkoutDir, pin } = args;
-  const shallow = await runGit(
-    ["rev-parse", "--is-shallow-repository"],
-    checkoutDir,
-  );
+  const { branch, branchTip, checkoutDir, pin, settings } = args;
+  const shallow = await runGit({
+    command: ["rev-parse", "--is-shallow-repository"],
+    cwd: checkoutDir,
+    settings,
+  });
   if (shallow === "true") {
     throw new Error(
       "Pinned installs require complete history; the Git source is shallow",
     );
   }
 
-  const inspectedObject = await inspectPinnedObject({ checkoutDir, pin });
+  const inspectedObject = await inspectPinnedObject({
+    checkoutDir,
+    pin,
+    settings,
+  });
   if (inspectedObject == null) {
     throw new Error(
       `Pinned commit "${pin}" was not found in ${branch} history`,
@@ -208,6 +234,7 @@ const selectPinnedCommit = async (args: {
       ancestor: resolvedCommit,
       descendant: branchTip,
       checkoutDir,
+      settings,
     }))
   ) {
     throw new Error(
@@ -215,26 +242,75 @@ const selectPinnedCommit = async (args: {
     );
   }
 
-  await runGit(["checkout", "--detach", resolvedCommit], checkoutDir);
+  await runGit({
+    command: ["checkout", "--detach", resolvedCommit],
+    cwd: checkoutDir,
+    settings,
+  });
   return resolvedCommit;
+};
+
+type TrackedEntry = {
+  mode: string;
+  path: string;
+};
+
+const normalizeReservedRootPath = (args: { path: string }): string =>
+  args.path.normalize("NFKC").toLowerCase();
+
+const parseTrackedEntries = (args: { output: string }): Array<TrackedEntry> => {
+  const records = args.output.split("\0").filter((record) => record.length > 0);
+  return records.map((record) => {
+    const match = /^(\d{6}) [0-9a-f]+ \d+\t([\s\S]+)$/u.exec(record);
+    if (match == null) {
+      throw new Error("Git returned invalid tracked-entry output");
+    }
+    return { mode: match[1], path: match[2] };
+  });
 };
 
 const validateCheckout = async (args: {
   checkoutDir: string;
   slug: string;
+  settings: GitExecutionSettings;
 }): Promise<void> => {
-  const { checkoutDir, slug } = args;
-  const entries = await runGit(["ls-files", "--stage"], checkoutDir);
-  if (/^\d{6} [0-9a-f]+ \d+\t\.nori-version$/mu.test(entries)) {
+  const { checkoutDir, slug, settings } = args;
+  const entries = parseTrackedEntries({
+    output: await runGit({
+      command: ["ls-files", "--stage", "-z"],
+      cwd: checkoutDir,
+      settings,
+    }),
+  });
+  if (
+    entries.some(
+      (entry) =>
+        normalizeReservedRootPath({ path: entry.path }) === ".nori-version",
+    )
+  ) {
     throw new Error(
       "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
     );
   }
-  if (/^120000 /mu.test(entries)) {
+  if (entries.some((entry) => entry.mode === "120000")) {
     throw new Error("Git-backed skillsets cannot contain symbolic links");
   }
-  if (/^160000 /mu.test(entries)) {
+  if (entries.some((entry) => entry.mode === "160000")) {
     throw new Error("Git-backed skillsets cannot contain submodules");
+  }
+  const manifestAliases = entries.filter(
+    (entry) => normalizeReservedRootPath({ path: entry.path }) === "nori.json",
+  );
+  const manifest = manifestAliases[0];
+  if (
+    manifestAliases.length !== 1 ||
+    manifest == null ||
+    manifest.path !== "nori.json" ||
+    (manifest.mode !== "100644" && manifest.mode !== "100755")
+  ) {
+    throw new Error(
+      "Git-backed skillsets require an exact root nori.json regular file",
+    );
   }
 
   let metadata;
@@ -258,20 +334,31 @@ const acquireGitCheckout = async (args: {
   checkoutDir: string;
   pin?: string | null;
   remote: string;
+  settings: GitExecutionSettings;
   slug: string;
 }): Promise<string | null> => {
-  const { branch, checkoutDir, pin, remote, slug } = args;
+  const { branch, checkoutDir, pin, remote, settings, slug } = args;
   const cloneArgs = ["clone", "--single-branch", "--branch", branch];
   if (pin != null) cloneArgs.push("--no-checkout");
   cloneArgs.push("--", remote, checkoutDir);
-  await runGit(cloneArgs);
+  await runGit({ command: cloneArgs, settings });
 
-  const branchTip = await resolveRequiredBranchTip({ branch, checkoutDir });
+  const branchTip = await resolveRequiredBranchTip({
+    branch,
+    checkoutDir,
+    settings,
+  });
   const resolvedCommit =
     pin == null
       ? null
-      : await selectPinnedCommit({ branch, branchTip, checkoutDir, pin });
-  await validateCheckout({ checkoutDir, slug });
+      : await selectPinnedCommit({
+          branch,
+          branchTip,
+          checkoutDir,
+          pin,
+          settings,
+        });
+  await validateCheckout({ checkoutDir, settings, slug });
   return resolvedCommit;
 };
 
@@ -316,6 +403,9 @@ export const gitInstallMain = async (
     });
     const identity = `personal/${slug}`;
     const checkoutDir = path.join(getNoriSkillsetsDir(), identity);
+    const settings: GitExecutionSettings = {
+      disableTerminalPrompts: nonInteractive === true || silent === true,
+    };
 
     await fs.mkdir(path.dirname(checkoutDir), { recursive: true });
     try {
@@ -334,6 +424,7 @@ export const gitInstallMain = async (
         checkoutDir,
         pin,
         remote,
+        settings,
         slug,
       });
     } catch (error) {

@@ -32,6 +32,7 @@ const GIT_ROUTING_ENVIRONMENT = [
 const GIT_ENVIRONMENT = [
   ...GIT_ROUTING_ENVIRONMENT,
   "GIT_SHALLOW_FILE",
+  "GIT_TERMINAL_PROMPT",
 ] as const;
 
 describe("gitInstallMain", () => {
@@ -105,6 +106,78 @@ describe("gitInstallMain", () => {
   ) => {
     expectFailure(await install(overrides), error);
     await expect(fs.access(target)).rejects.toThrow();
+  };
+
+  const commitTrackedAlias = async (args: {
+    contents: string;
+    removeExactManifest?: boolean | null;
+    trackedPath: string;
+  }): Promise<string> => {
+    const { contents, removeExactManifest, trackedPath } = args;
+    const blobPath = path.join(testRoot, "tracked-alias-blob");
+    const indexPath = path.join(testRoot, "tracked-alias-index");
+    await fs.writeFile(blobPath, contents);
+    const blob = (
+      await execFileAsync("git", ["hash-object", "-w", blobPath], {
+        cwd: repository.authorCheckout,
+      })
+    ).stdout.trim();
+    const environment = { ...process.env, GIT_INDEX_FILE: indexPath };
+    await execFileAsync("git", ["read-tree", "HEAD"], {
+      cwd: repository.authorCheckout,
+      env: environment,
+    });
+    if (removeExactManifest === true) {
+      await execFileAsync(
+        "git",
+        ["update-index", "--force-remove", "nori.json"],
+        {
+          cwd: repository.authorCheckout,
+          env: environment,
+        },
+      );
+    }
+    await execFileAsync(
+      "git",
+      [
+        "-c",
+        "core.ignorecase=false",
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        `100644,${blob},${trackedPath}`,
+      ],
+      { cwd: repository.authorCheckout, env: environment },
+    );
+    const tree = (
+      await execFileAsync("git", ["write-tree"], {
+        cwd: repository.authorCheckout,
+        env: environment,
+      })
+    ).stdout.trim();
+    const parent = (
+      await execFileAsync("git", ["rev-parse", "HEAD"], {
+        cwd: repository.authorCheckout,
+      })
+    ).stdout.trim();
+    const commit = (
+      await execFileAsync(
+        "git",
+        ["commit-tree", tree, "-p", parent, "-m", `track ${trackedPath}`],
+        { cwd: repository.authorCheckout },
+      )
+    ).stdout.trim();
+    await execFileAsync(
+      "git",
+      ["update-ref", "refs/heads/skillsets/reviewer", commit],
+      { cwd: repository.authorCheckout },
+    );
+    await execFileAsync(
+      "git",
+      ["push", "--force", repository.remote, "skillsets/reviewer"],
+      { cwd: repository.authorCheckout },
+    );
+    return commit;
   };
 
   it("installs and activates the current tip of the derived branch", async () => {
@@ -349,6 +422,33 @@ describe("gitInstallMain", () => {
     });
   });
 
+  it("preserves an unpinned install from a shallow source", async () => {
+    await repository.commit({ slug: "reviewer", marker: "older" });
+    await repository.commit({
+      slug: "reviewer",
+      marker: "current shallow instructions",
+    });
+    const shallowRemote = await repository.createShallowRemote({
+      slug: "reviewer",
+    });
+
+    const result = await install({ remote: shallowRemote, pin: null });
+
+    expect(result.success).toBe(true);
+    const checkoutBranch = await execFileAsync(
+      "git",
+      ["symbolic-ref", "--short", "HEAD"],
+      { cwd: target },
+    );
+    expect(checkoutBranch.stdout.trim()).toBe("skillsets/reviewer");
+    await expect(
+      fs.readFile(path.join(target, "AGENTS.md"), "utf8"),
+    ).resolves.toBe("current shallow instructions");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("current shallow instructions");
+  });
+
   it("ignores GIT_SHALLOW_FILE when rejecting a shallow pinned source", async () => {
     await repository.commit({ slug: "reviewer", marker: "older" });
     const currentCommit = await repository.commit({
@@ -405,6 +505,72 @@ describe("gitInstallMain", () => {
     await expectRejectedCheckout(/Registry provenance|\.nori-version/i, {
       pin: invalidHistoricalCommit,
     });
+  });
+
+  it.each([
+    { label: "unpinned", pinned: false },
+    { label: "pinned", pinned: true },
+  ])(
+    "rejects case-folded Registry provenance for a $label install",
+    async ({ pinned }) => {
+      const commit = await repository.commit({
+        slug: "reviewer",
+        files: { ".NORI-VERSION": "https://registry.invalid\n1.0.0\n" },
+      });
+
+      await expectRejectedCheckout(/Registry provenance|\.nori-version/i, {
+        pin: pinned ? commit : null,
+      });
+    },
+  );
+
+  it("rejects Unicode-compatible Registry provenance aliases", async () => {
+    await repository.commit({
+      slug: "reviewer",
+      files: { ".nori-verſion": "https://registry.invalid\n1.0.0\n" },
+    });
+
+    await expectRejectedCheckout(/Registry provenance|\.nori-version/i);
+  });
+
+  it("requires the exact tracked nori.json path even when the filesystem resolves a case alias", async () => {
+    await repository.commit({ slug: "reviewer" });
+    await commitTrackedAlias({
+      contents: JSON.stringify({ name: "reviewer", type: "skillset" }),
+      removeExactManifest: true,
+      trackedPath: "NORI.JSON",
+    });
+    const realGit = (
+      await execFileAsync("/bin/sh", ["-c", "command -v git"], {
+        cwd: testRoot,
+      })
+    ).stdout.trim();
+    const wrapperDir = path.join(testRoot, "case-alias-wrapper");
+    const wrapperPath = path.join(wrapperDir, "git");
+    await fs.mkdir(wrapperDir);
+    await fs.writeFile(
+      wrapperPath,
+      `#!/bin/sh
+if [ "$1" = "ls-files" ]; then
+  cp NORI.JSON nori.json
+fi
+exec "${realGit}" "$@"
+`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${wrapperDir}${path.delimiter}${previousPath ?? ""}`;
+
+    await expectRejectedCheckout(/exact.*root.*nori\.json/i);
+  });
+
+  it("rejects a root manifest alias alongside the exact nori.json", async () => {
+    await repository.commit({ slug: "reviewer" });
+    await commitTrackedAlias({
+      contents: JSON.stringify({ name: "reviewer", type: "skillset" }),
+      trackedPath: "NORI.JSON",
+    });
+
+    await expectRejectedCheckout(/exact.*root.*nori\.json/i);
   });
 
   it("rejects a tracked nori.json symlink before reading the manifest", async () => {
@@ -551,11 +717,11 @@ describe("gitInstallMain", () => {
     await expect(fs.access(target)).rejects.toThrow();
   });
 
-  it("redacts credentials from the interactive trust prompt", async () => {
+  it("redacts credentials from URL-form remotes in the interactive trust prompt", async () => {
     prompt.confirm.mockResolvedValueOnce(false);
     const result = await install({
       remote:
-        "https://credential-user-7f3:credential-password-9c2@example.invalid/skillsets.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f",
+        "FtPs://credential-user-7f3:credential-password-9c2@example.invalid/skillsets.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f&oauth_token=oauth-secret-d7g&client_secret=client-secret-e8h",
       trustSource: null,
       nonInteractive: false,
       silent: false,
@@ -572,6 +738,8 @@ describe("gitInstallMain", () => {
       "private-secret-a4d",
       "aws-secret-b5e",
       "short-secret-c6f",
+      "oauth-secret-d7g",
+      "client-secret-e8h",
     ]) {
       expect(promptArgs?.message).not.toContain(secret);
     }
@@ -580,7 +748,7 @@ describe("gitInstallMain", () => {
   it("redacts common credential query parameters from Git errors", async () => {
     const missingRemote = path.join(
       testRoot,
-      "missing.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f",
+      "missing.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f&oauth_token=oauth-secret-d7g&client_secret=client-secret-e8h",
     );
     const result = await install({
       remote: missingRemote,
@@ -591,9 +759,58 @@ describe("gitInstallMain", () => {
       "private-secret-a4d",
       "aws-secret-b5e",
       "short-secret-c6f",
+      "oauth-secret-d7g",
+      "client-secret-e8h",
     ]) {
       expect(result.message).not.toContain(secret);
     }
+  });
+
+  it("disables Git terminal prompts for unattended installs", async () => {
+    await repository.commit({ slug: "reviewer" });
+    const realGit = (
+      await execFileAsync("/bin/sh", ["-c", "command -v git"], {
+        cwd: testRoot,
+      })
+    ).stdout.trim();
+    const wrapperDir = path.join(testRoot, "terminal-prompt-wrapper");
+    const wrapperPath = path.join(wrapperDir, "git");
+    await fs.mkdir(wrapperDir);
+    await fs.writeFile(
+      wrapperPath,
+      `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+if (process.argv[2] === "clone") {
+  const challenge = spawnSync(
+    ${JSON.stringify(realGit)},
+    ["-c", "credential.helper=", "credential", "fill"],
+    {
+      encoding: "utf8",
+      input: "protocol=https\\nhost=example.invalid\\n\\n",
+      timeout: 3000,
+      env: { ...process.env, LC_ALL: "C" },
+    },
+  );
+  if (!challenge.stderr.includes("terminal prompts disabled")) {
+    console.error("git credential challenge attempted a terminal prompt");
+    process.exit(86);
+  }
+}
+const result = spawnSync(
+  ${JSON.stringify(realGit)},
+  process.argv.slice(2),
+  { env: process.env, stdio: "inherit" },
+);
+process.exit(result.status ?? 1);
+`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${wrapperDir}${path.delimiter}${previousPath ?? ""}`;
+    process.env.GIT_TERMINAL_PROMPT = "1";
+
+    const result = await install({ nonInteractive: true, silent: false });
+
+    expect(result.success).toBe(true);
   });
 
   it("preserves unexpected Git object inspection errors", async () => {

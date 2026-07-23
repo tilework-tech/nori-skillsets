@@ -59,10 +59,10 @@ sks install my-skillset --from git@github.com:myorg/skillsets.git
 ```
 
 The repository must expose an explicit
-`refs/heads/skillsets/my-skillset` branch whose root `nori.json` has
-`"name": "my-skillset"` and `"type": "skillset"`; a tag with the same name
-does not satisfy the branch requirement. The command requests the branch's
-normal full history, stores it at
+`refs/heads/skillsets/my-skillset` branch with an exact lowercase root
+`nori.json` regular file whose manifest has `"name": "my-skillset"` and
+`"type": "skillset"`; a tag with the same name does not satisfy the branch
+requirement. The command requests the branch's normal full history, stores it at
 `~/.nori/profiles/personal/my-skillset/`, and keeps it as a Git working tree.
 By default, the checkout remains attached to the branch's current tip. To
 install an exact historical commit, pass its full SHA-1 or SHA-256 object ID:
@@ -82,18 +82,23 @@ pinned installs verify that the repository is non-shallow, because they must
 prove complete ancestry.
 
 Interactive installs ask you to trust the source; unattended installs must add
-`--trust-source`. Credential-bearing URL components are redacted from trust
-prompts and Git errors:
+`--trust-source` and disable Git's terminal credential prompts. Credential-bearing
+URL components are redacted from trust prompts and Git errors:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
 ```
 
+Git retains the supplied remote as ordinary origin metadata. Prefer Git
+credential helpers, environment-based authentication, or SSH agents instead of
+putting literal credentials in the remote URL.
+
 Git-backed installs do not automatically fetch later commits. Run the command
 only for a new local name: an existing `personal/my-skillset` is never
 overwritten. Before reading the manifest, they reject tracked symbolic links,
-submodules, and Registry `.nori-version` files. They never fall back to the
-Registry and do not persist Nori-specific source provenance or trust state.
+submodules, and any root path that compatibility-normalizes and case-folds to the Registry
+`.nori-version` filename. They never fall back to the Registry and do not
+persist Nori-specific source provenance or trust state.
 
 ## How Skillsets Work
 
@@ -124,6 +129,7 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
+- Git (required for `install --from`; SHA-256 repository support depends on the installed Git build)
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
