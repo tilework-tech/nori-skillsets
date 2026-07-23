@@ -167,14 +167,19 @@ describe("withActivationTransaction", () => {
   it("restores the global active-skillset pointer when the operation throws", async () => {
     await updateConfig({ activeSkillset: "personal/profile-a" });
 
+    // Runs under the install lock, as every activation caller does, so the
+    // nested updateConfig is reentrant and does not re-trigger recovery.
     await expect(
-      withActivationTransaction({
-        installDir,
-        agents: [agent],
-        operation: async () => {
-          await updateConfig({ activeSkillset: "personal/profile-b" });
-          throw new Error("nope");
-        },
+      withInstallLock({
+        operation: () =>
+          withActivationTransaction({
+            installDir,
+            agents: [agent],
+            operation: async () => {
+              await updateConfig({ activeSkillset: "personal/profile-b" });
+              throw new Error("nope");
+            },
+          }),
       }),
     ).rejects.toThrow("nope");
 

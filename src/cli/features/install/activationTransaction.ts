@@ -108,43 +108,30 @@ const restoreEntry = async (entry: SnapshotEntry): Promise<void> => {
 
 const getTxnRoot = (): string => path.join(getHomeDir(), ".nori", ".txn");
 
-const isProcessAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== "ESRCH";
-  }
-};
-
-type TxnIndex = { ownerPid: number | null; entries: Array<SnapshotEntry> };
-
-const readIndex = async (args: { txnDir: string }): Promise<TxnIndex> => {
+const readIndexEntries = async (args: {
+  txnDir: string;
+}): Promise<Array<SnapshotEntry>> => {
   try {
     const raw = await fs.readFile(
       path.join(args.txnDir, "index.json"),
       "utf-8",
     );
-    const parsed = JSON.parse(raw) as Partial<TxnIndex>;
-    return {
-      ownerPid: typeof parsed.ownerPid === "number" ? parsed.ownerPid : null,
-      entries: parsed.entries ?? [],
-    };
+    const parsed = JSON.parse(raw) as { entries?: Array<SnapshotEntry> };
+    return parsed.entries ?? [];
   } catch {
     // A missing or corrupt index cannot be rolled back; recovery discards it.
-    return { ownerPid: null, entries: [] };
+    return [];
   }
 };
 
 const recoverOne = async (args: { txnDir: string }): Promise<void> => {
   const { txnDir } = args;
-  const index = await readIndex({ txnDir });
-  // Never touch a transaction whose owning process is still running — that is an
-  // in-flight activation (including this process's own), not a crashed one.
-  if (index.ownerPid != null && isProcessAlive(index.ownerPid)) return;
-  // A committed transaction already applied its new state; only clean up.
+  // Recovery runs only while holding the exclusive install lock, so any leftover
+  // transaction is necessarily from an abandoned process — a live owner would
+  // still hold the lock and block acquisition. A committed transaction already
+  // applied its new state (clean up only); otherwise restore the previous state.
   if (!(await pathExists(path.join(txnDir, "committed")))) {
-    for (const entry of index.entries) {
+    for (const entry of await readIndexEntries({ txnDir })) {
       await restoreEntry(entry);
     }
   }
@@ -152,9 +139,11 @@ const recoverOne = async (args: { txnDir: string }): Promise<void> => {
 };
 
 /**
- * Restore any activation transaction left behind by a crashed process. Runs at
- * the start of the next activation so a killed install/switch/update self-heals
- * to its previous usable state. Restore is idempotent, so re-running is safe.
+ * Restore any activation transaction left behind by a crashed process. Invoked
+ * at install-lock acquisition, so every locked mutation self-heals to its
+ * previous usable state before it runs. Restore is idempotent, so re-running is
+ * safe, and a transaction that cannot be restored is skipped rather than
+ * allowed to wedge every locked command.
  */
 export const recoverPendingActivations = async (): Promise<void> => {
   const txnRoot = getTxnRoot();
@@ -166,7 +155,12 @@ export const recoverPendingActivations = async (): Promise<void> => {
     throw error;
   }
   for (const id of ids) {
-    await recoverOne({ txnDir: path.join(txnRoot, id) });
+    try {
+      await recoverOne({ txnDir: path.join(txnRoot, id) });
+    } catch {
+      // Leave an unrestorable transaction in place for a later attempt rather
+      // than blocking the command that triggered recovery (e.g. factory-reset).
+    }
   }
   await fs.rmdir(txnRoot).catch(() => undefined);
 };
@@ -191,11 +185,10 @@ export const withActivationTransaction = async <T>(args: {
       await captureEntry({ targetPath: targets[i], backupDir, index: i }),
     );
   }
-  // Persist the snapshot so a crash mid-operation can be rolled back later. The
-  // owner pid lets recovery skip this transaction while this process is alive.
+  // Persist the snapshot so a crash mid-operation can be rolled back later.
   await fs.writeFile(
     path.join(backupDir, "index.json"),
-    JSON.stringify({ ownerPid: process.pid, entries }),
+    JSON.stringify({ entries }),
   );
 
   try {
