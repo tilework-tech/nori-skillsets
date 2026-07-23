@@ -111,6 +111,29 @@ import { registryDownloadMain } from "./registryDownload.js";
 
 const execFileAsync = promisify(execFile);
 
+const commitGitBaseline = async (args: {
+  repositoryDir: string;
+}): Promise<void> => {
+  await execFileAsync("git", ["init", "--quiet"], {
+    cwd: args.repositoryDir,
+  });
+  await execFileAsync("git", ["add", "."], { cwd: args.repositoryDir });
+  await execFileAsync(
+    "git",
+    [
+      "-c",
+      "user.name=Nori Test",
+      "-c",
+      "user.email=nori-test@example.invalid",
+      "commit",
+      "--quiet",
+      "-m",
+      "local baseline",
+    ],
+    { cwd: args.repositoryDir },
+  );
+};
+
 /**
  * Create a CLAUDE.md managed block marker for Nori installation detection
  * @param dir - The directory to create the marker in
@@ -1363,24 +1386,7 @@ describe("registry-download", () => {
         path.join(existingProfileDir, ".nori-version"),
         JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
       );
-      await execFileAsync("git", ["init", "--quiet"], {
-        cwd: existingProfileDir,
-      });
-      await execFileAsync("git", ["add", "."], { cwd: existingProfileDir });
-      await execFileAsync(
-        "git",
-        [
-          "-c",
-          "user.name=Nori Test",
-          "-c",
-          "user.email=nori-test@example.invalid",
-          "commit",
-          "--quiet",
-          "-m",
-          "local baseline",
-        ],
-        { cwd: existingProfileDir },
-      );
+      await commitGitBaseline({ repositoryDir: existingProfileDir });
       const { stdout: originalHead } = await execFileAsync(
         "git",
         ["rev-parse", "HEAD"],
@@ -1426,6 +1432,83 @@ describe("registry-download", () => {
       expect(status).toBe("");
     });
 
+    it.each(["ancestor", "linked-subdirectory"] as const)(
+      "refuses a Registrar update when the target is Git-governed through %s",
+      async (topology) => {
+        const existingProfileDir = path.join(
+          skillsetsDir,
+          "public",
+          "test-profile",
+        );
+        const originalManifest = JSON.stringify({
+          name: "test-profile",
+          version: "1.0.0",
+        });
+        let repositoryDir: string;
+        let repositoryProfileDir: string;
+
+        if (topology === "ancestor") {
+          repositoryDir = skillsetsDir;
+          repositoryProfileDir = existingProfileDir;
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+        } else {
+          repositoryDir = path.join(testDir, "external-repository");
+          repositoryProfileDir = path.join(repositoryDir, "test-profile");
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+          await fs.mkdir(path.dirname(existingProfileDir), { recursive: true });
+          await fs.symlink(repositoryProfileDir, existingProfileDir, "dir");
+        }
+
+        await fs.writeFile(
+          path.join(repositoryProfileDir, "nori.json"),
+          originalManifest,
+        );
+        await fs.writeFile(
+          path.join(repositoryProfileDir, ".nori-version"),
+          JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
+        );
+        await commitGitBaseline({ repositoryDir });
+
+        vi.mocked(loadConfig).mockResolvedValue({ installDir: testDir });
+        vi.mocked(registrarApi.getPackument).mockResolvedValue({
+          name: "test-profile",
+          "dist-tags": { latest: "2.0.0" },
+          versions: {
+            "1.0.0": { name: "test-profile", version: "1.0.0" },
+            "2.0.0": { name: "test-profile", version: "2.0.0" },
+          },
+        });
+        vi.mocked(registrarApi.downloadTarball).mockResolvedValue(
+          await createMockTarball(),
+        );
+
+        const result = await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.failureKind).toBe("source-authority");
+        expect(result.message).toMatch(/Git working tree.*Registrar update/i);
+        expect(registrarApi.getPackument).not.toHaveBeenCalled();
+        expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+        await expect(
+          fs.readFile(path.join(repositoryProfileDir, "nori.json"), "utf-8"),
+        ).resolves.toBe(originalManifest);
+        const { stdout: status } = await execFileAsync(
+          "git",
+          ["status", "--short"],
+          { cwd: repositoryDir },
+        );
+        expect(status).toBe("");
+        if (topology === "linked-subdirectory") {
+          await expect(
+            fs.lstat(existingProfileDir).then((stat) => stat.isSymbolicLink()),
+          ).resolves.toBe(true);
+        }
+      },
+    );
+
     it("refuses dependency refresh for an already-current Git working tree", async () => {
       const existingProfileDir = path.join(
         skillsetsDir,
@@ -1445,24 +1528,7 @@ describe("registry-download", () => {
         path.join(existingProfileDir, ".nori-version"),
         JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
       );
-      await execFileAsync("git", ["init", "--quiet"], {
-        cwd: existingProfileDir,
-      });
-      await execFileAsync("git", ["add", "."], { cwd: existingProfileDir });
-      await execFileAsync(
-        "git",
-        [
-          "-c",
-          "user.name=Nori Test",
-          "-c",
-          "user.email=nori-test@example.invalid",
-          "commit",
-          "--quiet",
-          "-m",
-          "local baseline",
-        ],
-        { cwd: existingProfileDir },
-      );
+      await commitGitBaseline({ repositoryDir: existingProfileDir });
 
       vi.mocked(loadConfig).mockResolvedValue({ installDir: testDir });
       vi.mocked(registrarApi.getPackument).mockResolvedValue({

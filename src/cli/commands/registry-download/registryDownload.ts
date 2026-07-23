@@ -58,6 +58,29 @@ export type RegistryDownloadStatus = CommandStatus & {
   failureKind?: "source-authority";
 };
 
+const isInsideGitWorkingTree = async (args: {
+  dir: string;
+}): Promise<boolean> => {
+  let currentDir = await fs.realpath(args.dir);
+
+  while (true) {
+    try {
+      await fs.lstat(path.join(currentDir, ".git"));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return false;
+    }
+    currentDir = parentDir;
+  }
+};
+
 /**
  * Read the nori.json file from a skillset directory
  * @param args - The function arguments
@@ -486,22 +509,21 @@ export const registryDownloadMain = async (args: {
 
   if (profileExists && listVersions !== true) {
     try {
-      await fs.lstat(path.join(targetDir, ".git"));
-      return {
-        success: false,
-        cancelled: false,
-        message: `Git working tree detected at "${targetDir}"; Registrar update refused to protect local history.`,
-        failureKind: "source-authority",
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      if (await isInsideGitWorkingTree({ dir: targetDir })) {
         return {
           success: false,
           cancelled: false,
-          message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
+          message: `Git working tree detected at "${targetDir}"; Registrar update refused to protect local history.`,
           failureKind: "source-authority",
         };
       }
+    } catch (error) {
+      return {
+        success: false,
+        cancelled: false,
+        message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
+        failureKind: "source-authority",
+      };
     }
   }
 

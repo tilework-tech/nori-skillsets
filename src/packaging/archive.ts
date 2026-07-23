@@ -75,6 +75,58 @@ const isGitMetadataEntry = async (args: {
   return entryRealPath != null && entryRealPath === dotGitRealPath;
 };
 
+const resolveArchiveSource = async (args: {
+  sourceDir: string;
+}): Promise<string> => {
+  let unresolvedPath = path.resolve(args.sourceDir);
+  const visitedSymlinks = new Set<string>();
+
+  while (true) {
+    const parsedPath = path.parse(unresolvedPath);
+    const segments = unresolvedPath
+      .slice(parsedPath.root.length)
+      .split(path.sep)
+      .filter((segment) => segment.length > 0);
+    let resolvedPath = parsedPath.root;
+    let followedSymlink = false;
+
+    for (let index = 0; index < segments.length; index++) {
+      const entryName = segments[index];
+      const entryPath = path.join(resolvedPath, entryName);
+      if (await isGitMetadataEntry({ dir: resolvedPath, entryName })) {
+        throw new Error(
+          `Upload archive source cannot be inside Git metadata: ${entryPath}`,
+        );
+      }
+
+      const stat = await fs.lstat(entryPath);
+      if (!stat.isSymbolicLink()) {
+        resolvedPath = entryPath;
+        continue;
+      }
+
+      if (visitedSymlinks.has(entryPath)) {
+        throw new Error(
+          `Upload archive source contains a symbolic link cycle: ${args.sourceDir}`,
+        );
+      }
+      visitedSymlinks.add(entryPath);
+      const linkTarget = await fs.readlink(entryPath);
+      unresolvedPath = path.resolve(
+        resolvedPath,
+        linkTarget,
+        ...segments.slice(index + 1),
+      );
+      followedSymlink = true;
+      break;
+    }
+
+    if (!followedSymlink) {
+      return await fs.realpath(resolvedPath);
+    }
+  }
+};
+
 const collectArchiveFilePaths = async (args: {
   dir: string;
   relativeDir: string;
@@ -124,7 +176,7 @@ const collectArchiveFilePaths = async (args: {
 const inspectArchiveSource = async (args: {
   sourceDir: string;
 }): Promise<{ resolvedSourceDir: string; relPaths: Array<string> }> => {
-  const resolvedSourceDir = await fs.realpath(args.sourceDir);
+  const resolvedSourceDir = await resolveArchiveSource(args);
   const relPaths = await collectArchiveFilePaths({
     dir: resolvedSourceDir,
     relativeDir: "",

@@ -6154,6 +6154,45 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).toHaveBeenCalled();
       });
 
+      it("rejects a linked skillset rooted at .git", async () => {
+        const repositoryDir = path.join(testDir, "repository");
+        const gitDir = path.join(repositoryDir, ".git");
+        await fs.mkdir(gitDir, { recursive: true });
+        await fs.writeFile(
+          path.join(gitDir, "config"),
+          '[remote "origin"]\nurl = https://secret@example.invalid/repo.git\n',
+        );
+
+        const orgDir = path.join(skillsetsDir, "myorg");
+        await fs.mkdir(orgDir, { recursive: true });
+        await fs.symlink(gitDir, path.join(orgDir, "my-profile"), "dir");
+
+        vi.mocked(loadConfig).mockResolvedValue({
+          installDir: testDir,
+          auth: {
+            username: "test@example.com",
+            refreshToken: "test-token",
+            organizations: ["myorg"],
+            organizationUrl: "https://myorg.tilework.tech",
+          },
+        });
+        vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+        vi.mocked(registrarApi.getPackument).mockRejectedValue(
+          new Error("Not found"),
+        );
+
+        const result = await registryUploadMain({
+          profileSpec: "myorg/my-profile",
+          cwd: testDir,
+          silent: true,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.cancelled).toBe(false);
+        expect(result.message).toMatch(/archive source.*Git metadata/i);
+        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      });
+
       it("rejects a symlinked skill inside the skillset", async () => {
         // Create a skillset with a symlinked skill directory
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");

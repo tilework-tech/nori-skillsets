@@ -130,6 +130,58 @@ describe("createArchive + extractArchive roundtrip", () => {
     ).resolves.toContain('"name":"x"');
   });
 
+  it.each([".git", path.join(".git", "objects")])(
+    "rejects a linked source rooted at %s",
+    async (gitMetadataPath) => {
+      const repositoryDir = path.join(
+        tempDir,
+        `repository-${path.basename(gitMetadataPath)}`,
+      );
+      await fs.mkdir(path.join(repositoryDir, ".git", "objects"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(repositoryDir, ".git", "config"),
+        '[remote "origin"]\nurl = https://secret@example.invalid/repo.git\n',
+      );
+      await fs.writeFile(
+        path.join(repositoryDir, ".git", "objects", "payload"),
+        "git object data",
+      );
+      const linkedSourceDir = path.join(
+        tempDir,
+        `linked-${path.basename(gitMetadataPath)}`,
+      );
+      await fs.symlink(
+        path.join(repositoryDir, gitMetadataPath),
+        linkedSourceDir,
+        "dir",
+      );
+
+      await expect(
+        createArchive({ sourceDir: linkedSourceDir }),
+      ).rejects.toThrow(/archive source.*Git metadata/i);
+    },
+  );
+
+  it("rejects a linked source that passes through a symlinked .git directory", async () => {
+    const repositoryDir = path.join(tempDir, "repository-symlinked-git");
+    const externalGitDir = path.join(tempDir, "external-git-metadata");
+    await fs.mkdir(repositoryDir);
+    await fs.mkdir(path.join(externalGitDir, "objects"), { recursive: true });
+    await fs.writeFile(
+      path.join(externalGitDir, "config"),
+      '[remote "origin"]\nurl = https://secret@example.invalid/repo.git\n',
+    );
+    await fs.symlink(externalGitDir, path.join(repositoryDir, ".git"), "dir");
+    const linkedSourceDir = path.join(tempDir, "linked-symlinked-git");
+    await fs.symlink(path.join(repositoryDir, ".git"), linkedSourceDir, "dir");
+
+    await expect(createArchive({ sourceDir: linkedSourceDir })).rejects.toThrow(
+      /archive source.*Git metadata/i,
+    );
+  });
+
   it("does not overwrite a sibling matching the former temp archive name", async () => {
     const sourceDir = await seedSourceDir();
     const siblingPath = path.join(tempDir, ".source-upload.tgz");
@@ -184,10 +236,17 @@ describe("createArchive + extractArchive roundtrip", () => {
     }
   });
 
-  it("excludes a case-variant symlink alias to .git", async () => {
+  it("excludes a case-variant alias to .git", async () => {
     const sourceDir = await seedSourceDir();
     await fs.mkdir(path.join(sourceDir, ".git"));
-    await fs.symlink(".git", path.join(sourceDir, ".GIT"), "dir");
+    const caseVariantPath = path.join(sourceDir, ".GIT");
+    const namesAlias = await fs
+      .realpath(caseVariantPath)
+      .then(() => true)
+      .catch(() => false);
+    if (!namesAlias) {
+      await fs.symlink(".git", caseVariantPath, "dir");
+    }
 
     const destDir = await archiveAndExtract({
       destinationName: "dest-git-case-alias",
