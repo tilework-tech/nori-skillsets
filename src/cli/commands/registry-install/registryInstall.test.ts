@@ -33,6 +33,13 @@ vi.mock("@/cli/features/install/installLock.js", () => ({
   withInstallLock: mockInstallLock.withInstallLock,
 }));
 
+vi.mock("@/cli/features/install/activationTransaction.js", () => ({
+  withActivationTransaction: async <T>(a: {
+    operation: () => Promise<T>;
+  }): Promise<T> => a.operation(),
+  recoverPendingActivations: async (): Promise<void> => undefined,
+}));
+
 vi.mock("os", async () => {
   const actual: any = await vi.importActual("os");
   return {
@@ -175,7 +182,7 @@ describe("registry-install", () => {
       skillset: "public/senior-swe",
       agent: "claude-code",
       silent: null,
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
 
     // Should NOT call switchSkillset or second install (initial install handles it)
@@ -232,7 +239,7 @@ describe("registry-install", () => {
       agent: "claude-code",
       silent: true,
       skillset: "public/senior-swe",
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
@@ -277,7 +284,7 @@ describe("registry-install", () => {
       skillset: "public/product-manager",
       agent: "claude-code",
       silent: null,
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
   });
 
@@ -301,7 +308,7 @@ describe("registry-install", () => {
       skillset: "public/documenter",
       agent: "claude-code",
       silent: null,
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
   });
 
