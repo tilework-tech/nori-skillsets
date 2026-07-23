@@ -64,8 +64,11 @@ The repository must expose an explicit
 `"type": "skillset"`; a tag with the same name does not satisfy the branch
 requirement. The command requests the branch's normal full history, stores it at
 `~/.nori/profiles/personal/my-skillset/`, and keeps it as a Git working tree.
-By default, the checkout remains attached to the branch's current tip. To
-install an exact historical commit, pass its full SHA-1 or SHA-256 object ID:
+The clone explicitly overrides Git's `clone.rejectShallow` setting so local Git
+configuration cannot change Nori's source policy: by default, an unpinned
+checkout may come from a shallow source and remains attached to the branch's
+current tip. To install an exact historical commit, pass its full SHA-1 or
+SHA-256 object ID:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git \
@@ -82,8 +85,11 @@ pinned installs verify that the repository is non-shallow, because they must
 prove complete ancestry.
 
 Interactive installs ask you to trust the source; unattended installs must add
-`--trust-source` and disable Git's terminal credential prompts. Credential-bearing
-URL components are redacted from trust prompts and Git errors:
+`--trust-source`. Unattended Git processes set `GIT_TERMINAL_PROMPT=0` and use
+SSH batch mode, so Git, SSH host-key confirmation, and SSH password/passphrase
+challenges fail instead of prompting. Credential-bearing URL components are
+redacted from trust prompts and Git errors; sensitive query keys are recognized
+after percent-decoding and may be separated by `&` or `;`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
@@ -96,9 +102,16 @@ putting literal credentials in the remote URL.
 Git-backed installs do not automatically fetch later commits. Run the command
 only for a new local name: an existing `personal/my-skillset` is never
 overwritten. Before reading the manifest, they reject tracked symbolic links,
-submodules, and any root path that compatibility-normalizes and case-folds to the Registry
-`.nori-version` filename. They never fall back to the Registry and do not
-persist Nori-specific source provenance or trust state.
+submodules, every path whose first root component normalizes to the Registry
+`.nori-version` name, and every non-exact or descendant path whose first root
+component normalizes to `nori.json`. Normalization includes compatibility
+normalization, case folding, and removal of the code points Git ignores on HFS
+filesystems, so reserved directory aliases such as `.NORI-VERSION/...` or
+`NORI.JSON/...` are rejected too. The sole accepted manifest authority is the
+exact lowercase root regular file `nori.json`. Git installs never fall back to
+the Registry and do not persist Nori-specific source provenance or trust state.
+A successful `--silent` install also suppresses activation-loader status,
+warning, and summary output.
 
 ## How Skillsets Work
 

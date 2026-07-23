@@ -7,7 +7,7 @@ import { log, note } from "@clack/prompts";
 import { signInWithEmailAndPassword, AuthErrorCodes } from "firebase/auth";
 
 import { getConfigPath, loadConfig, updateConfig } from "@/cli/config.js";
-import { debug } from "@/cli/logger.js";
+import { debug, isSilentMode } from "@/cli/logger.js";
 import { configureFirebase, getFirebase } from "@/providers/firebase.js";
 
 import type { Config } from "@/cli/config.js";
@@ -49,7 +49,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   // This converts password-based login to token-based storage
   let tokenToSave = refreshToken;
   if (password && !refreshToken && username) {
-    log.info("Authenticating to obtain secure token...");
+    if (!isSilentMode()) {
+      log.info("Authenticating to obtain secure token...");
+    }
     debug({ message: `  Email: ${username}` });
     debug({ message: `  Organization URL: ${organizationUrl}` });
 
@@ -66,10 +68,14 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         password,
       );
       tokenToSave = userCredential.user.refreshToken;
-      log.success("Authentication successful");
+      if (!isSilentMode()) {
+        log.success("Authentication successful");
+      }
     } catch (err) {
       const authError = err as AuthError;
-      log.error("Authentication failed");
+      if (!isSilentMode()) {
+        log.error("Authentication failed");
+      }
 
       // Consolidate detail lines into a note
       const details = [
@@ -107,12 +113,16 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
         );
       }
 
-      note(details.join("\n"), "Details");
+      if (!isSilentMode()) {
+        note(details.join("\n"), "Details");
+      }
 
       // Don't halt installation - continue without authentication
-      log.warn(
-        "Continuing installation without authentication. Backend features will be unavailable.",
-      );
+      if (!isSilentMode()) {
+        log.warn(
+          "Continuing installation without authentication. Backend features will be unavailable.",
+        );
+      }
     }
   }
 
@@ -145,7 +155,9 @@ const installConfig = async (args: { config: Config }): Promise<void> => {
   });
 
   const configPath = getConfigPath();
-  log.success(`Config file created: ${configPath}`);
+  if (!isSilentMode()) {
+    log.success(`Config file created: ${configPath}`);
+  }
 };
 
 /**

@@ -31,7 +31,11 @@ const GIT_ROUTING_ENVIRONMENT = [
 ] as const;
 const GIT_ENVIRONMENT = [
   ...GIT_ROUTING_ENVIRONMENT,
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_KEY_0",
+  "GIT_CONFIG_VALUE_0",
   "GIT_SHALLOW_FILE",
+  "GIT_SSH_COMMAND",
   "GIT_TERMINAL_PROMPT",
 ] as const;
 
@@ -213,6 +217,50 @@ describe("gitInstallMain", () => {
     await expect(
       fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
     ).resolves.toContain("review instructions");
+  });
+
+  it("emits no output for a successful silent install", async () => {
+    await repository.commit({
+      slug: "reviewer",
+      manifest: {
+        requiredEnv: ["NORI_GIT_INSTALL_MISSING_ENV"],
+      },
+      files: {
+        "skills/audit/SKILL.md":
+          "---\nname: audit\ndescription: Audit changes\n---\nAudit the change.\n",
+        "slashcommands/check.md": "Check the current change.\n",
+        "subagents/reviewer.md":
+          "---\nname: reviewer\ndescription: Review changes\n---\nReview the change.\n",
+      },
+    });
+    await fs.mkdir(path.join(testRoot, ".claude"), { recursive: true });
+    await fs.writeFile(path.join(testRoot, ".claude", "settings.json"), "{}\n");
+    const stdout: Array<string> = [];
+    const stderr: Array<string> = [];
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ): boolean => {
+      stdout.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ): boolean => {
+      stderr.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+
+    let result;
+    try {
+      result = await install({ silent: true });
+    } finally {
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
+    }
+
+    expect(result?.success).toBe(true);
+    expect(stdout.join("")).toBe("");
+    expect(stderr.join("")).toBe("");
   });
 
   it("installs and activates an exact historical commit with detached HEAD", async () => {
@@ -415,6 +463,9 @@ describe("gitInstallMain", () => {
     const shallowRemote = await repository.createShallowRemote({
       slug: "reviewer",
     });
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "clone.rejectShallow";
+    process.env.GIT_CONFIG_VALUE_0 = "true";
 
     await expectRejectedCheckout(/complete history|source is shallow/i, {
       remote: shallowRemote,
@@ -431,6 +482,9 @@ describe("gitInstallMain", () => {
     const shallowRemote = await repository.createShallowRemote({
       slug: "reviewer",
     });
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "clone.rejectShallow";
+    process.env.GIT_CONFIG_VALUE_0 = "true";
 
     const result = await install({ remote: shallowRemote, pin: null });
 
@@ -532,6 +586,51 @@ describe("gitInstallMain", () => {
 
     await expectRejectedCheckout(/Registry provenance|\.nori-version/i);
   });
+
+  it.each([
+    {
+      error: /Registry provenance|\.nori-version/i,
+      label: "a case-folded provenance directory",
+      pinned: false,
+      trackedPath: ".NORI-VERSION/payload",
+    },
+    {
+      error: /Registry provenance|\.nori-version/i,
+      label: "HFS-ignored characters in provenance",
+      pinned: true,
+      trackedPath: ".nori-ver\u200Csion",
+    },
+    {
+      error: null,
+      label: "a case-folded manifest directory",
+      pinned: false,
+      trackedPath: "NORI.JSON/payload",
+    },
+    {
+      error: null,
+      label: "HFS-ignored characters in a manifest alias",
+      pinned: true,
+      trackedPath: "nori\u200C.json",
+    },
+  ])(
+    "rejects $label at the tracked root boundary",
+    async ({ error, pinned, trackedPath }) => {
+      await repository.commit({ slug: "reviewer" });
+      const commit = await commitTrackedAlias({
+        contents: "reserved path payload",
+        trackedPath,
+      });
+
+      const result = await install({
+        pin: pinned ? commit : null,
+      });
+      expect(result.success).toBe(false);
+      if (error != null) {
+        expect(result.message).toMatch(error);
+      }
+      await expect(fs.access(target)).rejects.toThrow();
+    },
+  );
 
   it("requires the exact tracked nori.json path even when the filesystem resolves a case alias", async () => {
     await repository.commit({ slug: "reviewer" });
@@ -721,7 +820,7 @@ exec "${realGit}" "$@"
     prompt.confirm.mockResolvedValueOnce(false);
     const result = await install({
       remote:
-        "FtPs://credential-user-7f3:credential-password-9c2@example.invalid/skillsets.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f&oauth_token=oauth-secret-d7g&client_secret=client-secret-e8h",
+        "FtPs://credential-user-7f3:credential-password-9c2@example.invalid/skillsets.git?private_token=private-secret-a4d&X-Amz-Signature=aws-secret-b5e&sig=short-secret-c6f&oauth_token=oauth-secret-d7g&client_secret=client-secret-e8h;access%5Ftoken=encoded-secret-f9i",
       trustSource: null,
       nonInteractive: false,
       silent: false,
@@ -740,6 +839,7 @@ exec "${realGit}" "$@"
       "short-secret-c6f",
       "oauth-secret-d7g",
       "client-secret-e8h",
+      "encoded-secret-f9i",
     ]) {
       expect(promptArgs?.message).not.toContain(secret);
     }
@@ -761,6 +861,24 @@ exec "${realGit}" "$@"
       "short-secret-c6f",
       "oauth-secret-d7g",
       "client-secret-e8h",
+    ]) {
+      expect(result.message).not.toContain(secret);
+    }
+  });
+
+  it("redacts encoded query keys and semicolon-delimited credentials from Git errors", async () => {
+    const missingRemote = path.join(
+      testRoot,
+      "missing.git?access%5Ftoken=encoded-secret-a4d;token=semicolon-secret-b5e&client%5Fsecret=encoded-client-secret-c6f",
+    );
+
+    const result = await install({ remote: missingRemote });
+
+    expectFailure(result, /Git command failed/i);
+    for (const secret of [
+      "encoded-secret-a4d",
+      "semicolon-secret-b5e",
+      "encoded-client-secret-c6f",
     ]) {
       expect(result.message).not.toContain(secret);
     }
@@ -812,6 +930,55 @@ process.exit(result.status ?? 1);
 
     expect(result.success).toBe(true);
   });
+
+  it("uses SSH batch mode for unattended installs", async () => {
+    const wrapperDir = path.join(testRoot, "ssh-batch-wrapper");
+    const wrapperPath = path.join(wrapperDir, "ssh");
+    const invocationPath = path.join(wrapperDir, "invocation");
+    await fs.mkdir(wrapperDir);
+    await fs.writeFile(
+      wrapperPath,
+      `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.writeFileSync(${JSON.stringify(invocationPath)}, process.argv.slice(2).join("\\n"));
+process.exit(86);
+`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${wrapperDir}${path.delimiter}${previousPath ?? ""}`;
+    process.env.GIT_SSH_COMMAND = "ssh -oConnectTimeout=7";
+
+    const result = await install({
+      remote: "ssh://git@example.invalid/skillsets.git",
+      nonInteractive: true,
+      silent: false,
+    });
+
+    expectFailure(result, /Git command failed/i);
+    const invocation = (await fs.readFile(invocationPath, "utf8")).split("\n");
+    expect(invocation).toContain("-oBatchMode=yes");
+    expect(invocation).toContain("-oConnectTimeout=7");
+    await expect(fs.access(target)).rejects.toThrow();
+  });
+
+  it.each([
+    "ssh -oBatchMode=no -oConnectTimeout=7",
+    "ssh -o 'BatchMode no' -oConnectTimeout=7",
+  ])(
+    "rejects an inherited SSH command that disables batch mode: %s",
+    async (sshCommand) => {
+      process.env.GIT_SSH_COMMAND = sshCommand;
+
+      const result = await install({
+        remote: "ssh://git@example.invalid/skillsets.git",
+        nonInteractive: true,
+        silent: false,
+      });
+
+      expectFailure(result, /must not disable SSH batch mode/i);
+      await expect(fs.access(target)).rejects.toThrow();
+    },
+  );
 
   it("preserves unexpected Git object inspection errors", async () => {
     const historicalCommit = await repository.commit({ slug: "reviewer" });

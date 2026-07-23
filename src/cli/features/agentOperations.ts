@@ -25,7 +25,7 @@ import {
   backupSettingsFile,
   restoreSettingsFile,
 } from "@/cli/features/settingsBackup.js";
-import { bold } from "@/cli/logger.js";
+import { bold, isSilentMode } from "@/cli/logger.js";
 import { ensureNoriJson } from "@/norijson/nori.js";
 import {
   MANIFEST_FILE,
@@ -205,7 +205,7 @@ export const installSkillset = async (args: {
     }
   }
 
-  if (settingsResults.length > 0) {
+  if (settingsResults.length > 0 && !isSilentMode()) {
     const lines = settingsResults.map((name) => `\u2713 ${name}`);
     note(lines.join("\n"), `${agent.displayName} Settings`);
   }
@@ -242,7 +242,7 @@ export const installSkillset = async (args: {
           .filter((e) => e.isDirectory())
           .map((e) => e.name)
           .sort();
-        if (skillNames.length > 0) {
+        if (skillNames.length > 0 && !isSilentMode()) {
           const skillLines = skillNames.map((name) => `$ ${name}`);
           const summary = bold({
             text: `Registered ${skillNames.length} agent skill${skillNames.length === 1 ? "" : "s"}`,
@@ -260,7 +260,7 @@ export const installSkillset = async (args: {
       skillset,
       env: process.env,
     });
-    if (missingEnv.length > 0) {
+    if (missingEnv.length > 0 && !isSilentMode()) {
       const lines = missingEnv.map((name) => `× ${name}`);
       lines.push(
         "",

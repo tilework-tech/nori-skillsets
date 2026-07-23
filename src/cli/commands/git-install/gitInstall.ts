@@ -16,6 +16,25 @@ import { resolveInstallDir } from "@/utils/path.js";
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
 const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
+const HFS_IGNORED_CODE_POINTS =
+  /[\u200C-\u200F\u202A-\u202E\u206A-\u206F\uFEFF]/gu;
+const SSH_BATCH_MODE_DISABLED = /batchmode(?:\s*=\s*|\s+)["']?no\b/iu;
+const SENSITIVE_QUERY_KEYS = new Set([
+  "access_token",
+  "api_key",
+  "client_secret",
+  "key",
+  "oauth_token",
+  "password",
+  "private_token",
+  "refresh_token",
+  "sig",
+  "signature",
+  "token",
+  "x-amz-credential",
+  "x-amz-security-token",
+  "x-amz-signature",
+]);
 
 type GitInstallArgs = {
   slug: string;
@@ -27,12 +46,23 @@ type GitInstallArgs = {
   silent?: boolean | null;
 };
 
+const normalizeQueryKey = (args: { key: string }): string => {
+  try {
+    return decodeURIComponent(args.key).normalize("NFKC").toLowerCase();
+  } catch {
+    return args.key.normalize("NFKC").toLowerCase();
+  }
+};
+
 const sanitizeGitText = (value: string): string =>
   value
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/giu, "$1***@")
     .replace(
-      /([?&](?:access_token|api_key|client_secret|key|oauth_token|password|private_token|refresh_token|sig|signature|token|x-amz-credential|x-amz-security-token|x-amz-signature)=)[^&\s'"]+/giu,
-      "$1***",
+      /([?&;])([^=&#;\s'"]+)=([^&#;\s'"]*)/gu,
+      (match, separator: string, key: string) =>
+        SENSITIVE_QUERY_KEYS.has(normalizeQueryKey({ key }))
+          ? `${separator}${key}=***`
+          : match,
     );
 
 const GIT_ROUTING_ENVIRONMENT = [
@@ -55,7 +85,16 @@ const gitEnvironment = (args: {
   const { settings } = args;
   const environment = { ...process.env };
   for (const name of GIT_ROUTING_ENVIRONMENT) delete environment[name];
-  if (settings.disableTerminalPrompts) environment.GIT_TERMINAL_PROMPT = "0";
+  if (settings.disableTerminalPrompts) {
+    environment.GIT_TERMINAL_PROMPT = "0";
+    const sshCommand = environment.GIT_SSH_COMMAND ?? "ssh";
+    if (SSH_BATCH_MODE_DISABLED.test(sshCommand)) {
+      throw new Error(
+        "GIT_SSH_COMMAND must not disable SSH batch mode for unattended installs",
+      );
+    }
+    environment.GIT_SSH_COMMAND = `${sshCommand} -oBatchMode=yes`;
+  }
   return environment;
 };
 
@@ -83,6 +122,7 @@ const executeGit = async (args: {
 }): Promise<GitExecution> => {
   const { command, cwd, input, settings } = args;
   return new Promise((resolve) => {
+    let stdinError: Error | null = null;
     const child = execFile(
       "git",
       command,
@@ -92,14 +132,27 @@ const executeGit = async (args: {
         maxBuffer: 10 * 1024 * 1024,
       },
       (error, stdout, stderr) => {
+        const executionError = error ?? stdinError;
+        const reportedExitCode =
+          executionError != null &&
+          "code" in executionError &&
+          (typeof executionError.code === "string" ||
+            typeof executionError.code === "number")
+            ? executionError.code
+            : null;
         resolve({
-          error,
-          exitCode: error != null && "code" in error ? (error.code ?? null) : 0,
+          error: executionError,
+          exitCode: executionError == null ? 0 : (reportedExitCode ?? 1),
           stderr: String(stderr).trim(),
           stdout: String(stdout).trim(),
         });
       },
     );
+    child.stdin?.on("error", (error) => {
+      if ((error as NodeJS.ErrnoException).code !== "EPIPE") {
+        stdinError = error;
+      }
+    });
     child.stdin?.end(input);
   });
 };
@@ -255,8 +308,13 @@ type TrackedEntry = {
   path: string;
 };
 
-const normalizeReservedRootPath = (args: { path: string }): string =>
-  args.path.normalize("NFKC").toLowerCase();
+const normalizeReservedRootPath = (args: { path: string }): string => {
+  const [rootEntry = ""] = args.path.split("/");
+  return rootEntry
+    .normalize("NFKC")
+    .replace(HFS_IGNORED_CODE_POINTS, "")
+    .toLowerCase();
+};
 
 const parseTrackedEntries = (args: { output: string }): Array<TrackedEntry> => {
   const records = args.output.split("\0").filter((record) => record.length > 0);
@@ -338,7 +396,13 @@ const acquireGitCheckout = async (args: {
   slug: string;
 }): Promise<string | null> => {
   const { branch, checkoutDir, pin, remote, settings, slug } = args;
-  const cloneArgs = ["clone", "--single-branch", "--branch", branch];
+  const cloneArgs = [
+    "clone",
+    "--single-branch",
+    "--branch",
+    branch,
+    "--no-reject-shallow",
+  ];
   if (pin != null) cloneArgs.push("--no-checkout");
   cloneArgs.push("--", remote, checkoutDir);
   await runGit({ command: cloneArgs, settings });
