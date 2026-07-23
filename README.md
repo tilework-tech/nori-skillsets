@@ -169,7 +169,7 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
-- Git available on `PATH` for `sks new` and `install --from`; SHA-256 repository support depends on the installed Git build
+- Git available on `PATH` for `sks new`, `sks fork`, and `install --from`; SHA-256 repository support depends on the installed Git build
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
@@ -217,6 +217,30 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 
    When `defaultOrg` is configured, use
    `~/.nori/profiles/<org>/my-skillset` instead.
+
+To customize an existing skillset without retaining its source history or
+authority, fork it under a new name:
+
+```bash
+sks fork existing-skillset my-skillset
+```
+
+The fork contains the authored package content with its manifest renamed for
+the destination. It preserves authored metadata and existing `.gitignore`
+rules, but removes Registrar provenance, Nori-local state, caches, generated
+agent output, and the source repository's Git history. The destination is a new
+Git repository with no commit or remote; committing and publishing remain
+explicit later steps.
+
+For v1, registered provider output files and directories are treated as wholly
+generated and omitted by path. Authored sibling paths in shared directories are
+preserved; `fork` does not attempt to reverse-render mixed generated files.
+
+The source may itself be linked into the profile library, but package content
+inside it must be self-contained. Forking rejects interior symbolic links,
+submodules, and nested repositories. It never overwrites an existing
+destination, never mutates the source, and removes only the newly created
+destination if the operation fails.
 
 Git-backed skillsets use Git as their source authority. Mutating Registrar
 commands therefore refuse to download into or upload from a Git-governed

@@ -5,12 +5,15 @@
  */
 
 import * as fs from "fs/promises";
-import { execFileSync } from "node:child_process";
 import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
 import { loadConfig } from "@/cli/config.js";
+import {
+  ensureNoriGitignore,
+  initializeGitRepository,
+} from "@/cli/features/localGitRepository.js";
 import { bold } from "@/cli/logger.js";
 import { newSkillsetFlow } from "@/cli/prompts/flows/newSkillset.js";
 import { validateNamespacedSkillsetName } from "@/cli/prompts/validators.js";
@@ -24,57 +27,6 @@ import {
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 import type { NewSkillsetFlowResult } from "@/cli/prompts/flows/newSkillset.js";
-
-const GITIGNORE_CONTENT = `# Nori-local state
-.nori-version
-.nori-managed
-.nori/
-.nori-config.json
-.nori-installed-version
-`;
-
-const GIT_ROUTING_ENVIRONMENT_VARIABLES = [
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_COMMON_DIR",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_INDEX_FILE",
-] as const;
-
-const gitEnvironment = (): NodeJS.ProcessEnv => {
-  const env = { ...process.env };
-  for (const variable of GIT_ROUTING_ENVIRONMENT_VARIABLES) {
-    delete env[variable];
-  }
-  return env;
-};
-
-const initializeGitRepository = (args: { dir: string }): void => {
-  const { dir } = args;
-  try {
-    execFileSync("git", ["init", "--quiet", "--template="], {
-      cwd: dir,
-      env: gitEnvironment(),
-      stdio: "pipe",
-    });
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ENOENT"
-    ) {
-      throw new Error("Git is not installed or is not available on PATH");
-    }
-
-    const stderr =
-      error instanceof Error && "stderr" in error
-        ? String((error as { stderr?: unknown }).stderr ?? "").trim()
-        : "";
-    const detail =
-      stderr || (error instanceof Error ? error.message : String(error));
-    throw new Error(`Failed to initialize Git repository: ${detail}`);
-  }
-};
 
 /**
  * Create the directory and nori.json for a new skillset.
@@ -208,7 +160,7 @@ export const newSkillsetMain = async (
       skillsetDir: destPath,
       metadata,
     });
-    await fs.writeFile(path.join(destPath, ".gitignore"), GITIGNORE_CONTENT);
+    await ensureNoriGitignore({ dir: destPath });
     initializeGitRepository({ dir: destPath });
   } catch (error) {
     await fs.rm(destPath, { recursive: true, force: true }).catch(() => {

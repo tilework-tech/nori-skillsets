@@ -342,6 +342,9 @@ export const buildAgentConfig = (args: {
     getSlashcommandsDir: ({ installDir }) =>
       path.join(getAgentDir({ installDir }), definition.slashcommandsDirName),
     getInstructionsFilePath,
+    ...(definition.mcp != null
+      ? { getProjectMcpFile: definition.mcp.projectFile }
+      : {}),
 
     getLoaders: () => [
       configLoader,

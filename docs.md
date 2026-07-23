@@ -4,7 +4,7 @@ Path: @/
 
 ### Overview
 
-Nori Skillsets is a CLI client and plugin package for installing and managing "skillsets" -- complete, packaged agent configurations for AI coding agents. It supports many agents (Claude Code, Cursor, Codex, and more) through a data-oriented `AgentConfig` type with shared operation functions; each agent is declared as one row in a single declarative table. It connects to the noriskillsets.dev registry to search, download, upload, and switch between skillsets and individual skills. The package is published to npm as `nori-skillsets` with binary aliases `nori-skillsets`, `nori-skillset`, and `sks`.
+Nori Skillsets is a CLI client and plugin package for installing and managing "skillsets" -- complete, packaged agent configurations for AI coding agents. It supports many agents (Claude Code, Cursor, Codex, and more) through a data-oriented `AgentConfig` type with shared operation functions; each agent is declared as one row in a single declarative table. It connects to the noriskillsets.dev registry to search, download, and upload skillsets and individual skills, while a parallel Git-backed path supports installing, creating, and independently forking local skillsets. The package is published to npm as `nori-skillsets` with binary aliases `nori-skillsets`, `nori-skillset`, and `sks`.
 
 ### How it fits into the larger codebase
 
