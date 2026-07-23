@@ -20,13 +20,17 @@ import {
   getActiveSkillset,
   type Config,
 } from "@/cli/config.js";
-import { installSkillset } from "@/cli/features/agentOperations.js";
+import {
+  installSkillset,
+  markInstall,
+} from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   displayWelcomeBanner,
   displaySeaweedBed,
 } from "@/cli/features/install/asciiArt.js";
 import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import {
   buildCLIEventParams,
   getUserId,
@@ -89,13 +93,15 @@ const displayCompletionBanners = (): void => {
  * @param args.config - Configuration to use
  * @param args.agent - AI agent implementation
  * @param args.nonInteractive - Whether running in non-interactive mode
+ * @param args.skillsetName - Skillset identity to persist in the install marker
  */
 const completeInstallation = async (args: {
   config: Config;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
   nonInteractive: boolean;
+  skillsetName: string;
 }): Promise<void> => {
-  const { config, agent, nonInteractive } = args;
+  const { config, agent, nonInteractive, skillsetName } = args;
 
   // Track installation start (fire-and-forget)
   void (async () => {
@@ -111,17 +117,21 @@ const completeInstallation = async (args: {
     });
   })();
 
-  // Create progress marker
   createProgressMarker();
+  try {
+    await installSkillset({
+      agent,
+      config,
+    });
+  } finally {
+    cleanupProgressMarker();
+  }
 
-  // Delegate to agent: run loaders, write manifest, mark install
-  await installSkillset({
+  markInstall({
     agent,
-    config,
+    path: config.installDir,
+    skillsetName,
   });
-
-  // Remove progress marker
-  cleanupProgressMarker();
 
   // Track completion (fire-and-forget)
   void (async () => {
@@ -150,13 +160,17 @@ const completeInstallation = async (args: {
  * @param args.agent - AI agent to use (defaults to claude-code)
  * @param args.skillset - Skillset to use (required if no existing config)
  * @param args.persistActiveSkillset - When false, do not persist the selected skillset to the global config (transient --install-dir switch)
+ * @param args.silent - Whether to suppress all output
  */
-export const noninteractive = async (args?: {
+type NoninteractiveArgs = {
   installDir?: string | null;
   agent?: string | null;
   skillset?: string | null;
   persistActiveSkillset?: boolean | null;
-}): Promise<void> => {
+  silent?: boolean | null;
+};
+
+const noninteractiveImpl = async (args?: NoninteractiveArgs): Promise<void> => {
   const { installDir, agent, skillset, persistActiveSkillset } = args || {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
@@ -166,29 +180,31 @@ export const noninteractive = async (args?: {
     name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });
 
-  // Step 1: Init - Set up folders (non-interactive skips existing config capture)
+  // Step 1: Initialize storage and preserve any existing agent configuration.
+  // Installation defers managed markers until each agent's loaders succeed.
   await ensureNoriInitialized({
     installDir: normalizedInstallDir,
     skillset,
+    markInstalled: false,
   });
 
   // Step 2: Resolve skillset and save to config
   const existingConfig = await loadConfig();
   if (existingConfig == null) {
-    log.error(
-      "No Nori configuration found. Please run 'nori-skillsets init' first.",
-    );
-    process.exit(1);
+    const message =
+      "No Nori configuration found. Please run 'nori-skillsets init' first.";
+    log.error(message);
+    throw new Error(message);
   }
 
   const existingSkillset = getActiveSkillset({ config: existingConfig });
 
   if (skillset == null && existingSkillset == null) {
-    log.error(
-      "Non-interactive install requires a skillset when no existing skillset is set",
-    );
+    const message =
+      "Non-interactive install requires a skillset when no existing skillset is set";
+    log.error(message);
     note("nori-skillsets install <skillset-name>", "Example");
-    process.exit(1);
+    throw new Error(message);
   }
 
   const selectedSkillset = skillset ?? existingSkillset!;
@@ -206,8 +222,9 @@ export const noninteractive = async (args?: {
   // Reload config after saving
   const config = await loadConfig();
   if (config == null) {
-    log.error("Failed to load configuration after setup.");
-    process.exit(1);
+    const message = "Failed to load configuration after setup.";
+    log.error(message);
+    throw new Error(message);
   }
 
   // Step 3: Complete installation (run loaders, track analytics, display banners)
@@ -232,8 +249,39 @@ export const noninteractive = async (args?: {
     },
     agent: agentImpl,
     nonInteractive: true,
+    skillsetName: selectedSkillset,
   });
 };
+
+export const noninteractive = async (
+  args?: NoninteractiveArgs,
+): Promise<void> =>
+  withInstallLock({
+    operation: async () => {
+      const silent = args?.silent === true;
+      const wasSilent = isSilentMode();
+      const originalConsoleLog = console.log;
+      const originalStdoutWrite = process.stdout.write;
+      const originalStderrWrite = process.stderr.write;
+      if (silent) {
+        setSilentMode({ silent: true });
+        console.log = () => undefined;
+        process.stdout.write = (() => true) as typeof process.stdout.write;
+        process.stderr.write = (() => true) as typeof process.stderr.write;
+      }
+
+      try {
+        await noninteractiveImpl(args);
+      } finally {
+        if (silent) {
+          console.log = originalConsoleLog;
+          process.stdout.write = originalStdoutWrite;
+          process.stderr.write = originalStderrWrite;
+          setSilentMode({ silent: wasSilent });
+        }
+      }
+    },
+  });
 
 /**
  * Main installer entry point
@@ -256,28 +304,16 @@ export const main = async (args?: {
   const { installDir, agent, silent, skillset, persistActiveSkillset } =
     args || {};
 
-  // Save original console.log and suppress all output if silent mode requested
-  const originalConsoleLog = console.log;
-  if (silent) {
-    setSilentMode({ silent: true });
-    console.log = () => undefined;
-  }
-
   try {
     await noninteractive({
       installDir,
       agent,
       skillset,
       persistActiveSkillset,
+      silent,
     });
   } catch (err: any) {
-    log.error(err.message);
+    if (silent !== true) log.error(err.message);
     process.exit(1);
-  } finally {
-    // Always restore console.log and silent mode when done
-    if (silent) {
-      console.log = originalConsoleLog;
-      setSilentMode({ silent: false });
-    }
   }
 };

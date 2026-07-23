@@ -240,18 +240,55 @@ describe("gitInstallMain", () => {
     ).resolves.toBe("keep me");
   });
 
-  it("rejects and sanitizes an invalid slug before prompting for trust", async () => {
-    const result = await install({
-      slug: "invalid\nINJECTED-OUTPUT",
-      trustSource: null,
-      nonInteractive: false,
-      silent: false,
-    });
+  it("rejects an overlapping install before reserving its checkout", async () => {
+    await repository.commit({ slug: "reviewer" });
+    const lockPath = path.join(testRoot, ".nori-install.lock");
+    await fs.mkdir(lockPath);
+    await fs.writeFile(
+      path.join(lockPath, "owner.json"),
+      JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }),
+    );
 
-    expectFailure(result, /lowercase letters, numbers, and hyphens only/i);
-    expect(result.message).not.toContain("INJECTED-OUTPUT");
-    expect(prompt.confirm).not.toHaveBeenCalled();
-    await expect(fs.access(target)).rejects.toThrow();
+    try {
+      const result = await install();
+
+      expectFailure(
+        result,
+        /another Nori installation is already in progress/i,
+      );
+      await expect(fs.access(target)).rejects.toThrow();
+    } finally {
+      await fs.rm(lockPath, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects and sanitizes an invalid slug before prompting for trust", async () => {
+    const lockPath = path.join(testRoot, ".nori-install.lock");
+    const owner = JSON.stringify({
+      pid: process.pid,
+      createdAt: new Date().toISOString(),
+    });
+    await fs.mkdir(lockPath);
+    await fs.writeFile(path.join(lockPath, "owner.json"), owner);
+
+    try {
+      const result = await install({
+        slug: "invalid\nINJECTED-OUTPUT",
+        trustSource: null,
+        nonInteractive: false,
+        silent: false,
+      });
+
+      expectFailure(result, /lowercase letters, numbers, and hyphens only/i);
+      expect(result.message).not.toContain("INJECTED-OUTPUT");
+      expect(prompt.confirm).not.toHaveBeenCalled();
+      await expect(
+        fs.readFile(path.join(lockPath, "owner.json"), "utf8"),
+      ).resolves.toBe(owner);
+      await expect(fs.access(target)).rejects.toThrow();
+    } finally {
+      await fs.rm(lockPath, { recursive: true, force: true });
+    }
   });
 
   it("requires explicit trust in non-interactive mode", async () => {
@@ -864,6 +901,12 @@ describe("gitInstallMain", () => {
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
     expect(config.activeSkillset ?? null).toBe(null);
+    await expect(
+      fs.access(path.join(testRoot, ".nori-install-in-progress")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(scopedInstallDir, ".claude", ".nori-managed")),
+    ).rejects.toThrow();
     const recoveryCommand = result.message.match(
       /then run: (sks [\s\S]+?)\. /u,
     )?.[1];
@@ -895,6 +938,37 @@ describe("gitInstallMain", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("marks only agents whose activation succeeded", async () => {
+    await updateConfig({ defaultAgents: ["claude-code", "codex"] });
+    await repository.commit({
+      slug: "reviewer",
+      files: {
+        "mcp/test.json": JSON.stringify({
+          name: "test",
+          transport: "stdio",
+          command: "test-command",
+          scope: "user",
+        }),
+      },
+    });
+    await fs.mkdir(path.join(testRoot, ".codex", "config.toml"), {
+      recursive: true,
+    });
+
+    const result = await install();
+
+    expectFailure(result, /activation.*incomplete|checkout.*retained/i);
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", ".nori-managed"), "utf8"),
+    ).resolves.toBe("personal/reviewer");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("test skillset");
+    await expect(
+      fs.access(path.join(testRoot, ".codex", ".nori-managed")),
+    ).rejects.toThrow();
   });
 
   it("rejects an unknown agent before reserving a checkout", async () => {

@@ -7,6 +7,32 @@ import * as fs from "fs/promises";
 import * as clack from "@clack/prompts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mockInstallLock = vi.hoisted(() => {
+  let active = false;
+  return {
+    reset: () => {
+      active = false;
+    },
+    withInstallLock: vi.fn(
+      async <T>(args: { operation: () => Promise<T> }): Promise<T> => {
+        if (active) {
+          throw new Error("Another Nori installation is already in progress");
+        }
+        active = true;
+        try {
+          return await args.operation();
+        } finally {
+          active = false;
+        }
+      },
+    ),
+  };
+});
+
+vi.mock("@/cli/features/install/installLock.js", () => ({
+  withInstallLock: mockInstallLock.withInstallLock,
+}));
+
 vi.mock("os", async () => {
   const actual: any = await vi.importActual("os");
   return {
@@ -51,7 +77,7 @@ vi.mock("@/cli/commands/registry-download/registryDownload.js", () => ({
 }));
 
 vi.mock("@/cli/features/install/install.js", () => ({
-  main: vi.fn(),
+  noninteractive: vi.fn(),
 }));
 
 vi.mock("@/cli/features/install/installState.js", () => ({
@@ -115,8 +141,8 @@ vi.mock("@/cli/logger.js", () => ({
 }));
 
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
-import { loadConfig, updateConfig } from "@/cli/config.js";
-import { main as installMain } from "@/cli/features/install/install.js";
+import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
+import { noninteractive as installMain } from "@/cli/features/install/install.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
 
@@ -125,6 +151,42 @@ import { registryInstallMain } from "./registryInstall.js";
 describe("registry-install", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInstallLock.reset();
+  });
+
+  it("rejects a concurrent registry mutation while its download is still running", async () => {
+    let releaseDownload!: () => void;
+    let markDownloadStarted!: () => void;
+    const downloadStarted = new Promise<void>((resolve) => {
+      markDownloadStarted = resolve;
+    });
+    const downloadCanFinish = new Promise<void>((resolve) => {
+      releaseDownload = resolve;
+    });
+    vi.mocked(registryDownloadMain).mockImplementationOnce(async () => {
+      markDownloadStarted();
+      await downloadCanFinish;
+      return { success: true, cancelled: false, message: "" };
+    });
+
+    const first = registryInstallMain({ packageSpec: "senior-swe" });
+    await downloadStarted;
+
+    try {
+      const result = await registryInstallMain({
+        packageSpec: "product-manager",
+      });
+      expect(result).toEqual({
+        success: false,
+        cancelled: false,
+        message: expect.stringMatching(
+          /another Nori installation is already in progress/i,
+        ),
+      });
+    } finally {
+      releaseDownload();
+      await first;
+    }
   });
 
   it("should download skillset first, then run install when no existing installation", async () => {
@@ -144,18 +206,91 @@ describe("registry-install", () => {
 
     // Step 2: Initial install with the downloaded skillset - should use home dir
     expect(installMain).toHaveBeenCalledWith({
-      nonInteractive: true,
       installDir: "/mock-home",
       skillset: "public/senior-swe",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
 
     // Should NOT call switchSkillset or second install (initial install handles it)
     expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledWith({
+      activeSkillset: "public/senior-swe",
+    });
+  });
+
+  it("does not commit the active skillset when a later agent install fails", async () => {
+    vi.mocked(getDefaultAgents).mockReturnValueOnce([
+      "claude-code",
+      "gemini-cli",
+    ]);
+    vi.mocked(installMain)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("gemini install failed"));
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(false);
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ persistActiveSkillset: false }),
+    );
+    expect(installMain).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ persistActiveSkillset: false }),
+    );
+    expect(updateConfig).not.toHaveBeenCalled();
+  });
+
+  it("commits the active skillset once after both agent installs succeed", async () => {
+    const activationEvents: Array<string> = [];
+    vi.mocked(getDefaultAgents).mockReturnValueOnce([
+      "claude-code",
+      "gemini-cli",
+    ]);
+    vi.mocked(installMain).mockImplementation(async (args) => {
+      activationEvents.push(`install:${args?.agent ?? "missing-agent"}`);
+    });
+    vi.mocked(updateConfig).mockImplementation(async () => {
+      activationEvents.push("commit");
+    });
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(true);
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        agent: "claude-code",
+        persistActiveSkillset: false,
+      }),
+    );
+    expect(installMain).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        agent: "gemini-cli",
+        persistActiveSkillset: false,
+      }),
+    );
+    expect(updateConfig).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledWith({
+      activeSkillset: "public/senior-swe",
+    });
+    expect(activationEvents).toEqual([
+      "install:claude-code",
+      "install:gemini-cli",
+      "commit",
+    ]);
   });
 
   it("should not persist global activeSkillset for a transient --install-dir install", async () => {
@@ -201,12 +336,11 @@ describe("registry-install", () => {
     // Step 4: Regenerate files - must include skillset name
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(installMain).toHaveBeenCalledWith({
-      nonInteractive: true,
       installDir: "/mock-home",
       agent: "claude-code",
       silent: true,
       skillset: "public/senior-swe",
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
@@ -246,12 +380,11 @@ describe("registry-install", () => {
     });
 
     expect(installMain).toHaveBeenCalledWith({
-      nonInteractive: true,
       installDir: "/mock-home",
       skillset: "public/product-manager",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
   });
 
@@ -270,12 +403,11 @@ describe("registry-install", () => {
     });
 
     expect(installMain).toHaveBeenCalledWith({
-      nonInteractive: true,
       installDir: "/mock-home",
       skillset: "public/documenter",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
   });
 

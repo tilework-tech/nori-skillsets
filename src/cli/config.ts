@@ -11,6 +11,7 @@ import addFormats from "ajv-formats";
 
 import { toRegistryAuth } from "@/api/authCredentials.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { canonicalSkillsetName } from "@/cli/skillsetResolution.js";
 import { extractOrgIdFromApiToken } from "@/utils/apiToken.js";
 import { getHomeDir } from "@/utils/home.js";
@@ -527,7 +528,7 @@ const rawConfigCarriesAuth = (args: {
   return nestedHasAuth || flatHasAuth;
 };
 
-export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
+const updateConfigImpl = async (updates: Partial<Config>): Promise<void> => {
   // Refuse to proceed when the config file exists but cannot be fully loaded:
   // loadConfig reports "absent", "unparseable", and "schema-invalid" all as null,
   // so writing a fresh config would silently drop stored credentials. A missing
@@ -618,6 +619,9 @@ export const updateConfig = async (updates: Partial<Config>): Promise<void> => {
         : (existing?.installDir ?? getHomeDir()),
   });
 };
+
+export const updateConfig = async (updates: Partial<Config>): Promise<void> =>
+  withInstallLock({ operation: () => updateConfigImpl(updates) });
 
 const mergeAuthCredentials = (args: {
   existingAuth: AuthCredentials | null;

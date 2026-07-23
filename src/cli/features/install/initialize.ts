@@ -52,12 +52,16 @@ const directoryExists = async (args: { dirPath: string }): Promise<boolean> => {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
  * @param args.skillset - Skillset name to write to .nori-managed markers
+ * @param args.markInstalled - Whether initialization should write markers for all default agents
+ * @param args.captureExisting - Whether initialization may capture and rewrite existing agent configuration
  */
 export const ensureNoriInitialized = async (args?: {
   installDir?: string | null;
   skillset?: string | null;
+  markInstalled?: boolean | null;
+  captureExisting?: boolean | null;
 }): Promise<void> => {
-  const { installDir, skillset } = args ?? {};
+  const { installDir, skillset, markInstalled, captureExisting } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -88,6 +92,7 @@ export const ensureNoriInitialized = async (args?: {
   // existing configuration to capture
   if (
     existingConfig == null &&
+    captureExisting !== false &&
     !isInstalledAtDir({ agent: defaultAgent, path: normalizedInstallDir })
   ) {
     const detectedConfig = await detectExistingConfig({
@@ -126,17 +131,18 @@ export const ensureNoriInitialized = async (args?: {
     log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
   }
 
-  // Mark this directory as having all default agents installed
-  for (const agentName of defaultAgentNames) {
-    const agent = AgentRegistry.getInstance().get({ name: agentName });
-    markInstall({
-      agent,
-      path: normalizedInstallDir,
-      skillsetName:
-        capturedSkillsetName ??
-        skillset ??
-        existingConfig?.activeSkillset ??
-        null,
-    });
+  if (markInstalled !== false) {
+    for (const agentName of defaultAgentNames) {
+      const agent = AgentRegistry.getInstance().get({ name: agentName });
+      markInstall({
+        agent,
+        path: normalizedInstallDir,
+        skillsetName:
+          capturedSkillsetName ??
+          skillset ??
+          existingConfig?.activeSkillset ??
+          null,
+      });
+    }
   }
 };

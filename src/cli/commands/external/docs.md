@@ -12,6 +12,8 @@ This command is registered via `@/src/cli/commands/noriSkillsetsCommands.ts`. It
 
 The command resolves default agents via `getDefaultAgents({ config })` from `@/src/cli/config.ts`, which automatically incorporates the global `--agent` flag override set by the CLI `preAction` hook (see @/src/cli/docs.md). It then iterates over all returned agents. This is the same multi-agent broadcasting pattern used by `switchSkillset` (@/src/cli/commands/switch-skillset/) and the skill-download command (@/src/cli/commands/skill-download/).
 
+The clone, profile-manifest update, and live multi-agent installation hold one reentrant global mutation lock. This serializes the external install against switch, install, cleanup, and other live downloads; it does not provide rollback if a later write fails.
+
 ### Core Implementation
 
 The pipeline in `externalMain` is: parse source -> resolve install/skillset targets -> resolve default agents -> clone repo -> discover skills -> select which to install -> resolve skill types (inline vs extract) -> install each skill (broadcasting to all agents) -> cleanup clone.

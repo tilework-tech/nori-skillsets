@@ -14,7 +14,8 @@ import {
 } from "@/cli/config.js";
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { main as installMain } from "@/cli/features/install/install.js";
+import { noninteractive as installMain } from "@/cli/features/install/install.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
@@ -56,7 +57,7 @@ const checkLocalSkillsetExists = async (args: {
  *
  * @returns Result indicating success or failure
  */
-export const registryInstallMain = async (
+const registryInstallMainImpl = async (
   args: RegistryInstallArgs,
 ): Promise<CommandStatus> => {
   const { packageSpec, installDir, nonInteractive, silent } = args;
@@ -134,16 +135,17 @@ export const registryInstallMain = async (
       // Broadcast initial install to all configured agents
       for (const agentName of agentNames) {
         await installMain({
-          nonInteractive: true,
           installDir: targetInstallDir,
           skillset: skillsetName,
           agent: agentName,
-          silent: silent ?? null,
-          // A transient --install-dir install must not clobber global activeSkillset.
-          persistActiveSkillset: resolved.source !== "cli",
+          silent: true,
+          // The outer operation commits the active pointer after every agent succeeds.
+          persistActiveSkillset: false,
         });
       }
-      // Initial install already sets the skillset and displays its own completion banners
+      if (resolved.source !== "cli") {
+        await updateConfig({ activeSkillset: skillsetName });
+      }
       return {
         success: true,
         cancelled: false,
@@ -176,13 +178,12 @@ export const registryInstallMain = async (
 
       // Step 4: Re-run install in silent mode to regenerate files with new skillset
       await installMain({
-        nonInteractive: true,
         installDir: targetInstallDir,
         agent: agentName,
         silent: true,
         skillset: skillsetName,
-        // A transient --install-dir switch must not clobber global activeSkillset.
-        persistActiveSkillset: resolved.source !== "cli",
+        // The outer operation commits the active pointer after every agent succeeds.
+        persistActiveSkillset: false,
       });
     }
 
@@ -203,6 +204,23 @@ export const registryInstallMain = async (
       success: false,
       cancelled: false,
       message: `Failed to install skillset "${skillsetName}": ${errorMessage}`,
+    };
+  }
+};
+
+export const registryInstallMain = async (
+  args: RegistryInstallArgs,
+): Promise<CommandStatus> => {
+  try {
+    return await withInstallLock({
+      operation: () => registryInstallMainImpl(args),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      cancelled: false,
+      message,
     };
   }
 };

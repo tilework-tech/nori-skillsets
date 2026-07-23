@@ -23,6 +23,7 @@ import {
   AgentRegistry,
   type AgentConfig,
 } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { promptSkillTypes } from "@/cli/prompts/flows/externalSkillType.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
@@ -284,7 +285,7 @@ const installSkill = async (args: {
  *
  * @returns Command status
  */
-export const externalMain = async (args: {
+type ExternalArgs = {
   source: string;
   cwd?: string | null;
   installDir?: string | null;
@@ -296,7 +297,9 @@ export const externalMain = async (args: {
   inline?: boolean | null;
   extract?: boolean | null;
   cliName?: CliName | null;
-}): Promise<CommandStatus> => {
+};
+
+const externalMainImpl = async (args: ExternalArgs): Promise<CommandStatus> => {
   const {
     source,
     installDir,
@@ -609,6 +612,11 @@ export const externalMain = async (args: {
     await cleanupClone({ dir: clonedDir });
   }
 };
+
+export const externalMain = async (
+  args: ExternalArgs,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => externalMainImpl(args) });
 
 /**
  * Register the 'external-skill' command with commander

@@ -15,6 +15,7 @@ The subagent-download command downloads and installs individual subagent package
 - The UX flow is delegated to `subagentDownloadFlow` from `@/cli/prompts/flows/subagentDownload.js`, following the same callback-injection pattern as all other flows.
 - Package mechanics come from the shared primitives in @/src/packaging/: per-registry search and message formatting from `registryLookup.ts`, atomic install/update from `atomicReplace.ts`, and `.nori-version` provenance from `provenance.ts`. Search errors from `searchSpecificRegistry` are swallowed at the call site, preserving pre-refactor behavior.
 - Multi-agent broadcasting uses the same pattern as `skill-download`: after installing to the primary agent, the flattened `.md` file is copied to each additional default agent's agents directory. Default agents are resolved via `getDefaultAgents({ config })`, which automatically incorporates the global `--agent` flag override set by the CLI `preAction` hook (see @/src/cli/docs.md).
+- The complete download, profile-manifest update, and live multi-agent copy hold the reentrant global mutation lock, preventing interleaving with activation, cleanup, config mutation, or another live download. Serialization does not roll back earlier agent writes if a later copy fails.
 
 ### Core Implementation
 
@@ -40,6 +41,7 @@ The `onDownload` callback handles both new installs and updates. Updates use `at
 
 - The `--skillset` flag targets a specific skillset for `nori.json` updates; otherwise it defaults to the active skillset from config. When no skillset is available, the subagent is still installed to the agents directory but without profile persistence. A user-supplied `--skillset` is resolved via `resolveUserSkillsetRef` from @/src/cli/skillsetResolution.ts (resolving a bare name across the `personal/`/`public/` storage buckets and warning once on a bare name, suppressed under `--non-interactive`); the active-skillset fallback uses `resolveSkillsetDir` from @/src/norijson/skillset.ts (no warning). The command tracks the resolved directory (`targetSkillsetDir`) for file writes separately from the display name (`targetSkillset`).
 - The `--registry` flag and namespace prefix (`org/`) are mutually exclusive since the namespace implicitly determines the registry URL. Under unified auth, that URL plus the org-membership check and token acquisition come from `resolveOrgRegistryAuth` in @/src/core/registryAuthResolution.ts (shared with the other registry commands).
+- The read-only `--list-versions` path bypasses the mutation lock.
 - The `nonInteractive` and `silent` params are threaded from the CLI registration layer to `subagentDownloadFlow`, where they control whether the "Re-download from registry?" confirm prompt is skipped when the subagent is already at the current version.
 - The `.nori-version` file written to the subagent directory tracks `version`, `registryUrl`, and `orgId` for provenance.
 - Copy failures for secondary agents emit warnings but do not fail the command.

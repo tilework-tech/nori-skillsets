@@ -82,11 +82,17 @@ and credential-bearing URL components are omitted from the stored origin. The
 Git 2.29 requirement allows `--no-write-fetch-head`, which keeps the
 credential-bearing fetch URL out of `FETCH_HEAD`. Unattended SSH installs use
 OpenSSH batch mode by default, while preserving an existing `GIT_SSH`,
-`GIT_SSH_COMMAND`, or `core.sshCommand`. If activation fails, the validated
-checkout is retained and the error includes a recovery command with the
-original install-directory and effective single-agent options when applicable.
-Its dynamic arguments are POSIX-shell-quoted, so paths with spaces or shell
-metacharacters replay literally when pasted.
+`GIT_SSH_COMMAND`, or `core.sshCommand`. Git, registry, and switch install
+mutations are serialized end to end by a global lock, including their
+multi-agent activation loops. Nested installer calls reuse the owning mutation
+boundary, while an independent concurrent attempt fails instead of
+interleaving changes. Multi-agent activation is staged only with respect to
+the final `activeSkillset` config commit: if a later agent fails, earlier agent
+files may remain applied even though the config is not committed. For Git
+installs, the validated checkout is retained and the error includes a recovery
+command with the original install-directory and effective single-agent options
+when applicable. Its dynamic arguments are POSIX-shell-quoted, so paths with
+spaces or shell metacharacters replay literally when pasted.
 
 ## How Skillsets Work
 
