@@ -5,19 +5,27 @@
  */
 
 import * as fs from "fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import * as path from "path";
 
 import { log, note } from "@clack/prompts";
 
 import { loadConfig } from "@/cli/config.js";
+import {
+  ensureNoriGitignore,
+  initializeGitRepository,
+  localGitEnvironment,
+} from "@/cli/features/localGitRepository.js";
 import { bold } from "@/cli/logger.js";
-import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
+import { validateNamespacedSkillsetName } from "@/cli/prompts/validators.js";
 import {
   namespaceCreateSkillsetName,
   resolveUserSkillsetRef,
 } from "@/cli/skillsetResolution.js";
 import {
   ensureNoriJson,
+  looksLikeSkillset,
   readSkillsetMetadata,
   writeSkillsetMetadata,
 } from "@/norijson/nori.js";
@@ -30,12 +38,146 @@ import {
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
+const execFileAsync = promisify(execFile);
+
+const EXCLUDED_PATH_SEGMENTS = new Set([
+  ".nori-version",
+  ".nori-managed",
+  ".nori",
+  ".nori-config.json",
+  ".nori-installed-version",
+  "node_modules",
+  ".venv",
+  "__pycache__",
+]);
+
+const TOP_LEVEL_GENERATED_FILES = new Set([".mcp.json"]);
+
 const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
   try {
     await fs.access(path.join(args.skillsetDir, MANIFEST_FILE));
     return true;
   } catch {
     return false;
+  }
+};
+
+const isGitEntry = async (args: { entryPath: string }): Promise<boolean> => {
+  const { entryPath } = args;
+  if (path.basename(entryPath) === ".git") {
+    return true;
+  }
+
+  const [entryRealPath, gitRealPath] = await Promise.all([
+    fs.realpath(entryPath).catch(() => null),
+    fs.realpath(path.join(path.dirname(entryPath), ".git")).catch(() => null),
+  ]);
+  return entryRealPath != null && entryRealPath === gitRealPath;
+};
+
+const rejectSubmodules = async (args: { sourceDir: string }): Promise<void> => {
+  const { sourceDir } = args;
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      "git",
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "-C",
+        sourceDir,
+        "ls-files",
+        "--stage",
+        "-z",
+        "--",
+        ".",
+      ],
+      {
+        encoding: "utf8",
+        env: localGitEnvironment(),
+      },
+    ));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      return;
+    }
+    const stderr =
+      error instanceof Error && "stderr" in error
+        ? String((error as { stderr?: unknown }).stderr ?? "")
+        : "";
+    if (/not a git repository/i.test(stderr)) {
+      return;
+    }
+    throw error;
+  }
+
+  if (
+    stdout
+      .split("\0")
+      .some((entry) => entry.length > 0 && entry.startsWith("160000 "))
+  ) {
+    throw new Error("Skillsets containing Git submodules cannot be forked");
+  }
+};
+
+const copyCanonicalContent = async (args: {
+  sourceDir: string;
+  destDir: string;
+}): Promise<void> => {
+  const { sourceDir, destDir } = args;
+  const entries = await fs.readdir(sourceDir);
+  const copyEntry = async (entry: string): Promise<void> => {
+    await fs.cp(path.join(sourceDir, entry), path.join(destDir, entry), {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      filter: async (source) => {
+        const relativePath = path.relative(sourceDir, source);
+        const segments = relativePath.split(path.sep);
+        if (await isGitEntry({ entryPath: source })) {
+          if (segments.length === 1) {
+            return false;
+          }
+          throw new Error(
+            "Skillsets containing nested Git repositories or submodules cannot be forked",
+          );
+        }
+        if (segments.some((segment) => EXCLUDED_PATH_SEGMENTS.has(segment))) {
+          return false;
+        }
+        if (
+          segments.length === 1 &&
+          TOP_LEVEL_GENERATED_FILES.has(segments[0]!)
+        ) {
+          return false;
+        }
+
+        const stat = await fs.lstat(source);
+        if (stat.isSymbolicLink()) {
+          throw new Error(
+            "Skillsets containing symbolic links cannot be forked",
+          );
+        }
+        if (
+          segments.length === 1 &&
+          stat.isDirectory() &&
+          (await fs
+            .access(path.join(source, ".nori-managed"))
+            .then(() => true)
+            .catch(() => false))
+        ) {
+          return false;
+        }
+        return true;
+      },
+    });
+  };
+  for (const entry of entries) {
+    await copyEntry(entry);
   }
 };
 
@@ -52,12 +194,15 @@ export const forkSkillsetMain = async (args: {
     defaultOrg: config?.defaultOrg,
   });
 
-  if (isReservedSkillsetName({ value: newSkillset })) {
-    log.error(`'${newSkillset}' is a reserved name. Choose a different name.`);
+  const validationError = validateNamespacedSkillsetName({
+    value: args.newSkillset,
+  });
+  if (validationError != null) {
+    log.error(validationError);
     return {
       success: false,
       cancelled: false,
-      message: `Skillset "${newSkillset}" uses a reserved name`,
+      message: validationError,
     };
   }
 
@@ -72,11 +217,13 @@ export const forkSkillsetMain = async (args: {
   )?.dir;
   const destPath = skillsetCreateDir({ name: newSkillset });
 
-  // Validate source exists and is a valid skillset (has nori.json)
-  if (sourcePath != null) {
-    await ensureNoriJson({ skillsetDir: sourcePath });
-  }
-  if (sourcePath == null || !(await hasManifest({ skillsetDir: sourcePath }))) {
+  const sourceDir =
+    sourcePath == null ? null : await fs.realpath(sourcePath).catch(() => null);
+  const sourceIsSkillset =
+    sourceDir != null &&
+    ((await hasManifest({ skillsetDir: sourceDir })) ||
+      (await looksLikeSkillset({ skillsetDir: sourceDir })));
+  if (sourceDir == null || !sourceIsSkillset) {
     log.error(
       `Skillset '${baseSkillset}' not found. Run 'nori-skillsets list' to see available skillsets.`,
     );
@@ -103,14 +250,29 @@ export const forkSkillsetMain = async (args: {
   const parentDir = path.dirname(destPath);
   await fs.mkdir(parentDir, { recursive: true });
 
-  // Copy the skillset
-  await fs.cp(sourcePath, destPath, { recursive: true });
+  await rejectSubmodules({ sourceDir });
 
-  // Update the name in nori.json to the new skillset's bare name (matching
-  // `new`/`register`, which store the basename rather than the namespaced path).
-  const metadata = await readSkillsetMetadata({ skillsetDir: destPath });
-  metadata.name = path.basename(newSkillset);
-  await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
+  let ownsDestination = false;
+  try {
+    await fs.mkdir(destPath);
+    ownsDestination = true;
+    await copyCanonicalContent({ sourceDir, destDir: destPath });
+
+    await ensureNoriJson({ skillsetDir: destPath });
+    const metadata = await readSkillsetMetadata({ skillsetDir: destPath });
+    metadata.name = path.basename(newSkillset);
+    delete metadata.registryURL;
+    await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
+    await ensureNoriGitignore({ dir: destPath });
+    initializeGitRepository({ dir: destPath });
+  } catch (error) {
+    if (ownsDestination) {
+      await fs.rm(destPath, { recursive: true, force: true }).catch(() => {
+        // Best-effort rollback; preserve the original fork error.
+      });
+    }
+    throw error;
+  }
 
   const relLocation = skillsetIdentity({ dir: destPath });
   const nextSteps = [
