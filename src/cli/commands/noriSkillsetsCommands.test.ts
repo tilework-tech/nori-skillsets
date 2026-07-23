@@ -2,9 +2,6 @@
  * Tests for nori-skillsets command registration.
  */
 
-import * as fs from "fs/promises";
-import * as path from "path";
-
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,39 +10,6 @@ import {
   registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsUploadSkillCommand,
 } from "./noriSkillsetsCommands.js";
-
-describe("registerNoriSkillsetsNewCommand", () => {
-  it.each(["new", "new-skillset"])(
-    "%s forwards its optional positional skillset name",
-    async (commandName) => {
-      const program = new Command();
-      program.exitOverride();
-      registerNoriSkillsetsNewCommand({ program });
-      const skillsetName = `forwarded-by-${commandName}`;
-
-      await program.parseAsync([commandName, skillsetName], { from: "user" });
-
-      const homeDir = process.env.HOME;
-      if (homeDir == null) {
-        throw new Error("Test HOME is not configured");
-      }
-      const manifest = JSON.parse(
-        await fs.readFile(
-          path.join(
-            homeDir,
-            ".nori",
-            "profiles",
-            "personal",
-            skillsetName,
-            "nori.json",
-          ),
-          "utf-8",
-        ),
-      );
-      expect(manifest.name).toBe(skillsetName);
-    },
-  );
-});
 
 const commandDelegates = vi.hoisted(() => ({
   gitInstall: vi.fn().mockResolvedValue({
@@ -58,6 +22,11 @@ const commandDelegates = vi.hoisted(() => ({
     cancelled: false,
     message: "installed from registry",
   }),
+  newSkillset: vi.fn().mockResolvedValue({
+    success: true,
+    cancelled: false,
+    message: "created",
+  }),
 }));
 
 vi.mock("@/cli/commands/git-install/gitInstall.js", () => ({
@@ -67,6 +36,29 @@ vi.mock("@/cli/commands/git-install/gitInstall.js", () => ({
 vi.mock("@/cli/commands/registry-install/registryInstall.js", () => ({
   registryInstallMain: commandDelegates.registryInstall,
 }));
+
+vi.mock("@/cli/commands/new-skillset/newSkillset.js", () => ({
+  newSkillsetMain: commandDelegates.newSkillset,
+}));
+
+describe("registerNoriSkillsetsNewCommand", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(["new", "new-skillset"])(
+    "%s forwards its optional positional skillset name",
+    async (commandName) => {
+      const program = new Command();
+      program.exitOverride();
+      registerNoriSkillsetsNewCommand({ program });
+
+      await program.parseAsync([commandName, "my-skillset"], { from: "user" });
+
+      expect(commandDelegates.newSkillset).toHaveBeenCalledWith({
+        skillsetName: "my-skillset",
+      });
+    },
+  );
+});
 
 describe("registerNoriSkillsetsInstallCommand", () => {
   const gitArgs = [

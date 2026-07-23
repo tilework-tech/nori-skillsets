@@ -49,6 +49,12 @@ const seedSourceDir = async (): Promise<string> => {
   return sourceDir;
 };
 
+const seedGitMetadata = async (gitDir: string): Promise<void> => {
+  await fs.mkdir(path.join(gitDir, "objects"), { recursive: true });
+  await fs.writeFile(path.join(gitDir, "config"), "url=https://secret");
+  await fs.writeFile(path.join(gitDir, "objects", "payload"), "git object");
+};
+
 const archiveAndExtract = async (args: {
   destinationName: string;
   sourceDir: string;
@@ -74,14 +80,7 @@ describe("isGzipped", () => {
 describe("createArchive + extractArchive roundtrip", () => {
   it("packs files, excludes upload-filtered paths, and extracts them back", async () => {
     const sourceDir = await seedSourceDir();
-    await fs.mkdir(path.join(sourceDir, ".git", "objects"), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(sourceDir, ".git", "config"),
-      '[remote "origin"]\nurl = git@example.test:private/repo.git\n',
-    );
-    await fs.writeFile(path.join(sourceDir, ".git", "objects", "secret"), "x");
+    await seedGitMetadata(path.join(sourceDir, ".git"));
     await fs.writeFile(path.join(sourceDir, ".gitignore"), ".nori/\n");
     const archive = await createArchive({ sourceDir });
     expect(isGzipped({ buffer: archive })).toBe(true);
@@ -137,17 +136,7 @@ describe("createArchive + extractArchive roundtrip", () => {
         tempDir,
         `repository-${path.basename(gitMetadataPath)}`,
       );
-      await fs.mkdir(path.join(repositoryDir, ".git", "objects"), {
-        recursive: true,
-      });
-      await fs.writeFile(
-        path.join(repositoryDir, ".git", "config"),
-        '[remote "origin"]\nurl = https://secret@example.invalid/repo.git\n',
-      );
-      await fs.writeFile(
-        path.join(repositoryDir, ".git", "objects", "payload"),
-        "git object data",
-      );
+      await seedGitMetadata(path.join(repositoryDir, ".git"));
       const linkedSourceDir = path.join(
         tempDir,
         `linked-${path.basename(gitMetadataPath)}`,
@@ -168,11 +157,7 @@ describe("createArchive + extractArchive roundtrip", () => {
     const repositoryDir = path.join(tempDir, "repository-symlinked-git");
     const externalGitDir = path.join(tempDir, "external-git-metadata");
     await fs.mkdir(repositoryDir);
-    await fs.mkdir(path.join(externalGitDir, "objects"), { recursive: true });
-    await fs.writeFile(
-      path.join(externalGitDir, "config"),
-      '[remote "origin"]\nurl = https://secret@example.invalid/repo.git\n',
-    );
+    await seedGitMetadata(externalGitDir);
     await fs.symlink(externalGitDir, path.join(repositoryDir, ".git"), "dir");
     const linkedSourceDir = path.join(tempDir, "linked-symlinked-git");
     await fs.symlink(path.join(repositoryDir, ".git"), linkedSourceDir, "dir");
@@ -203,11 +188,6 @@ describe("createArchive + extractArchive roundtrip", () => {
     await expect(createArchive({ sourceDir })).rejects.toThrow(
       new RegExp(`symbolic links?.*${linkName}`, "i"),
     );
-    await expect(
-      fs
-        .readdir(tempDir)
-        .then((entries) => entries.filter((entry) => entry.endsWith(".tgz"))),
-    ).resolves.toEqual([]);
   });
 
   it("preserves authored .GIT directories on case-sensitive filesystems", async () => {

@@ -1367,73 +1367,8 @@ describe("registry-download", () => {
       ).resolves.toContain("test-profile");
     });
 
-    it("refuses a Registrar update for a Git working tree without changing it", async () => {
-      const existingProfileDir = path.join(
-        skillsetsDir,
-        "public",
-        "test-profile",
-      );
-      const originalManifest = JSON.stringify({
-        name: "test-profile",
-        version: "1.0.0",
-      });
-      await fs.mkdir(existingProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(existingProfileDir, "nori.json"),
-        originalManifest,
-      );
-      await fs.writeFile(
-        path.join(existingProfileDir, ".nori-version"),
-        JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
-      );
-      await commitGitBaseline({ repositoryDir: existingProfileDir });
-      const { stdout: originalHead } = await execFileAsync(
-        "git",
-        ["rev-parse", "HEAD"],
-        { cwd: existingProfileDir },
-      );
-
-      vi.mocked(loadConfig).mockResolvedValue({ installDir: testDir });
-      vi.mocked(registrarApi.getPackument).mockResolvedValue({
-        name: "test-profile",
-        "dist-tags": { latest: "2.0.0" },
-        versions: {
-          "1.0.0": { name: "test-profile", version: "1.0.0" },
-          "2.0.0": { name: "test-profile", version: "2.0.0" },
-        },
-      });
-      vi.mocked(registrarApi.downloadTarball).mockResolvedValue(
-        await createMockTarball(),
-      );
-
-      const result = await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.message).toMatch(/Git working tree.*Registrar update/i);
-      expect(registrarApi.getPackument).not.toHaveBeenCalled();
-      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
-      await expect(
-        fs.readFile(path.join(existingProfileDir, "nori.json"), "utf-8"),
-      ).resolves.toBe(originalManifest);
-      const { stdout: finalHead } = await execFileAsync(
-        "git",
-        ["rev-parse", "HEAD"],
-        { cwd: existingProfileDir },
-      );
-      expect(finalHead).toBe(originalHead);
-      const { stdout: status } = await execFileAsync(
-        "git",
-        ["status", "--short"],
-        { cwd: existingProfileDir },
-      );
-      expect(status).toBe("");
-    });
-
-    it.each(["ancestor", "linked-subdirectory"] as const)(
-      "refuses a Registrar update when the target is Git-governed through %s",
+    it.each(["root", "ancestor", "linked-subdirectory"] as const)(
+      "refuses a Registrar update when the target is Git-governed through its %s",
       async (topology) => {
         const existingProfileDir = path.join(
           skillsetsDir,
@@ -1447,7 +1382,11 @@ describe("registry-download", () => {
         let repositoryDir: string;
         let repositoryProfileDir: string;
 
-        if (topology === "ancestor") {
+        if (topology === "root") {
+          repositoryDir = existingProfileDir;
+          repositoryProfileDir = existingProfileDir;
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+        } else if (topology === "ancestor") {
           repositoryDir = skillsetsDir;
           repositoryProfileDir = existingProfileDir;
           await fs.mkdir(repositoryProfileDir, { recursive: true });
@@ -1508,62 +1447,6 @@ describe("registry-download", () => {
         }
       },
     );
-
-    it("refuses dependency refresh for an already-current Git working tree", async () => {
-      const existingProfileDir = path.join(
-        skillsetsDir,
-        "public",
-        "test-profile",
-      );
-      await fs.mkdir(existingProfileDir, { recursive: true });
-      await fs.writeFile(
-        path.join(existingProfileDir, "nori.json"),
-        JSON.stringify({
-          name: "test-profile",
-          version: "1.0.0",
-          dependencies: { skills: { "test-skill": "^1.0.0" } },
-        }),
-      );
-      await fs.writeFile(
-        path.join(existingProfileDir, ".nori-version"),
-        JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
-      );
-      await commitGitBaseline({ repositoryDir: existingProfileDir });
-
-      vi.mocked(loadConfig).mockResolvedValue({ installDir: testDir });
-      vi.mocked(registrarApi.getPackument).mockResolvedValue({
-        name: "test-profile",
-        "dist-tags": { latest: "1.0.0" },
-        versions: {
-          "1.0.0": { name: "test-profile", version: "1.0.0" },
-        },
-      });
-      vi.mocked(registrarApi.getSkillPackument).mockResolvedValue({
-        name: "test-skill",
-        "dist-tags": { latest: "1.0.0" },
-        versions: {
-          "1.0.0": { name: "test-skill", version: "1.0.0" },
-        },
-      });
-      vi.mocked(registrarApi.downloadSkillTarball).mockResolvedValue(
-        await createMockSkillTarball({ skillName: "test-skill" }),
-      );
-
-      const result = await registryDownloadMain({
-        packageSpec: "test-profile",
-        cwd: testDir,
-      });
-
-      expect(result.success).toBe(false);
-      expect(registrarApi.getSkillPackument).not.toHaveBeenCalled();
-      expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
-      const { stdout: status } = await execFileAsync(
-        "git",
-        ["status", "--short"],
-        { cwd: existingProfileDir },
-      );
-      expect(status).toBe("");
-    });
 
     it("should report when already at latest version", async () => {
       // Create existing profile with same version as latest

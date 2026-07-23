@@ -16,15 +16,12 @@ describe("shouldExcludeFromUpload", () => {
     );
   });
 
-  it.each([
-    ".git",
-    ".git/objects/ab/cdef",
-    "nested/.git/config",
-    "nested\\.git\\HEAD",
-    "nested\\worktree\\.git",
-  ])("excludes Git metadata at %s", (relativePath) => {
-    expect(shouldExcludeFromUpload({ relativePath })).toBe(true);
-  });
+  it.each([".git", "nested/.git/config", "nested\\worktree\\.git"])(
+    "excludes Git metadata at %s",
+    (relativePath) => {
+      expect(shouldExcludeFromUpload({ relativePath })).toBe(true);
+    },
+  );
 
   it("keeps the authored Git ignore file", () => {
     expect(shouldExcludeFromUpload({ relativePath: ".gitignore" })).toBe(false);

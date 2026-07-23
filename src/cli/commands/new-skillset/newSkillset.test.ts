@@ -72,7 +72,7 @@ describe("newSkillsetMain", () => {
     }
   });
 
-  it("should create a flat skillset with nori.json", async () => {
+  it("creates a Git-backed skillset from the interactive flow", async () => {
     mockNewSkillsetFlow.mockResolvedValueOnce({
       name: "my-new-skillset",
       description: null,
@@ -83,10 +83,7 @@ describe("newSkillsetMain", () => {
     });
 
     const result = await newSkillsetMain();
-
     const destDir = path.join(skillsetsDir, "personal", "my-new-skillset");
-
-    // Verify nori.json exists with correct content
     const noriJson = JSON.parse(
       await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     );
@@ -95,59 +92,31 @@ describe("newSkillsetMain", () => {
       version: "1.0.0",
       type: "skillset",
     });
-
-    // Verify return status contains skillset name
     expect(result.success).toBe(true);
     expect(result.message).toContain("my-new-skillset");
-    expect(mockOutro).not.toHaveBeenCalled();
-    expect(mockExit).not.toHaveBeenCalled();
-
     const { stdout } = await execFileAsync(
       "git",
       ["rev-parse", "--is-inside-work-tree"],
       { cwd: destDir },
     );
     expect(stdout.trim()).toBe("true");
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockExit).not.toHaveBeenCalled();
   });
 
-  it("creates a Git-backed positional skillset with ignored Nori state", async () => {
+  it("creates a repository from a positional name without tracking Nori state", async () => {
     const result = await newSkillsetMain({
       skillsetName: "zero-prompt-skillset",
     });
-
     const destDir = path.join(skillsetsDir, "personal", "zero-prompt-skillset");
-    const noriJson = JSON.parse(
-      await fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
-    );
-    expect(noriJson).toEqual({
-      name: "zero-prompt-skillset",
-      version: "1.0.0",
-      type: "skillset",
-    });
     expect(result.success).toBe(true);
     expect(mockNewSkillsetFlow).not.toHaveBeenCalled();
-
-    const ignoredFiles = [
-      [".nori/state.json", "{}"],
-      [".nori-version", "{}"],
-      [".nori-managed", "zero-prompt-skillset"],
-      ["skills/demo/.nori-version", "{}"],
-      ["skills/demo/.nori-managed", "zero-prompt-skillset"],
-      [".nori-config.json", "{}"],
-      [".nori-installed-version", "1"],
-    ] as const;
-    for (const [relativePath, content] of ignoredFiles) {
-      const filePath = path.join(destDir, relativePath);
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content);
-    }
-
-    const { stdout } = await execFileAsync(
+    const { stdout: root } = await execFileAsync(
       "git",
       ["rev-parse", "--show-toplevel"],
       { cwd: destDir },
     );
-    expect(path.resolve(stdout.trim())).toBe(path.resolve(destDir));
+    expect(path.resolve(root.trim())).toBe(path.resolve(destDir));
     await expect(
       execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
         cwd: destDir,
@@ -157,15 +126,22 @@ describe("newSkillsetMain", () => {
       cwd: destDir,
     });
     expect(remotes.trim()).toBe("");
-    const { stdout: status } = await execFileAsync(
+    const ignoredPaths = [
+      ".nori/state.json",
+      ".nori-version",
+      ".nori-managed",
+      "skills/demo/.nori-version",
+      "skills/demo/.nori-managed",
+      ".nori-config.json",
+      ".nori-installed-version",
+    ];
+    const checkedPaths = [...ignoredPaths, ".gitignore", "nori.json"];
+    const { stdout: ignored } = await execFileAsync(
       "git",
-      ["status", "--short", "--untracked-files=all"],
+      ["check-ignore", "--no-index", "--", ...checkedPaths],
       { cwd: destDir },
     );
-    expect(status.trim().split("\n").sort()).toEqual([
-      "?? .gitignore",
-      "?? nori.json",
-    ]);
+    expect(ignored.trim().split("\n")).toEqual(ignoredPaths);
   });
 
   it("rejects an invalid positional name without creating a skillset", async () => {

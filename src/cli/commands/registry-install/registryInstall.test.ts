@@ -370,17 +370,10 @@ describe("registry-install", () => {
       message: "Registrar update refused for a Git working tree",
       failureKind: "source-authority",
     });
-    vi.mocked(fs.stat).mockResolvedValue({
-      isDirectory: () => true,
-    } as never);
-    vi.mocked(hasExistingInstallation).mockReturnValue(true);
 
     const result = await registryInstallMain({
       packageSpec: "senior-swe",
     });
-
-    vi.mocked(fs.stat).mockRejectedValue(new Error("ENOENT"));
-    vi.mocked(hasExistingInstallation).mockReturnValue(false);
 
     expect(result).toMatchObject({
       success: false,
