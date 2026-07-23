@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import { cancel, confirm, isCancel } from "@clack/prompts";
 
-import { getDefaultAgents, loadConfig } from "@/cli/config.js";
+import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
@@ -142,15 +142,34 @@ const isSshRemote = (args: { remote: string }): boolean => {
 const quoteShellArgument = (args: { value: string }): string =>
   `'${args.value.replaceAll("'", "'\\''")}'`;
 
-const withSuppressedOutput = async (args: {
+const withBufferedOutput = async (args: {
   operation: () => Promise<void>;
-}): Promise<void> => {
+}): Promise<() => void> => {
   const originalConsoleLog = console.log;
   const originalStdoutWrite = process.stdout.write;
   const originalStderrWrite = process.stderr.write;
-  console.log = () => undefined;
-  process.stdout.write = (() => true) as typeof process.stdout.write;
-  process.stderr.write = (() => true) as typeof process.stderr.write;
+  const replayActions: Array<() => void> = [];
+  const replayStdoutWrite = originalStdoutWrite.bind(process.stdout) as (
+    ...writeArgs: Array<unknown>
+  ) => unknown;
+  const replayStderrWrite = originalStderrWrite.bind(process.stderr) as (
+    ...writeArgs: Array<unknown>
+  ) => unknown;
+  console.log = (...values) => {
+    replayActions.push(() => originalConsoleLog(...values));
+  };
+  process.stdout.write = ((...writeArgs: Array<unknown>) => {
+    replayActions.push(() => {
+      replayStdoutWrite(...writeArgs);
+    });
+    return true;
+  }) as typeof process.stdout.write;
+  process.stderr.write = ((...writeArgs: Array<unknown>) => {
+    replayActions.push(() => {
+      replayStderrWrite(...writeArgs);
+    });
+    return true;
+  }) as typeof process.stderr.write;
 
   try {
     await args.operation();
@@ -159,6 +178,10 @@ const withSuppressedOutput = async (args: {
     process.stdout.write = originalStdoutWrite;
     process.stderr.write = originalStderrWrite;
   }
+
+  return () => {
+    for (const replay of replayActions) replay();
+  };
 };
 
 const readSshCommandConfig = async (args: {
@@ -467,6 +490,23 @@ export const gitInstallMain = async (
       throw error;
     }
 
+    const recoveryCommand = [
+      "sks",
+      ...(resolvedInstallDir.source === "cli"
+        ? [
+            "--install-dir",
+            quoteShellArgument({ value: resolvedInstallDir.path }),
+          ]
+        : []),
+      ...(agents.length === 1
+        ? ["--agent", quoteShellArgument({ value: agents[0] })]
+        : []),
+      "switch",
+      quoteShellArgument({ value: identity }),
+      "--force",
+    ].join(" ");
+
+    const replayActivationOutput: Array<() => void> = [];
     try {
       for (const agent of agents) {
         const operation = async () =>
@@ -474,34 +514,30 @@ export const gitInstallMain = async (
             installDir: resolvedInstallDir.path,
             agent,
             skillset: identity,
-            persistActiveSkillset: resolvedInstallDir.source !== "cli",
+            persistActiveSkillset: false,
           });
-        if (silent === true) {
-          await withSuppressedOutput({ operation });
-        } else {
-          await operation();
-        }
+        replayActivationOutput.push(await withBufferedOutput({ operation }));
       }
     } catch (error) {
       const detail = sanitizeErrorDetail(error);
-      const recoveryCommand = [
-        "sks",
-        ...(resolvedInstallDir.source === "cli"
-          ? [
-              "--install-dir",
-              quoteShellArgument({ value: resolvedInstallDir.path }),
-            ]
-          : []),
-        ...(agents.length === 1
-          ? ["--agent", quoteShellArgument({ value: agents[0] })]
-          : []),
-        "switch",
-        quoteShellArgument({ value: identity }),
-        "--force",
-      ].join(" ");
       throw new Error(
         `Activation is incomplete; checkout "${identity}" was retained. Fix the reported problem, then run: ${recoveryCommand}. ${detail}`,
       );
+    }
+
+    if (resolvedInstallDir.source !== "cli") {
+      try {
+        await updateConfig({ activeSkillset: identity });
+      } catch (error) {
+        const detail = sanitizeErrorDetail(error);
+        throw new Error(
+          `Activation completed, but the active skillset could not be saved; checkout "${identity}" was retained. Fix the reported problem, then run: ${recoveryCommand}. ${detail}`,
+        );
+      }
+    }
+
+    if (silent !== true) {
+      for (const replay of replayActivationOutput) replay();
     }
 
     return {

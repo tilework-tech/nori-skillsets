@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { updateConfig } from "@/cli/config.js";
+import * as jsonFile from "@/utils/jsonFile.js";
 
 import type * as clackPrompts from "@clack/prompts";
 import type { AddressInfo } from "node:net";
@@ -726,6 +727,44 @@ describe("gitInstallMain", () => {
     expect(output).toEqual([]);
   });
 
+  it("shows installation completion after a successful global commit", async () => {
+    await repository.commit({ slug: "reviewer" });
+    const output: Array<string> = [];
+    const consoleLog = vi
+      .spyOn(console, "log")
+      .mockImplementation((...args) => {
+        output.push(args.join(" "));
+      });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+
+    let result: Awaited<ReturnType<typeof install>>;
+    try {
+      result = await install({ silent: false });
+    } finally {
+      consoleLog.mockRestore();
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
+    }
+
+    expect(result.success).toBe(true);
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string | null };
+    expect(config.activeSkillset).toBe("personal/reviewer");
+    expect(output.join("")).toContain("Installation Complete");
+  });
+
   it("rejects Registry provenance", async () => {
     await repository.commit({
       slug: "reviewer",
@@ -895,6 +934,183 @@ describe("gitInstallMain", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("preserves the previous global skillset when activation fails", async () => {
+    await updateConfig({
+      activeSkillset: "personal/previous",
+      defaultAgents: ["claude-code"],
+    });
+    await repository.commit({
+      slug: "reviewer",
+      files: {
+        "mcp/test.json": JSON.stringify({
+          name: "test",
+          transport: "stdio",
+          command: "test-command",
+          scope: "user",
+        }),
+      },
+    });
+    await fs.writeFile(path.join(testRoot, ".claude.json"), "not valid json");
+
+    const result = await install();
+
+    expectFailure(result, /activation.*incomplete|checkout.*retained/i);
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string | null };
+    expect(config.activeSkillset).toBe("personal/previous");
+  });
+
+  it("preserves the previous global skillset when a later agent fails", async () => {
+    await updateConfig({
+      activeSkillset: "personal/previous",
+      defaultAgents: ["claude-code", "codex"],
+    });
+    await repository.commit({
+      slug: "reviewer",
+      files: {
+        "mcp/test.json": JSON.stringify({
+          name: "test",
+          transport: "stdio",
+          command: "test-command",
+          scope: "user",
+        }),
+      },
+    });
+    await fs.mkdir(path.join(testRoot, ".codex", "config.toml"), {
+      recursive: true,
+    });
+
+    const result = await install();
+
+    expectFailure(result, /activation.*incomplete|checkout.*retained/i);
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("test skillset");
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string | null };
+    expect(config.activeSkillset).toBe("personal/previous");
+  });
+
+  it("keeps a successful explicit install directory transient", async () => {
+    await updateConfig({
+      activeSkillset: "personal/previous",
+      defaultAgents: ["claude-code"],
+    });
+    await repository.commit({
+      slug: "reviewer",
+      marker: "scoped instructions",
+    });
+    const scopedInstallDir = path.join(testRoot, "scoped-project");
+    const output: Array<string> = [];
+    const consoleLog = vi
+      .spyOn(console, "log")
+      .mockImplementation((...args) => {
+        output.push(args.join(" "));
+      });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+
+    let result: Awaited<ReturnType<typeof install>>;
+    try {
+      result = await install({
+        installDir: scopedInstallDir,
+        silent: false,
+      });
+    } finally {
+      consoleLog.mockRestore();
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
+    }
+
+    expect(result.success).toBe(true);
+    await expect(
+      fs.readFile(path.join(scopedInstallDir, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("scoped instructions");
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string | null };
+    expect(config.activeSkillset).toBe("personal/previous");
+    expect(output.join("")).toContain("Installation Complete");
+  });
+
+  it("distinguishes a final active-skillset commit failure from activation failure", async () => {
+    await updateConfig({
+      activeSkillset: "personal/previous",
+      defaultAgents: ["claude-code"],
+    });
+    await repository.commit({ slug: "reviewer" });
+    const writeJsonFileAtomic = jsonFile.writeJsonFileAtomic;
+    const writeSpy = vi
+      .spyOn(jsonFile, "writeJsonFileAtomic")
+      .mockImplementation(async (args) => {
+        const value = args.value as { activeSkillset?: string | null };
+        const activationCompleted = await fs
+          .access(path.join(testRoot, ".claude", "CLAUDE.md"))
+          .then(
+            () => true,
+            () => false,
+          );
+        if (
+          value.activeSkillset === "personal/reviewer" &&
+          activationCompleted
+        ) {
+          throw new Error("config commit failed");
+        }
+        await writeJsonFileAtomic(args);
+      });
+    const output: Array<string> = [];
+    const consoleLog = vi
+      .spyOn(console, "log")
+      .mockImplementation((...args) => {
+        output.push(args.join(" "));
+      });
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(((
+      chunk: unknown,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write);
+
+    let result: Awaited<ReturnType<typeof install>>;
+    try {
+      result = await install({ silent: false });
+    } finally {
+      writeSpy.mockRestore();
+      consoleLog.mockRestore();
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
+    }
+
+    expectFailure(result, /activation completed.*active skillset/i);
+    expect(result.message).toContain("config commit failed");
+    expect(output.join("")).not.toContain("Installation Complete");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
+    ).resolves.toContain("test skillset");
+    const config = JSON.parse(
+      await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
+    ) as { activeSkillset?: string | null };
+    expect(config.activeSkillset).toBe("personal/previous");
   });
 
   it("rejects an unknown agent before reserving a checkout", async () => {
