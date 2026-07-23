@@ -13,6 +13,7 @@ import {
   getClaudeHomeDir,
   getClaudeHomeSettingsFile,
 } from "@/cli/features/claude-code/paths.js";
+import { isSilentMode } from "@/cli/logger.js";
 import { readJsonObjectFile, writeJsonFileAtomic } from "@/utils/jsonFile.js";
 
 import type { Config } from "@/cli/config.js";
@@ -50,9 +51,11 @@ const configureStatusLine = async (args: {
   try {
     await fs.access(sourceScript);
   } catch {
-    log.warn(
-      `Status line script not found at ${sourceScript}, skipping status line configuration`,
-    );
+    if (!isSilentMode()) {
+      log.warn(
+        `Status line script not found at ${sourceScript}, skipping status line configuration`,
+      );
+    }
     return;
   }
 

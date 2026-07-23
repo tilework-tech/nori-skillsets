@@ -25,6 +25,7 @@ import {
   markInstall,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { isSilentMode } from "@/cli/logger.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
 
@@ -123,7 +124,9 @@ export const ensureNoriInitialized = async (args?: {
         config,
       });
     }
-    log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
+    if (!isSilentMode()) {
+      log.success(`Configuration saved as skillset "${capturedSkillsetName}"`);
+    }
   }
 
   // Mark this directory as having all default agents installed

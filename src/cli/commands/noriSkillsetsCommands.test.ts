@@ -5,11 +5,24 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as clackPrompts from "@clack/prompts";
+
 import {
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsNewCommand,
   registerNoriSkillsetsUploadSkillCommand,
 } from "./noriSkillsetsCommands.js";
+
+const framing = vi.hoisted(() => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+}));
+
+vi.mock("@clack/prompts", async (importOriginal) => ({
+  ...(await importOriginal<typeof clackPrompts>()),
+  intro: framing.intro,
+  outro: framing.outro,
+}));
 
 const commandDelegates = vi.hoisted(() => ({
   gitInstall: vi.fn().mockResolvedValue({
@@ -65,6 +78,8 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     "reviewer",
     "--from",
     "/tmp/skillsets.git",
+    "--pin",
+    "0123456789012345678901234567890123456789",
     "--trust-source",
   ];
 
@@ -97,6 +112,7 @@ describe("registerNoriSkillsetsInstallCommand", () => {
       remote: "/tmp/skillsets.git",
       installDir: null,
       nonInteractive: true,
+      pin: "0123456789012345678901234567890123456789",
       silent: true,
       trustSource: true,
     });
@@ -126,11 +142,28 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
   });
 
-  it("rejects Git-only options when no Git source is supplied", async () => {
-    await expectInstallFailure("reviewer", "--trust-source");
+  it.each(["--trust-source", "--pin"])(
+    "rejects Git-only option %s when no Git source is supplied",
+    async (option) => {
+      const args = option === "--pin" ? [option, "0".repeat(40)] : [option];
+      await expectInstallFailure("reviewer", ...args);
 
-    expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
-    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+      expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+      expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+      expect(framing.outro).toHaveBeenCalledWith(
+        expect.stringContaining("--from <git-remote>"),
+      );
+    },
+  );
+
+  it("describes the accepted full object ID lengths in install help", () => {
+    const program = new Command();
+    registerNoriSkillsetsInstallCommand({ program });
+    const installCommand = program.commands.find(
+      (command) => command.name() === "install",
+    );
+
+    expect(installCommand?.helpInformation()).toMatch(/--pin.*full.*40.*64/is);
   });
 });
 

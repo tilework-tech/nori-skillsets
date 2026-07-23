@@ -175,19 +175,23 @@ export const noninteractive = async (args?: {
   // Step 2: Resolve skillset and save to config
   const existingConfig = await loadConfig();
   if (existingConfig == null) {
-    log.error(
-      "No Nori configuration found. Please run 'nori-skillsets init' first.",
-    );
+    if (!isSilentMode()) {
+      log.error(
+        "No Nori configuration found. Please run 'nori-skillsets init' first.",
+      );
+    }
     process.exit(1);
   }
 
   const existingSkillset = getActiveSkillset({ config: existingConfig });
 
   if (skillset == null && existingSkillset == null) {
-    log.error(
-      "Non-interactive install requires a skillset when no existing skillset is set",
-    );
-    note("nori-skillsets install <skillset-name>", "Example");
+    if (!isSilentMode()) {
+      log.error(
+        "Non-interactive install requires a skillset when no existing skillset is set",
+      );
+      note("nori-skillsets install <skillset-name>", "Example");
+    }
     process.exit(1);
   }
 
@@ -206,7 +210,9 @@ export const noninteractive = async (args?: {
   // Reload config after saving
   const config = await loadConfig();
   if (config == null) {
-    log.error("Failed to load configuration after setup.");
+    if (!isSilentMode()) {
+      log.error("Failed to load configuration after setup.");
+    }
     process.exit(1);
   }
 
@@ -271,7 +277,9 @@ export const main = async (args?: {
       persistActiveSkillset,
     });
   } catch (err: any) {
-    log.error(err.message);
+    if (!isSilentMode()) {
+      log.error(err.message);
+    }
     process.exit(1);
   } finally {
     // Always restore console.log and silent mode when done

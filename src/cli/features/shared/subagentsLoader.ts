@@ -18,7 +18,7 @@ import {
   type SubagentTargetFormat,
 } from "@/cli/features/shared/subagentEmitter.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { bold } from "@/cli/logger.js";
+import { bold, isSilentMode } from "@/cli/logger.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -53,7 +53,9 @@ export const createSubagentsLoader = (args: {
       const skipped: Array<string> = [];
 
       if (configDir == null) {
-        log.warn("Skillset subagents directory not found, skipping");
+        if (!isSilentMode()) {
+          log.warn("Skillset subagents directory not found, skipping");
+        }
         return;
       }
 
@@ -65,7 +67,9 @@ export const createSubagentsLoader = (args: {
           isDirectory: e.isDirectory(),
         }));
       } catch {
-        log.warn("Skillset subagents directory not found, skipping");
+        if (!isSilentMode()) {
+          log.warn("Skillset subagents directory not found, skipping");
+        }
         return;
       }
 
@@ -126,9 +130,11 @@ export const createSubagentsLoader = (args: {
         // foo.md + foo.toml backwards compatibility is supported for flat
         // subagents only and will be removed in v0.1.0.
         if (dirSubagentNames.has(subagentName)) {
-          log.warn(
-            `Skipping flat file ${entry.name} — directory-based subagent ${subagentName}/ takes precedence`,
-          );
+          if (!isSilentMode()) {
+            log.warn(
+              `Skipping flat file ${entry.name} — directory-based subagent ${subagentName}/ takes precedence`,
+            );
+          }
           continue;
         }
 
@@ -174,9 +180,11 @@ export const createSubagentsLoader = (args: {
           text: `Registered ${registered.length} subagent${registered.length === 1 ? "" : "s"}`,
         });
         lines.push("", summary);
-        note(lines.join("\n"), "Subagents");
+        if (!isSilentMode()) {
+          note(lines.join("\n"), "Subagents");
+        }
       }
-      if (skipped.length > 0) {
+      if (skipped.length > 0 && !isSilentMode()) {
         log.warn(
           `Skipped ${skipped.length} subagent${
             skipped.length === 1 ? "" : "s"

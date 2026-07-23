@@ -58,21 +58,62 @@ Install and activate a skillset directly from a Git repository:
 sks install my-skillset --from git@github.com:myorg/skillsets.git
 ```
 
-The repository must expose a `skillsets/my-skillset` branch whose root
-`nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
-clones the branch's current tip once into `~/.nori/profiles/personal/my-skillset/`
-and keeps it as a Git working tree. Interactive installs ask you to trust the
-source; unattended installs must add `--trust-source`:
+The repository must expose an explicit
+`refs/heads/skillsets/my-skillset` branch with an exact lowercase root
+`nori.json` regular file whose manifest has `"name": "my-skillset"` and
+`"type": "skillset"`; a tag with the same name does not satisfy the branch
+requirement. The command requests the branch's normal full history, stores it at
+`~/.nori/profiles/personal/my-skillset/`, and keeps it as a Git working tree.
+The clone explicitly overrides Git's `clone.rejectShallow` setting so local Git
+configuration cannot change Nori's source policy: by default, an unpinned
+checkout may come from a shallow source and remains attached to the branch's
+current tip. To install an exact historical commit, pass its full SHA-1 or
+SHA-256 object ID:
+
+```bash
+sks install my-skillset --from git@github.com:myorg/skillsets.git \
+  --pin 0123456789abcdef0123456789abcdef01234567
+```
+
+Pinned installs accept only 40- or 64-character hexadecimal commit IDs and
+require the supplied value to equal Git's fully resolved object ID. This also
+rejects a 40-character abbreviation in a SHA-256 repository. The commit must
+be reachable through the complete parent history of the observed
+`skillsets/my-skillset` branch tip. A pinned checkout has detached `HEAD`,
+validates the selected historical tree, and reports the resolved SHA. Only
+pinned installs verify that the repository is non-shallow, because they must
+prove complete ancestry.
+
+Interactive installs ask you to trust the source; unattended installs must add
+`--trust-source`. Unattended Git processes set `GIT_TERMINAL_PROMPT=0` and use
+OpenSSH batch mode, so Git, SSH host-key confirmation, and SSH
+password/passphrase challenges fail instead of prompting. Arbitrary SSH command
+wrappers and clients that do not accept OpenSSH options are outside this
+feature's compatibility contract. Credential-bearing URL components are redacted
+from trust prompts and Git errors; sensitive query keys are recognized after
+percent-decoding and may be separated by `&` or `;`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
 ```
 
-This initial version does not pin revisions or automatically fetch later
-commits. Run the command only for a new local name: an existing
-`personal/my-skillset` is never overwritten. Git-backed installs reject
-symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry.
+Git retains the supplied remote as ordinary origin metadata. Prefer Git
+credential helpers, environment-based authentication, or SSH agents instead of
+putting literal credentials in the remote URL.
+
+Git-backed installs do not automatically fetch later commits. Run the command
+only for a new local name: an existing `personal/my-skillset` is never
+overwritten. Before reading the manifest, they reject tracked symbolic links,
+submodules, every path whose first root component normalizes to the Registry
+`.nori-version` name, and every non-exact or descendant path whose first root
+component normalizes to `nori.json`. Normalization includes compatibility
+normalization, case folding, and removal of the code points Git ignores on HFS
+filesystems, so reserved directory aliases such as `.NORI-VERSION/...` or
+`NORI.JSON/...` are rejected too. The sole accepted manifest authority is the
+exact lowercase root regular file `nori.json`. Git installs never fall back to
+the Registry and do not persist Nori-specific source provenance or trust state.
+A successful `--silent` install also suppresses activation-loader status,
+warning, and summary output.
 
 ## How Skillsets Work
 
@@ -109,7 +150,7 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
-- Git available on `PATH` when creating local skillsets with `sks new`
+- Git available on `PATH` for `sks new` and `install --from`; SHA-256 repository support depends on the installed Git build
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 

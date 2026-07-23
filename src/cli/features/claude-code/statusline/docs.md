@@ -22,7 +22,7 @@ Path: @/src/cli/features/claude-code/statusline
 
 ### Things to Know
 
-- The loader gracefully skips configuration if the source script is not found in the build output
+- The loader gracefully skips configuration if the source script is not found in the build output, warning during normal installs while honoring shared silent mode
 - Existing configs default `claudeCodeStatusLine` to enabled, so future applies keep configuring the status line unless the user explicitly opts out
 - The shell script depends on `jq`; if missing, it displays a warning instead of the full status line
 - Session tracking files in `/tmp/` store token accumulation state so that token counts include cached tokens (which are invisible in `total_input_tokens`) and persist across `/clear` boundaries

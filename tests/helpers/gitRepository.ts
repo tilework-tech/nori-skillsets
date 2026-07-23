@@ -42,13 +42,19 @@ type CommitArgs = {
   files?: Record<string, string>;
 };
 
-export const createTestGitRepository = async (root: string) => {
+export const createTestGitRepository = async (args: {
+  root: string;
+  objectFormat?: "sha1" | "sha256" | null;
+}) => {
+  const { root, objectFormat } = args;
   const remote = path.join(root, "remote.git");
   const authorCheckout = path.join(root, "author");
 
   await fs.mkdir(remote, { recursive: true });
-  await git(remote, "init", "--bare");
-  await git(undefined, "init", authorCheckout);
+  const objectFormatArgs =
+    objectFormat == null ? [] : [`--object-format=${objectFormat}`];
+  await git(remote, "init", "--bare", ...objectFormatArgs);
+  await git(undefined, "init", ...objectFormatArgs, authorCheckout);
   await git(authorCheckout, "config", "user.email", "tests@nori.invalid");
   await git(authorCheckout, "config", "user.name", "Nori Tests");
 
@@ -81,5 +87,99 @@ export const createTestGitRepository = async (root: string) => {
     return git(authorCheckout, "rev-parse", "HEAD");
   };
 
-  return { remote, authorCheckout, commit };
+  const commitUnrelated = async (args: {
+    marker?: string | null;
+  }): Promise<string> => {
+    const marker = args.marker ?? "unrelated history";
+    const tree = await git(authorCheckout, "write-tree");
+    const commitSha = await git(
+      authorCheckout,
+      "commit-tree",
+      tree,
+      "-m",
+      marker,
+    );
+    await git(
+      authorCheckout,
+      "push",
+      remote,
+      `${commitSha}:refs/heads/unrelated`,
+    );
+    return commitSha;
+  };
+
+  const mergeSecondParent = async (args: {
+    slug: string;
+    marker?: string | null;
+  }): Promise<string> => {
+    const { slug } = args;
+    const marker = args.marker ?? "second-parent history";
+    const branchTip = await git(authorCheckout, "rev-parse", "HEAD");
+    const tree = await git(authorCheckout, "write-tree");
+    const secondParent = await git(
+      authorCheckout,
+      "commit-tree",
+      tree,
+      "-m",
+      marker,
+    );
+    const mergeCommit = await git(
+      authorCheckout,
+      "commit-tree",
+      tree,
+      "-p",
+      branchTip,
+      "-p",
+      secondParent,
+      "-m",
+      `merge ${marker}`,
+    );
+    await git(authorCheckout, "reset", "--hard", mergeCommit);
+    await git(authorCheckout, "push", "--force", remote, `skillsets/${slug}`);
+    return secondParent;
+  };
+
+  const createShallowRemote = async (args: {
+    slug: string;
+  }): Promise<string> => {
+    const { slug } = args;
+    const shallowRemote = path.join(root, "limited-source");
+    await git(
+      undefined,
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      `skillsets/${slug}`,
+      `file://${remote}`,
+      shallowRemote,
+    );
+    return shallowRemote;
+  };
+
+  const replaceBranchWithTag = async (args: {
+    slug: string;
+  }): Promise<void> => {
+    const { slug } = args;
+    const refName = `skillsets/${slug}`;
+    await git(authorCheckout, "tag", "--force", refName, "HEAD");
+    await git(
+      authorCheckout,
+      "push",
+      "--force",
+      remote,
+      `refs/tags/${refName}`,
+    );
+    await git(authorCheckout, "push", remote, `:refs/heads/${refName}`);
+  };
+
+  return {
+    remote,
+    authorCheckout,
+    commit,
+    commitUnrelated,
+    mergeSecondParent,
+    createShallowRemote,
+    replaceBranchWithTag,
+  };
 };
