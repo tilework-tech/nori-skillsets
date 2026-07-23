@@ -22,6 +22,7 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { main as installMain } from "@/cli/features/install/install.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { confirmAction } from "@/cli/prompts/confirm.js";
 import { configFlow } from "@/cli/prompts/flows/config.js";
 import { isReservedSkillsetName } from "@/cli/prompts/validators.js";
@@ -129,7 +130,7 @@ const parseDefaultOrgOption = (args: { defaultOrg: string }): string | null => {
  *
  * @returns Command status indicating success or cancellation
  */
-export const configMain = async (
+const configMainImpl = async (
   args?: {
     agents?: string | null;
     installDir?: string | null;
@@ -380,3 +381,15 @@ export const configMain = async (
 
   return { success: true, cancelled: false, message: "Configuration saved" };
 };
+
+export const configMain = async (
+  args?: {
+    agents?: string | null;
+    installDir?: string | null;
+    redownloadOnSwitch?: boolean | null;
+    claudeCodeStatusLine?: boolean | null;
+    defaultOrg?: string | null;
+    nonInteractive?: boolean | null;
+  } | null,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => configMainImpl(args) });

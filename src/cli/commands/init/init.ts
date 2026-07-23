@@ -27,6 +27,7 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -61,7 +62,7 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  *
  * @returns Command status
  */
-export const initMain = async (args?: {
+const initMainImpl = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
@@ -193,3 +194,11 @@ export const registerInitCommand = (args: { program: Command }): void => {
       });
     });
 };
+
+export const initMain = async (args?: {
+  installDir?: string | null;
+  nonInteractive?: boolean | null;
+  skipWarning?: boolean | null;
+  skillset?: string | null;
+}): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => initMainImpl(args) });
