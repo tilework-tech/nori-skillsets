@@ -257,6 +257,11 @@ export const withInstallLock = async <T>(args: {
     // behind by a crashed process so no mutation runs on a half-written tree.
     // Loaded lazily to avoid a static import cycle (activationTransaction reads
     // config, which acquires this lock).
+    //
+    // Invariant: this must run BEFORE `installLockContext.run` establishes the
+    // lock token, i.e. only at the outermost acquisition. Moving it inside the
+    // token context would make a nested acquisition recover too, re-clobbering
+    // an in-flight transaction.
     const { recoverPendingActivations } =
       await import("@/cli/features/install/activationTransaction.js");
     await recoverPendingActivations();
