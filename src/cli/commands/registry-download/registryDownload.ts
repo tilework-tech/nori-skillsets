@@ -19,6 +19,7 @@ import {
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { isGitGovernedPath } from "@/cli/features/gitSourceAuthority.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -53,6 +54,10 @@ import type { NoriJson } from "@/norijson/nori.js";
 import type { VersionInfo } from "@/packaging/provenance.js";
 import type { RegistrySearchResult } from "@/packaging/registryLookup.js";
 import type { Command } from "commander";
+
+export type RegistryDownloadStatus = CommandStatus & {
+  failureKind?: "source-authority";
+};
 
 /**
  * Read the nori.json file from a skillset directory
@@ -391,7 +396,7 @@ export const registryDownloadMain = async (args: {
   cliName?: CliName | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-}): Promise<CommandStatus> => {
+}): Promise<RegistryDownloadStatus> => {
   const {
     packageSpec,
     installDir,
@@ -435,6 +440,32 @@ export const registryDownloadMain = async (args: {
     log.info(defaultOrgNotice);
   }
 
+  // Downloaded packages are stored under their bucket/namespace on disk:
+  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
+  const targetDir = skillsetPath({
+    name: namespacedName({ orgId, packageName }),
+  });
+
+  if (listVersions !== true) {
+    try {
+      if (await isGitGovernedPath({ targetPath: targetDir })) {
+        return {
+          success: false,
+          cancelled: false,
+          message: `Git-governed path detected at "${targetDir}"; Registrar download refused to preserve source authority.`,
+          failureKind: "source-authority",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        cancelled: false,
+        message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
+        failureKind: "source-authority",
+      };
+    }
+  }
+
   // Resolve install directory from config and auto-init if needed
   const resolvedInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
@@ -462,12 +493,6 @@ export const registryDownloadMain = async (args: {
       };
     }
   }
-
-  // Downloaded packages are stored under their bucket/namespace on disk:
-  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
-  const targetDir = skillsetPath({
-    name: namespacedName({ orgId, packageName }),
-  });
 
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;

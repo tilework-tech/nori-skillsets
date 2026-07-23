@@ -19,6 +19,10 @@ import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 60_000;
 const MINIMUM_GIT_VERSION = { major: 2, minor: 29 } as const;
+const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
+const HFS_IGNORED_CODE_POINTS =
+  /[\u200C-\u200F\u202A-\u202E\u206A-\u206F\uFEFF]/gu;
+const SSH_BATCH_MODE_DISABLED = /batchmode(?:\s*=\s*|\s+)["']?no\b/iu;
 const SUPPORTED_REMOTE_SCHEMES = new Set([
   "file",
   "git",
@@ -31,6 +35,7 @@ const SUPPORTED_REMOTE_SCHEMES = new Set([
 type GitInstallArgs = {
   slug: string;
   remote: string;
+  pin?: string | null;
   installDir?: string | null;
   trustSource?: boolean | null;
   nonInteractive?: boolean | null;
@@ -102,12 +107,29 @@ const credentialFreeRemote = (args: { remote: string }): string => {
   }
 };
 
+const GIT_ROUTING_ENVIRONMENT = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_SHALLOW_FILE",
+] as const;
+
+const baseGitEnvironment = (): NodeJS.ProcessEnv => {
+  const env = { ...process.env };
+  for (const name of GIT_ROUTING_ENVIRONMENT) delete env[name];
+  return env;
+};
+
 const assertSupportedGitVersion = async (): Promise<void> => {
   let output: string;
   try {
-    output = (
-      await execFileAsync("git", ["--version"], { timeout: GIT_TIMEOUT_MS })
-    ).stdout.trim();
+    output = await runGit({
+      command: ["--version"],
+      nonInteractive: true,
+    });
   } catch (error) {
     throw new Error(
       `Unable to run Git: ${error instanceof Error ? error.message : String(error)}`,
@@ -191,7 +213,7 @@ const readSshCommandConfig = async (args: {
     return (
       await execFileAsync("git", ["config", "--get", "core.sshCommand"], {
         cwd: args.cwd,
-        env: process.env,
+        env: baseGitEnvironment(),
         timeout: GIT_TIMEOUT_MS,
       })
     ).stdout.trim();
@@ -229,58 +251,147 @@ const sanitizeGitError = (args: {
     .replace(/[\u0000-\u001f\u007f-\u009f]/gu, "?");
 };
 
-const runGit = async (args: {
+type GitExecution = {
+  error: unknown;
+  exitCode: string | number | null;
+  stderr: string;
+  stdout: string;
+  timedOut: boolean;
+};
+
+const executeGit = async (args: {
   command: Array<string>;
   cwd?: string | null;
+  input?: string | null;
   nonInteractive: boolean;
   remote?: string | null;
   useDefaultSshBatchMode?: boolean | null;
-}): Promise<string> => {
-  const { cwd, nonInteractive, remote, useDefaultSshBatchMode } = args;
-  const command = nonInteractive
-    ? ["-c", "credential.interactive=false", ...args.command]
-    : args.command;
-  const env = { ...process.env };
+}): Promise<GitExecution> => {
+  const { cwd, input, nonInteractive, useDefaultSshBatchMode } = args;
+  const env = baseGitEnvironment();
   if (nonInteractive) {
     env.GIT_TERMINAL_PROMPT = "0";
     env.GCM_INTERACTIVE = "Never";
     env.GIT_ASKPASS = "true";
     env.SSH_ASKPASS = "true";
     env.SSH_ASKPASS_REQUIRE = "never";
-    if (
-      useDefaultSshBatchMode === true &&
-      env.GIT_SSH_COMMAND == null &&
-      env.GIT_SSH == null
-    ) {
-      env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+    const configCount = Number.parseInt(env.GIT_CONFIG_COUNT ?? "0", 10);
+    const nextConfigIndex = Number.isNaN(configCount) ? 0 : configCount;
+    env.GIT_CONFIG_COUNT = String(nextConfigIndex + 1);
+    env[`GIT_CONFIG_KEY_${nextConfigIndex}`] = "credential.interactive";
+    env[`GIT_CONFIG_VALUE_${nextConfigIndex}`] = "false";
+    if (useDefaultSshBatchMode === true && env.GIT_SSH == null) {
+      if (
+        env.GIT_SSH_COMMAND != null &&
+        SSH_BATCH_MODE_DISABLED.test(env.GIT_SSH_COMMAND)
+      ) {
+        throw new Error(
+          "GIT_SSH_COMMAND must not disable SSH batch mode for unattended installs",
+        );
+      }
+      if (env.GIT_SSH_COMMAND == null) {
+        env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+      } else if (/^(?:.*[\\/])?ssh(?:\s|$)/u.test(env.GIT_SSH_COMMAND)) {
+        env.GIT_SSH_COMMAND = `${env.GIT_SSH_COMMAND} -oBatchMode=yes`;
+      }
     }
   }
-  try {
-    return (
-      await execFileAsync("git", command, {
+
+  return new Promise((resolve) => {
+    let stdinError: Error | null = null;
+    const child = execFile(
+      "git",
+      args.command,
+      {
         cwd: cwd ?? undefined,
         env,
         maxBuffer: 10 * 1024 * 1024,
         timeout: GIT_TIMEOUT_MS,
-      })
-    ).stdout.trim();
-  } catch (error) {
-    const timedOut =
-      error != null &&
-      typeof error === "object" &&
-      (("killed" in error && error.killed === true) ||
-        ("code" in error && error.code === "ETIMEDOUT"));
-    const detail =
-      error != null && typeof error === "object" && "stderr" in error
-        ? String(error.stderr).trim() ||
-          (error instanceof Error ? error.message : String(error))
-        : String(error);
-    const sanitized = sanitizeGitError({ value: detail, remote });
-    if (timedOut) {
-      throw new Error(`Git command timed out after 60 seconds: ${sanitized}`);
-    }
-    throw new Error(`Git command failed: ${sanitized}`);
+      },
+      (error, stdout, stderr) => {
+        const executionError = error ?? stdinError;
+        const reportedExitCode =
+          executionError != null &&
+          "code" in executionError &&
+          (typeof executionError.code === "string" ||
+            typeof executionError.code === "number")
+            ? executionError.code
+            : null;
+        resolve({
+          error: executionError,
+          exitCode: executionError == null ? 0 : (reportedExitCode ?? 1),
+          stderr: String(stderr).trim(),
+          stdout: String(stdout).trim(),
+          timedOut:
+            executionError != null &&
+            typeof executionError === "object" &&
+            (("killed" in executionError && executionError.killed === true) ||
+              ("code" in executionError &&
+                executionError.code === "ETIMEDOUT")),
+        });
+      },
+    );
+    child.stdin?.on("error", (error) => {
+      if ((error as NodeJS.ErrnoException).code !== "EPIPE") {
+        stdinError = error;
+      }
+    });
+    child.stdin?.end(input ?? undefined);
+  });
+};
+
+const failedGitCommand = (args: {
+  result: GitExecution;
+  remote?: string | null;
+}): Error => {
+  const detail =
+    args.result.stderr ||
+    (args.result.error instanceof Error
+      ? args.result.error.message
+      : String(args.result.error));
+  const sanitized = sanitizeGitError({ value: detail, remote: args.remote });
+  return args.result.timedOut
+    ? new Error(`Git command timed out after 60 seconds: ${sanitized}`)
+    : new Error(`Git command failed: ${sanitized}`);
+};
+
+const runGit = async (args: {
+  command: Array<string>;
+  cwd?: string | null;
+  input?: string | null;
+  nonInteractive: boolean;
+  remote?: string | null;
+  useDefaultSshBatchMode?: boolean | null;
+}): Promise<string> => {
+  const result = await executeGit(args);
+  if (result.exitCode !== 0) {
+    throw failedGitCommand({ result, remote: args.remote });
   }
+  return result.stdout;
+};
+
+type TrackedEntry = {
+  mode: string;
+  path: string;
+};
+
+const normalizeReservedRootPath = (args: { path: string }): string => {
+  const [rootEntry = ""] = args.path.split("/");
+  return rootEntry
+    .normalize("NFKC")
+    .replace(HFS_IGNORED_CODE_POINTS, "")
+    .toLowerCase();
+};
+
+const parseTrackedEntries = (args: { output: string }): Array<TrackedEntry> => {
+  const records = args.output.split("\0").filter((record) => record.length > 0);
+  return records.map((record) => {
+    const match = /^(\d{6}) [0-9a-f]+ \d+\t([\s\S]+)$/u.exec(record);
+    if (match == null) {
+      throw new Error("Git returned invalid tracked-entry output");
+    }
+    return { mode: match[1], path: match[2] };
+  });
 };
 
 const validateCheckout = async (args: {
@@ -289,32 +400,42 @@ const validateCheckout = async (args: {
   nonInteractive: boolean;
 }): Promise<void> => {
   const { checkoutDir, slug, nonInteractive } = args;
-  const entries = await runGit({
-    command: ["ls-files", "--stage", "-z"],
-    cwd: checkoutDir,
-    nonInteractive,
+  const entries = parseTrackedEntries({
+    output: await runGit({
+      command: ["ls-files", "--stage", "-z"],
+      cwd: checkoutDir,
+      nonInteractive,
+    }),
   });
-  let manifestMode: string | null = null;
-  for (const entry of entries.split("\0").filter((value) => value.length > 0)) {
-    const match = entry.match(/^(\d{6}) [0-9a-f]+ \d+\t([\s\S]+)$/u);
-    if (match == null)
-      throw new Error("Unable to validate tracked Git entries");
-    const [, mode, filePath] = match;
-    if (mode === "120000") {
-      throw new Error("Git-backed skillsets cannot contain symbolic links");
-    }
-    if (mode === "160000") {
-      throw new Error("Git-backed skillsets cannot contain submodules");
-    }
-    if (filePath.toLowerCase() === ".nori-version") {
-      throw new Error(
-        "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
-      );
-    }
-    if (filePath === "nori.json") manifestMode = mode;
+  if (
+    entries.some(
+      (entry) =>
+        normalizeReservedRootPath({ path: entry.path }) === ".nori-version",
+    )
+  ) {
+    throw new Error(
+      "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
+    );
   }
-  if (manifestMode !== "100644" && manifestMode !== "100755") {
-    throw new Error("Git-backed skillsets require a regular tracked nori.json");
+  if (entries.some((entry) => entry.mode === "120000")) {
+    throw new Error("Git-backed skillsets cannot contain symbolic links");
+  }
+  if (entries.some((entry) => entry.mode === "160000")) {
+    throw new Error("Git-backed skillsets cannot contain submodules");
+  }
+  const manifestAliases = entries.filter(
+    (entry) => normalizeReservedRootPath({ path: entry.path }) === "nori.json",
+  );
+  const manifest = manifestAliases[0];
+  if (
+    manifestAliases.length !== 1 ||
+    manifest == null ||
+    manifest.path !== "nori.json" ||
+    (manifest.mode !== "100644" && manifest.mode !== "100755")
+  ) {
+    throw new Error(
+      "Git-backed skillsets require an exact root nori.json regular file",
+    );
   }
 
   let metadata;
@@ -333,34 +454,172 @@ const validateCheckout = async (args: {
   }
 };
 
+const isAncestor = async (args: {
+  ancestor: string;
+  descendant: string;
+  checkoutDir: string;
+  nonInteractive: boolean;
+}): Promise<boolean> => {
+  const result = await executeGit({
+    command: ["merge-base", "--is-ancestor", args.ancestor, args.descendant],
+    cwd: args.checkoutDir,
+    nonInteractive: args.nonInteractive,
+  });
+  if (result.exitCode === 0) return true;
+  if (result.exitCode === 1) return false;
+  throw failedGitCommand({ result });
+};
+
+const inspectPinnedObject = async (args: {
+  checkoutDir: string;
+  nonInteractive: boolean;
+  pin: string;
+}): Promise<{ objectType: string; resolvedCommit: string } | null> => {
+  const result = await executeGit({
+    command: ["cat-file", "--batch-check=%(objectname) %(objecttype)"],
+    cwd: args.checkoutDir,
+    input: `${args.pin}\n`,
+    nonInteractive: args.nonInteractive,
+  });
+  if (result.exitCode !== 0) throw failedGitCommand({ result });
+  const [resolvedCommit, objectType, ...extra] = result.stdout.split(" ");
+  if (
+    objectType === "missing" &&
+    resolvedCommit === args.pin &&
+    extra.length === 0
+  ) {
+    return null;
+  }
+  if (
+    resolvedCommit == null ||
+    objectType == null ||
+    extra.length > 0 ||
+    !FULL_COMMIT_SHA.test(resolvedCommit)
+  ) {
+    throw new Error("Git returned invalid object inspection output");
+  }
+  return { objectType, resolvedCommit };
+};
+
+const selectPinnedCommit = async (args: {
+  branch: string;
+  branchTip: string;
+  checkoutDir: string;
+  nonInteractive: boolean;
+  pin: string;
+}): Promise<string> => {
+  const shallow = await runGit({
+    command: ["rev-parse", "--is-shallow-repository"],
+    cwd: args.checkoutDir,
+    nonInteractive: args.nonInteractive,
+  });
+  if (shallow === "true") {
+    throw new Error(
+      "Pinned installs require complete history; the Git source is shallow",
+    );
+  }
+
+  const inspectedObject = await inspectPinnedObject(args);
+  if (inspectedObject == null) {
+    throw new Error(
+      `Pinned commit "${args.pin}" was not found in ${args.branch} history`,
+    );
+  }
+  const { objectType, resolvedCommit } = inspectedObject;
+  if (resolvedCommit.toLowerCase() !== args.pin.toLowerCase()) {
+    throw new Error(
+      "--pin must be a full hexadecimal commit SHA (40 or 64 characters)",
+    );
+  }
+  if (objectType !== "commit") {
+    throw new Error(`Pinned object "${args.pin}" does not identify a commit`);
+  }
+  if (
+    !(await isAncestor({
+      ancestor: resolvedCommit,
+      descendant: args.branchTip,
+      checkoutDir: args.checkoutDir,
+      nonInteractive: args.nonInteractive,
+    }))
+  ) {
+    throw new Error(
+      `Pinned commit "${args.pin}" was not found in ${args.branch} history`,
+    );
+  }
+
+  await runGit({
+    command: ["checkout", "--detach", resolvedCommit],
+    cwd: args.checkoutDir,
+    nonInteractive: args.nonInteractive,
+  });
+  return resolvedCommit;
+};
+
+const parseRemoteBranchTip = (args: {
+  branch: string;
+  output: string;
+}): string => {
+  const records = args.output
+    .split("\n")
+    .filter((record) => record.trim().length > 0);
+  const expectedRef = `refs/heads/${args.branch}`;
+  const match =
+    records.length === 1 ? /^([0-9a-f]+)\t(.+)$/iu.exec(records[0]) : null;
+  if (match == null || match[2] !== expectedRef) {
+    throw new Error(`Required branch "${args.branch}" was not found`);
+  }
+  if (!FULL_COMMIT_SHA.test(match[1])) {
+    throw new Error("Git returned an invalid branch-tip object ID");
+  }
+  return match[1];
+};
+
 const acquireCheckout = async (args: {
   branch: string;
   checkoutDir: string;
   nonInteractive: boolean;
+  pin?: string | null;
   remote: string;
-}): Promise<void> => {
-  const { branch, checkoutDir, nonInteractive, remote } = args;
+  slug: string;
+}): Promise<string | null> => {
+  const { branch, checkoutDir, nonInteractive, pin, remote, slug } = args;
   const sourceRef = `refs/heads/${branch}`;
   const trackingRef = `refs/remotes/origin/${branch}`;
-  await runGit({
-    command: ["init", "--quiet", checkoutDir],
-    nonInteractive,
-  });
   const sshRemote = nonInteractive && isSshRemote({ remote });
   const configuredSshCommand = sshRemote
     ? await readSshCommandConfig({ cwd: checkoutDir })
     : null;
-  const useDefaultSshBatchMode =
-    sshRemote &&
-    process.env.GIT_SSH_COMMAND == null &&
-    process.env.GIT_SSH == null &&
-    configuredSshCommand == null;
+  const useDefaultSshBatchMode = sshRemote && configuredSshCommand == null;
+  const remoteBranchTip = parseRemoteBranchTip({
+    branch,
+    output: await runGit({
+      command: ["ls-remote", "--heads", "--", remote, sourceRef],
+      nonInteractive,
+      remote,
+      useDefaultSshBatchMode,
+    }),
+  });
+  if (pin != null && pin.length !== remoteBranchTip.length) {
+    throw new Error(
+      "--pin must be a full hexadecimal commit SHA (40 or 64 characters)",
+    );
+  }
+
+  await runGit({
+    command: [
+      "init",
+      "--quiet",
+      ...(remoteBranchTip.length === 64 ? ["--object-format=sha256"] : []),
+      checkoutDir,
+    ],
+    nonInteractive,
+  });
   try {
     await runGit({
       command: [
         "fetch",
         "--depth",
-        "1",
+        pin == null ? "1" : "2147483647",
         "--no-tags",
         "--no-write-fetch-head",
         "--",
@@ -398,18 +657,40 @@ const acquireCheckout = async (args: {
     cwd: checkoutDir,
     nonInteractive,
   });
-  await runGit({
-    command: [
-      "checkout",
-      "--quiet",
-      "-b",
-      branch,
-      "--track",
-      `origin/${branch}`,
-    ],
-    cwd: checkoutDir,
-    nonInteractive,
-  });
+  const branchTip =
+    pin == null
+      ? await runGit({
+          command: ["rev-parse", "--verify", "--end-of-options", trackingRef],
+          cwd: checkoutDir,
+          nonInteractive,
+        })
+      : remoteBranchTip;
+  const resolvedCommit =
+    pin == null
+      ? null
+      : await selectPinnedCommit({
+          branch,
+          branchTip,
+          checkoutDir,
+          nonInteractive,
+          pin,
+        });
+  if (pin == null) {
+    await runGit({
+      command: [
+        "checkout",
+        "--quiet",
+        "-b",
+        branch,
+        "--track",
+        `origin/${branch}`,
+      ],
+      cwd: checkoutDir,
+      nonInteractive,
+    });
+  }
+  await validateCheckout({ checkoutDir, nonInteractive, slug });
+  return resolvedCommit;
 };
 
 export const gitInstallMain = async (
@@ -424,13 +705,18 @@ export const gitInstallMain = async (
     };
   }
 
-  const { slug, remote, installDir, trustSource, nonInteractive, silent } =
+  const { slug, remote, pin, installDir, trustSource, nonInteractive, silent } =
     args;
   const wasSilent = isSilentMode();
   if (silent === true) setSilentMode({ silent: true });
 
   try {
     assertSupportedRemote({ remote });
+    if (pin != null && !FULL_COMMIT_SHA.test(pin)) {
+      throw new Error(
+        "--pin must be a full hexadecimal commit SHA (40 or 64 characters)",
+      );
+    }
 
     const branch = `skillsets/${slug}`;
     if (trustSource !== true) {
@@ -473,17 +759,15 @@ export const gitInstallMain = async (
       throw error;
     }
 
+    let resolvedCommit: string | null = null;
     try {
-      await acquireCheckout({
+      resolvedCommit = await acquireCheckout({
         branch,
         checkoutDir,
         nonInteractive: nonInteractive === true || silent === true,
+        pin,
         remote,
-      });
-      await validateCheckout({
-        checkoutDir,
         slug,
-        nonInteractive: nonInteractive === true || silent === true,
       });
     } catch (error) {
       await fs.rm(checkoutDir, { recursive: true, force: true });
@@ -543,7 +827,10 @@ export const gitInstallMain = async (
     return {
       success: true,
       cancelled: false,
-      message: `Installed and activated Git-backed skillset "${identity}"`,
+      message:
+        resolvedCommit == null
+          ? `Installed and activated Git-backed skillset "${identity}"`
+          : `Installed and activated Git-backed skillset "${identity}" at ${resolvedCommit}`,
     };
   } catch (error) {
     return {

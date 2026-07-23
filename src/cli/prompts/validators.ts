@@ -88,3 +88,35 @@ export const validateSkillsetName = (args: {
   }
   return undefined;
 };
+
+/**
+ * Validate a skillset name with an optional single namespace (`org/name`).
+ *
+ * @param args - Validation arguments
+ * @param args.value - The bare or namespaced skillset name
+ *
+ * @returns Undefined if valid, error message string if invalid
+ */
+export const validateNamespacedSkillsetName = (args: {
+  value: string;
+}): string | undefined => {
+  const { value } = args;
+
+  if (!value || value.trim() === "") {
+    return "Skillset name is required";
+  }
+
+  const parts = value.split("/");
+  if (parts.length > 2) {
+    return "Skillset name can have at most one namespace (org/name)";
+  }
+
+  for (const part of parts) {
+    const error = validateSkillsetName({ value: part });
+    if (error != null) {
+      return error;
+    }
+  }
+
+  return undefined;
+};

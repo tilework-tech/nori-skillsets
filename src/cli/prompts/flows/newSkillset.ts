@@ -11,7 +11,7 @@
 import { text } from "@clack/prompts";
 
 import { unwrapPrompt } from "@/cli/prompts/flows/utils.js";
-import { validateSkillsetName } from "@/cli/prompts/validators.js";
+import { validateNamespacedSkillsetName } from "@/cli/prompts/validators.js";
 
 /**
  * Result of the new skillset flow
@@ -47,41 +47,6 @@ const parseKeywords = (args: { value: string }): Array<string> | null => {
     .filter((k) => k.length > 0);
 
   return keywords.length > 0 ? keywords : null;
-};
-
-/**
- * Validate skillset name (allows namespaced names like org/name)
- *
- * @param args - Validation arguments
- * @param args.value - The name to validate
- *
- * @returns Undefined if valid, error message if invalid
- */
-const validateNamespacedSkillsetName = (args: {
-  value: string;
-}): string | undefined => {
-  const { value } = args;
-
-  if (!value || value.trim() === "") {
-    return "Skillset name is required";
-  }
-
-  // Allow namespaced names (org/name)
-  const parts = value.split("/");
-
-  if (parts.length > 2) {
-    return "Skillset name can have at most one namespace (org/name)";
-  }
-
-  // Validate each part
-  for (const part of parts) {
-    const error = validateSkillsetName({ value: part });
-    if (error != null) {
-      return error;
-    }
-  }
-
-  return undefined;
 };
 
 const CANCEL_MESSAGE = "Skillset creation cancelled.";

@@ -123,6 +123,10 @@ import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 
 import { skillUploadMain } from "./skillUpload.js";
+import {
+  commitTestGitRepository,
+  getTestGitStatus,
+} from "../../../../tests/helpers/gitRepository.js";
 
 /**
  * Create a local skill directory inside the simulated ~/.nori/profiles/<skillset>/skills/<skillName>
@@ -266,6 +270,32 @@ describe("skill-upload", () => {
   });
 
   describe("skillUploadMain", () => {
+    it("refuses to upload a skill from a Git-governed skillset to Registrar", async () => {
+      const skillDir = await createLocalSkill({
+        skillsetName: "my-profile",
+        skillName: "my-skill",
+      });
+      const skillsetDir = path.dirname(path.dirname(skillDir));
+      await commitTestGitRepository({ repositoryDir: skillsetDir });
+      vi.mocked(loadConfig).mockResolvedValue(
+        authenticatedConfig("my-profile") as never,
+      );
+      const result = await skillUploadMain({
+        skillSpec: "my-skill",
+        publicRegistry: true,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toMatch(/Git.*Registrar upload refused/i);
+      expect(registrarApi.getSkillPackument).not.toHaveBeenCalled();
+      expect(registrarApi.uploadSkill).not.toHaveBeenCalled();
+      await expect(
+        getTestGitStatus({ repositoryDir: skillsetDir }),
+      ).resolves.toBe("");
+    });
+
     it("uploads a new skill (no remote collision) with version 1.0.0", async () => {
       await createLocalSkill({
         skillsetName: "my-profile",

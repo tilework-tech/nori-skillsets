@@ -127,8 +127,12 @@ describe("generateBashCompletion", () => {
 
   it("should contain Git install flags", () => {
     const result = generateBashCompletion();
-    expect(result).toMatch(/install\)[\s\S]*--from/);
-    expect(result).toMatch(/install\)[\s\S]*--trust-source/);
+    const installBlock = result.match(
+      /\n    install\)\n([\s\S]*?)\n      ;;/,
+    )?.[1];
+    expect(installBlock).toContain("--from");
+    expect(installBlock).toContain("--pin");
+    expect(installBlock).toContain("--trust-source");
   });
 
   it("should contain external-specific flags", () => {
@@ -233,9 +237,12 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("--skill");
     expect(result).toContain("--all");
     expect(result).toContain("--ref");
-    // Git install flags
-    expect(result).toContain("--from");
-    expect(result).toContain("--trust-source");
+    const installBlock = result.match(
+      /\n        install\)\n([\s\S]*?)\n          ;;/,
+    )?.[1];
+    expect(installBlock).toContain("--from");
+    expect(installBlock).toContain("--pin");
+    expect(installBlock).toContain("--trust-source");
   });
 
   it("should reference list for dynamic switch completion", () => {

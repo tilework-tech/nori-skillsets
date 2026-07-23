@@ -10,7 +10,7 @@ import { log, note } from "@clack/prompts";
 
 import { resetManagedDir } from "@/cli/features/shared/managedDirOps.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
-import { bold } from "@/cli/logger.js";
+import { bold, isSilentMode } from "@/cli/logger.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -42,7 +42,9 @@ export const createSlashCommandsLoader = (args: {
       const skipped: Array<string> = [];
 
       if (configDir == null) {
-        log.warn("Skillset slashcommands directory not found, skipping");
+        if (!isSilentMode()) {
+          log.warn("Skillset slashcommands directory not found, skipping");
+        }
         return;
       }
 
@@ -50,7 +52,9 @@ export const createSlashCommandsLoader = (args: {
       try {
         files = await fs.readdir(configDir);
       } catch {
-        log.warn("Skillset slashcommands directory not found, skipping");
+        if (!isSilentMode()) {
+          log.warn("Skillset slashcommands directory not found, skipping");
+        }
         return;
       }
 
@@ -85,9 +89,11 @@ export const createSlashCommandsLoader = (args: {
           text: `Registered ${registered.length} slash command${registered.length === 1 ? "" : "s"}`,
         });
         lines.push("", summary);
-        note(lines.join("\n"), "Slash Commands");
+        if (!isSilentMode()) {
+          note(lines.join("\n"), "Slash Commands");
+        }
       }
-      if (skipped.length > 0) {
+      if (skipped.length > 0 && !isSilentMode()) {
         log.warn(
           `Skipped ${skipped.length} slash command${
             skipped.length === 1 ? "" : "s"

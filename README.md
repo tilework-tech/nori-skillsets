@@ -58,43 +58,88 @@ Install and activate a skillset directly from a Git repository:
 sks install my-skillset --from git@github.com:myorg/skillsets.git
 ```
 
-The repository must expose a `skillsets/my-skillset` branch whose root
-`nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
-requires Git 2.29 or newer and fetches only that exact branch head without tags
-into `~/.nori/profiles/personal/my-skillset/`. A same-named tag is
-never accepted in place of the branch. The checkout remains a Git working tree.
+The repository must expose an explicit
+`refs/heads/skillsets/my-skillset` branch with an exact lowercase root
+`nori.json` regular file whose manifest has `"name": "my-skillset"` and
+`"type": "skillset"`; a tag with the same name does not satisfy the branch
+requirement. Git 2.29 or newer is required. The command requests that branch's
+tip with `ls-remote`, initializes
+`~/.nori/profiles/personal/my-skillset/` as a repository, and fetches only the
+exact branch ref without tags or a `FETCH_HEAD` write. An unpinned install uses
+fetch depth 1 and remains attached to the observed current tip. Historical pin
+resolution requests depth 2147483647, then rejects the source if Git still
+reports incomplete shallow history. To install an exact historical commit, pass
+its full SHA-1 or SHA-256 object ID:
+
+```bash
+sks install my-skillset --from git@github.com:myorg/skillsets.git \
+  --pin 0123456789abcdef0123456789abcdef01234567
+```
+
+Pinned installs accept only 40- or 64-character hexadecimal commit IDs and
+require the supplied value to equal Git's fully resolved object ID. This also
+rejects a 40-character abbreviation in a SHA-256 repository. The commit must
+be reachable through the complete parent history of the observed
+`skillsets/my-skillset` branch tip. A pinned checkout has detached `HEAD`,
+validates the selected historical tree, and reports the resolved SHA. Only
+pinned installs verify that the repository is non-shallow, because they must
+prove complete ancestry.
+
 Interactive installs ask you to trust the source; unattended installs must add
-`--trust-source`:
+`--trust-source`. Unattended Git processes set `GIT_TERMINAL_PROMPT=0` and use
+OpenSSH batch mode, so Git, SSH host-key confirmation, and SSH
+password/passphrase challenges fail instead of prompting. Arbitrary SSH command
+wrappers and clients that do not accept OpenSSH options are outside this
+feature's compatibility contract. Credential-bearing URL components are redacted
+from trust prompts and Git errors; sensitive query keys are recognized after
+percent-decoding and may be separated by `&` or `;`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
 ```
 
-This initial version does not pin revisions or automatically fetch later
-commits. Run the command only for a new local name: an existing
-`personal/my-skillset` is never overwritten. Git-backed installs reject
-symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry. Git remote-helper syntax and URL schemes outside
-`http`, `https`, `ssh`, `git`, `git+ssh`, and `file` are rejected before the
-source-trust prompt; local paths and SCP-style SSH remotes remain supported.
-Remote credentials and terminal control characters are sanitized in output,
-and credential-bearing URL components are omitted from the stored origin. The
-Git 2.29 requirement allows `--no-write-fetch-head`, which keeps the
-credential-bearing fetch URL out of `FETCH_HEAD`. Unattended SSH installs use
-OpenSSH batch mode by default, while preserving an existing `GIT_SSH`,
-`GIT_SSH_COMMAND`, or `core.sshCommand`. If activation fails, the validated
-checkout is retained and the error includes a recovery command with the
-original install-directory and effective single-agent options when applicable.
-Its dynamic arguments are POSIX-shell-quoted, so paths with spaces or shell
-metacharacters replay literally when pasted.
+Git-backed installs do not automatically fetch later commits. Run the command
+only for a new local name: an existing `personal/my-skillset` is never
+overwritten. Git remote-helper syntax and URL schemes outside `http`, `https`,
+`ssh`, `git`, `git+ssh`, and `file` are rejected before the trust prompt; local
+paths and SCP-style SSH remotes remain supported. Git commands have a bounded
+timeout, and acquisition avoids writing the credential-bearing fetch URL to
+`FETCH_HEAD`. Remote credentials and terminal control characters are sanitized
+in output, and credential-bearing URL components are omitted from the ordinary
+stored origin metadata. Prefer Git credential helpers, environment-based
+authentication, or SSH agents instead of literal credentials in a remote URL.
+
+Before reading the manifest, Git-backed installs reject tracked symbolic links,
+submodules, every path whose first root component normalizes to the Registry
+`.nori-version` name, and every non-exact or descendant path whose first root
+component normalizes to `nori.json`. Normalization includes compatibility
+normalization, case folding, and removal of the code points Git ignores on HFS
+filesystems, so reserved directory aliases such as `.NORI-VERSION/...` or
+`NORI.JSON/...` are rejected too. The sole accepted manifest authority is the
+exact lowercase root regular file `nori.json`. Git installs never fall back to
+the Registry and do not persist Nori-specific source provenance or trust state.
+
+Activation targets all configured agents, then commits `personal/my-skillset`
+as the global active identity only after every agent succeeds. Earlier agent
+output is not rolled back if a later activation fails. A failed activation or
+final config commit retains the checkout and reports a POSIX-shell-quoted
+recovery command that preserves the effective install-directory and single-agent
+scope. Nested activation output is buffered until overall success and discarded
+on failure; `--silent` also discards it after success.
 
 ## How Skillsets Work
 
 Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client writes its contents into the relevant locations for each configured agent (e.g., `.claude/` for Claude Code, `.cursor/` for Cursor, `.codex/` for Codex, `.gemini/` for Gemini CLI). Configure which agents to target with `nori-skillsets config`.
 
-**Skillset Structure:**
+**Example local structure after authoring a skillset created by `sks new` (with no configured default organization):**
+
+`sks new` initially creates only `.git/`, `.gitignore`, and `nori.json`; the
+remaining entries are added as the skillset is authored.
+
 ```
-~/.nori/profiles/my-skillset/
+~/.nori/profiles/personal/my-skillset/
+├── .git/                   # Independent local version history
+├── .gitignore              # Nori-local state excluded from commits
 ├── AGENTS.md              # Custom instructions (CLAUDE.md also supported)
 ├── nori.json              # Skillset manifest (name, version, dependencies, requiredEnv)
 ├── skills/                # Skill definitions
@@ -117,17 +162,29 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
+- Git available on `PATH` for `sks new` and `install --from`; SHA-256 repository support depends on the installed Git build
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
 ## Creating custom skillsets or making changes to skillsets
 
-1. Create the skillset directory:
+1. Create a local, Git-backed skillset. Supplying the name skips the metadata
+   wizard; run `sks new` without a name to use the wizard instead.
+
    ```bash
-   mkdir -p ~/.nori/profiles/my-skillset
+   sks new my-skillset
    ```
 
-2. Add an `AGENTS.md` file with your custom instructions:
+   This initializes a repository without creating a commit, remote, or
+   authentication requirement. Git init templates are disabled so ambient
+   template configuration cannot populate the new repository or add a remote.
+
+2. Open the skillset and add an `AGENTS.md` file with your custom instructions:
+
+   ```bash
+   sks edit my-skillset
+   ```
+
    ```markdown
    # My Custom Skillset
 
@@ -143,7 +200,25 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
    nori-skillsets switch my-skillset
    ```
 
-Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/<skillset-name>/` directory instead.
+4. Version it with normal Git commands. With no configured default
+   organization, a bare name is created in the `personal/` namespace:
+
+   ```bash
+   cd ~/.nori/profiles/personal/my-skillset
+   git status
+   ```
+
+   When `defaultOrg` is configured, use
+   `~/.nori/profiles/<org>/my-skillset` instead.
+
+Git-backed skillsets use Git as their source authority. Mutating Registrar
+commands therefore refuse to download into or upload from a Git-governed
+location. This includes whole-skillset and individual-skill uploads, plus new
+download destinations beneath an existing Git working tree. Publish those
+sources through Git instead; Registrar-managed packages remain on Registrar.
+Read-only version listing and upload dry runs remain available.
+
+Manual changes made to an agent's installed directory (e.g., `.claude/`, `.cursor/`, `.codex/`) will be removed when switching skillsets. Manual changes should be made in the `~/.nori/profiles/personal/<skillset-name>/` directory instead (or the corresponding `~/.nori/profiles/<org>/<skillset-name>/` directory for an organization skillset).
 
 ## Private Skillsets for Teams
 

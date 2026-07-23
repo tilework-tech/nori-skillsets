@@ -128,24 +128,26 @@ export const registerNoriSkillsetsNewCommand = (args: {
 }): void => {
   const { program } = args;
 
-  const newAction = async () => {
+  const newAction = async (skillsetName: string | undefined) => {
     const { newSkillsetMain } =
       await import("@/cli/commands/new-skillset/newSkillset.js");
     await wrapWithFraming({
       title: "Create New Skillset",
       exitOnFailure: true,
-      action: () => newSkillsetMain(),
+      action: () => newSkillsetMain({ skillsetName: skillsetName ?? null }),
     });
   };
 
   // Primary command: new
   program
-    .command("new")
+    .command("new [skillset]")
     .description("Create a new empty skillset")
     .action(newAction);
 
   // Hidden alias: new-skillset
-  program.command("new-skillset", { hidden: true }).action(newAction);
+  program
+    .command("new-skillset [skillset]", { hidden: true })
+    .action(newAction);
 };
 
 /**
@@ -453,13 +455,17 @@ export const registerNoriSkillsetsInstallCommand = (args: {
     )
     .option("--from <remote>", "Install from a Git remote")
     .option(
+      "--pin <sha>",
+      "Install an exact full 40- or 64-character commit SHA from the skillset branch",
+    )
+    .option(
       "--trust-source",
       "Trust the Git source without prompting (required in non-interactive mode)",
     )
     .action(
       async (
         packageSpec: string,
-        options: { from?: string; trustSource?: boolean },
+        options: { from?: string; pin?: string; trustSource?: boolean },
       ) => {
         const globalOpts = program.opts();
 
@@ -477,15 +483,16 @@ export const registerNoriSkillsetsInstallCommand = (args: {
                 installDir: globalOpts.installDir || null,
                 nonInteractive:
                   globalOpts.nonInteractive || globalOpts.silent || null,
+                pin: options.pin ?? null,
                 silent: globalOpts.silent || null,
                 trustSource: options.trustSource ?? null,
               });
             }
-            if (options.trustSource === true) {
+            if (options.trustSource === true || options.pin != null) {
               return {
                 success: false,
                 cancelled: false,
-                message: "--trust-source requires --from <git-remote>",
+                message: "Git-only options require --from <git-remote>",
               };
             }
             const { registryInstallMain } =

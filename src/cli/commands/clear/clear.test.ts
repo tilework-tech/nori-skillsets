@@ -44,6 +44,7 @@ vi.mock("@/cli/logger.js", () => ({
   error: vi.fn(),
   warn: vi.fn(),
   debug: vi.fn(),
+  isSilentMode: vi.fn().mockReturnValue(false),
   newline: vi.fn(),
   raw: vi.fn(),
 }));

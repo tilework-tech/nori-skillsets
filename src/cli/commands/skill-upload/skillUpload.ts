@@ -29,6 +29,7 @@ import {
   getRegistryAuth,
   type Config,
 } from "@/cli/config.js";
+import { isGitGovernedPath } from "@/cli/features/gitSourceAuthority.js";
 import { skillUploadFlow } from "@/cli/prompts/flows/index.js";
 import { resolveUserSkillsetRef } from "@/cli/skillsetResolution.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -316,6 +317,18 @@ export const skillUploadMain = async (args: {
       cancelled: false,
       message: `Skill "${skillName}" not found`,
     };
+  }
+
+  try {
+    if (await isGitGovernedPath({ targetPath: sourceSkillsetDir })) {
+      const message = `Git-governed skillset detected at "${sourceSkillsetDir}"; Registrar upload refused. Publish this source through Git instead.`;
+      log.error(message);
+      return { success: false, cancelled: false, message };
+    }
+  } catch (error) {
+    const message = `Failed to inspect skillset source at "${sourceSkillsetDir}": ${error instanceof Error ? error.message : String(error)}`;
+    log.error(message);
+    return { success: false, cancelled: false, message };
   }
 
   // Block uploading inlined skills

@@ -149,6 +149,10 @@ import {
 } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
+import {
+  commitTestGitRepository,
+  getTestGitStatus,
+} from "../../../../tests/helpers/gitRepository.js";
 
 const createManagedBlockMarker = async (dir: string): Promise<void> => {
   const claudeDir = path.join(dir, ".claude");
@@ -293,6 +297,51 @@ describe("registry-upload", () => {
   });
 
   describe("registryUploadMain", () => {
+    it("refuses to upload a Git-governed skillset to Registrar", async () => {
+      const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({
+          name: "my-profile",
+          version: "1.0.0",
+        }),
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Legacy instructions\n",
+      );
+      await commitTestGitRepository({ repositoryDir: skillsetDir });
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          refreshToken: "test-token",
+          organizations: ["myorg"],
+          organizationUrl: "https://myorg.tilework.tech",
+        },
+      });
+      vi.mocked(getRegistryAuthToken).mockRejectedValue(
+        new Error("authentication is offline"),
+      );
+
+      const result = await registryUploadMain({
+        profileSpec: "myorg/my-profile",
+        cwd: testDir,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toMatch(/Git.*Registrar upload refused/i);
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
+      expect(registrarApi.getPackument).not.toHaveBeenCalled();
+      expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      await expect(
+        getTestGitStatus({ repositoryDir: skillsetDir }),
+      ).resolves.toBe("");
+    });
+
     describe("profile spec parsing", () => {
       it("should reject invalid profile spec", async () => {
         vi.mocked(loadConfig).mockResolvedValue({
@@ -1279,6 +1328,7 @@ describe("registry-upload", () => {
 
     describe("--list-versions flag", () => {
       it("should list versions when flag is set", async () => {
+        await fs.mkdir(path.join(skillsetsDir, ".git"));
         vi.mocked(loadConfig).mockResolvedValue({
           installDir: testDir,
           auth: {
@@ -1921,6 +1971,7 @@ describe("registry-upload", () => {
           path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
+        await commitTestGitRepository({ repositoryDir: skillsetDir });
 
         vi.mocked(loadConfig).mockResolvedValue({
           installDir: testDir,

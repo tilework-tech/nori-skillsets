@@ -11,6 +11,7 @@ import { glob } from "glob";
 
 import { getBundledSkillsDir } from "@/cli/features/bundled-skillsets/installer.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
+import { isSilentMode } from "@/cli/logger.js";
 
 import type { AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -260,9 +261,11 @@ export const createInstructionsLoader = (args: {
         try {
           instructions = await fs.readFile(profileConfigPath, "utf-8");
         } catch {
-          log.info("Profile config file not found, clearing managed block");
+          if (!isSilentMode()) {
+            log.info("Profile config file not found, clearing managed block");
+          }
         }
-      } else {
+      } else if (!isSilentMode()) {
         log.info("Profile config file not found, clearing managed block");
       }
 
@@ -289,7 +292,9 @@ export const createInstructionsLoader = (args: {
             recursive: true,
           });
           await fs.writeFile(instructionsFilePath, cleared);
-          log.success(`Cleared managed block in ${instructionsFilePath}`);
+          if (!isSilentMode()) {
+            log.success(`Cleared managed block in ${instructionsFilePath}`);
+          }
         }
         return;
       }
@@ -342,16 +347,22 @@ export const createInstructionsLoader = (args: {
           regex,
           `${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`,
         );
-        log.info("Updating existing nori instructions...");
+        if (!isSilentMode()) {
+          log.info("Updating existing nori instructions...");
+        }
       } else {
         // Append new managed block
         const section = `\n${BEGIN_MARKER}\n${instructions}\n${END_MARKER}\n`;
         content = content + section;
-        log.info("Adding nori instructions...");
+        if (!isSilentMode()) {
+          log.info("Adding nori instructions...");
+        }
       }
 
       await fs.writeFile(instructionsFilePath, content);
-      log.success(`Instructions configured at ${instructionsFilePath}`);
+      if (!isSilentMode()) {
+        log.success(`Instructions configured at ${instructionsFilePath}`);
+      }
     },
   };
 };
