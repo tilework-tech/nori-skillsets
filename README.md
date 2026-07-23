@@ -78,7 +78,11 @@ fall back to the Registry.
 
 Skillsets are stored in `~/.nori/profiles/` as your library of available configurations. When you switch to a Skillset, the client writes its contents into the relevant locations for each configured agent (e.g., `.claude/` for Claude Code, `.cursor/` for Cursor, `.codex/` for Codex, `.gemini/` for Gemini CLI). Configure which agents to target with `nori-skillsets config`.
 
-**Local structure created by `sks new` (with no configured default organization):**
+**Example local structure after authoring a skillset created by `sks new` (with no configured default organization):**
+
+`sks new` initially creates only `.git/`, `.gitignore`, and `nori.json`; the
+remaining entries are added as the skillset is authored.
+
 ```
 ~/.nori/profiles/personal/my-skillset/
 ├── .git/                   # Independent local version history

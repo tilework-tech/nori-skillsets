@@ -558,6 +558,30 @@ export const registryUploadMain = async (args: {
 
   const resolveAction = parsedResolve.action;
 
+  let mutatingSkillsetDir: string | null = null;
+  if (!listVersions && !dryRun) {
+    mutatingSkillsetDir = await resolveSkillsetDir({
+      name:
+        orgId === "public"
+          ? packageName
+          : namespacedName({ orgId, packageName }),
+    });
+
+    if (mutatingSkillsetDir != null) {
+      try {
+        if (await isGitGovernedPath({ targetPath: mutatingSkillsetDir })) {
+          const message = `Git-governed skillset detected at "${mutatingSkillsetDir}"; Registrar upload refused. Publish this source through Git instead.`;
+          log.error(message);
+          return { success: false, cancelled: false, message };
+        }
+      } catch (error) {
+        const message = `Failed to inspect skillset source at "${mutatingSkillsetDir}": ${error instanceof Error ? error.message : String(error)}`;
+        log.error(message);
+        return { success: false, cancelled: false, message };
+      }
+    }
+  }
+
   // Require an explicit target before publishing to the public registry.
   // Read-only operations (--list-versions, --dry-run) never publish, so they
   // are exempt.
@@ -809,10 +833,14 @@ export const registryUploadMain = async (args: {
   // located by its bare name (bucket precedence applies) while an org package is
   // located at its namespace. This resolves the source only; the registry target
   // is derived separately from the parsed namespace.
-  const skillsetDir = await resolveSkillsetDir({
-    name:
-      orgId === "public" ? packageName : namespacedName({ orgId, packageName }),
-  });
+  const skillsetDir =
+    mutatingSkillsetDir ??
+    (await resolveSkillsetDir({
+      name:
+        orgId === "public"
+          ? packageName
+          : namespacedName({ orgId, packageName }),
+    }));
 
   if (skillsetDir == null) {
     log.error(`Skillset "${profileDisplayName}" not found`);
@@ -821,20 +849,6 @@ export const registryUploadMain = async (args: {
       cancelled: false,
       message: `Skillset "${profileDisplayName}" not found`,
     };
-  }
-
-  if (dryRun !== true) {
-    try {
-      if (await isGitGovernedPath({ targetPath: skillsetDir })) {
-        const message = `Git-governed skillset detected at "${skillsetDir}"; Registrar upload refused. Publish this source through Git instead.`;
-        log.error(message);
-        return { success: false, cancelled: false, message };
-      }
-    } catch (error) {
-      const message = `Failed to inspect skillset source at "${skillsetDir}": ${error instanceof Error ? error.message : String(error)}`;
-      log.error(message);
-      return { success: false, cancelled: false, message };
-    }
   }
 
   // Helper to sync local state after upload, surfacing non-fatal warnings

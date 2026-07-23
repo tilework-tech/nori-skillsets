@@ -321,7 +321,9 @@ describe("registry-upload", () => {
           organizationUrl: "https://myorg.tilework.tech",
         },
       });
-      vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+      vi.mocked(getRegistryAuthToken).mockRejectedValue(
+        new Error("authentication is offline"),
+      );
 
       const result = await registryUploadMain({
         profileSpec: "myorg/my-profile",
@@ -332,6 +334,7 @@ describe("registry-upload", () => {
       expect(result.success).toBe(false);
       expect(result.cancelled).toBe(false);
       expect(result.message).toMatch(/Git.*Registrar upload refused/i);
+      expect(getRegistryAuthToken).not.toHaveBeenCalled();
       expect(registrarApi.getPackument).not.toHaveBeenCalled();
       expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
       await expect(
