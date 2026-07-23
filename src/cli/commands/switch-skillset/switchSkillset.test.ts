@@ -413,6 +413,61 @@ describe("registerSwitchSkillsetCommand", () => {
       }),
     );
   });
+
+  it("restores the previous managed files when a later agent fails mid-switch", async () => {
+    // Previous usable state: an installed skillset and its rendered instructions.
+    const claudeInstructions = path.join(
+      testInstallDir,
+      ".claude",
+      "CLAUDE.md",
+    );
+    await fs.writeFile(claudeInstructions, "PREVIOUS");
+    const configPath = path.join(testInstallDir, ".nori-config.json");
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        activeSkillset: "personal/previous",
+        installDir: testInstallDir,
+        defaultAgents: ["claude-code", "codex"],
+      }),
+    );
+
+    // First agent's activation writes the new content; the second agent fails.
+    mockInstallMain.mockReset();
+    mockInstallMain
+      .mockImplementationOnce(async () => {
+        await fs.writeFile(claudeInstructions, "NEW");
+      })
+      .mockImplementationOnce(async () => {
+        throw new Error("second agent activation failed");
+      });
+
+    const program = new Command();
+    program.exitOverride();
+    program.configureOutput({ writeErr: () => undefined });
+    program
+      .option("-d, --install-dir <path>", "Custom installation directory")
+      .option("-n, --non-interactive", "Run without interactive prompts")
+      .option("-a, --agent <name>", "AI agent to use");
+    registerSwitchSkillsetCommand({ program });
+
+    try {
+      await program.parseAsync([
+        "node",
+        "nori-skillsets",
+        "switch-skillset",
+        "personal/new",
+        "--non-interactive",
+      ]);
+    } catch {
+      // The activation failure surfaces as a rejected/exited command.
+    }
+
+    // The previous state is fully restored — no half-applied switch.
+    expect(await fs.readFile(claudeInstructions, "utf-8")).toBe("PREVIOUS");
+    const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+    expect(config.activeSkillset).toBe("personal/previous");
+  });
 });
 
 describe("switch-skillset installDir resolution from config", () => {

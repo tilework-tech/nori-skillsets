@@ -33,11 +33,18 @@ vi.mock("@/cli/features/install/installLock.js", () => ({
   withInstallLock: mockInstallLock.withInstallLock,
 }));
 
+const mockActivationTransaction = vi.hoisted(() => ({
+  withActivationTransaction: vi.fn(
+    async <T>(a: { operation: () => Promise<T> }): Promise<T> => a.operation(),
+  ),
+  recoverPendingActivations: vi.fn(async (): Promise<void> => undefined),
+}));
+
 vi.mock("@/cli/features/install/activationTransaction.js", () => ({
-  withActivationTransaction: async <T>(a: {
-    operation: () => Promise<T>;
-  }): Promise<T> => a.operation(),
-  recoverPendingActivations: async (): Promise<void> => undefined,
+  withActivationTransaction:
+    mockActivationTransaction.withActivationTransaction,
+  recoverPendingActivations:
+    mockActivationTransaction.recoverPendingActivations,
 }));
 
 vi.mock("os", async () => {
@@ -189,6 +196,24 @@ describe("registry-install", () => {
     expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+
+    // The active pointer is persisted (now owned by the transaction, not installMain).
+    expect(updateConfig).toHaveBeenCalledWith({
+      activeSkillset: "public/senior-swe",
+    });
+
+    // Activation is wrapped in the transaction with the resolved install dir and agents.
+    expect(
+      mockActivationTransaction.withActivationTransaction,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        installDir: "/mock-home",
+        agents: expect.arrayContaining([
+          expect.objectContaining({ name: "claude-code" }),
+        ]),
+        operation: expect.any(Function),
+      }),
+    );
   });
 
   it("should not persist global activeSkillset for a transient --install-dir install", async () => {

@@ -54,6 +54,9 @@ const managedPathsForAgent = (args: {
   for (const settingsFile of agent.getExternalSettingsFiles?.() ?? []) {
     paths.add(settingsFile);
   }
+  for (const mcpFile of agent.getMcpManagedPaths?.({ installDir }) ?? []) {
+    paths.add(mcpFile);
+  }
   return Array.from(paths);
 };
 
@@ -105,27 +108,43 @@ const restoreEntry = async (entry: SnapshotEntry): Promise<void> => {
 
 const getTxnRoot = (): string => path.join(getHomeDir(), ".nori", ".txn");
 
-const readIndexEntries = async (args: {
-  txnDir: string;
-}): Promise<Array<SnapshotEntry>> => {
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+};
+
+type TxnIndex = { ownerPid: number | null; entries: Array<SnapshotEntry> };
+
+const readIndex = async (args: { txnDir: string }): Promise<TxnIndex> => {
   try {
     const raw = await fs.readFile(
       path.join(args.txnDir, "index.json"),
       "utf-8",
     );
-    const parsed = JSON.parse(raw) as { entries?: Array<SnapshotEntry> };
-    return parsed.entries ?? [];
+    const parsed = JSON.parse(raw) as Partial<TxnIndex>;
+    return {
+      ownerPid: typeof parsed.ownerPid === "number" ? parsed.ownerPid : null,
+      entries: parsed.entries ?? [],
+    };
   } catch {
     // A missing or corrupt index cannot be rolled back; recovery discards it.
-    return [];
+    return { ownerPid: null, entries: [] };
   }
 };
 
 const recoverOne = async (args: { txnDir: string }): Promise<void> => {
   const { txnDir } = args;
+  const index = await readIndex({ txnDir });
+  // Never touch a transaction whose owning process is still running — that is an
+  // in-flight activation (including this process's own), not a crashed one.
+  if (index.ownerPid != null && isProcessAlive(index.ownerPid)) return;
   // A committed transaction already applied its new state; only clean up.
   if (!(await pathExists(path.join(txnDir, "committed")))) {
-    for (const entry of await readIndexEntries({ txnDir })) {
+    for (const entry of index.entries) {
       await restoreEntry(entry);
     }
   }
@@ -159,8 +178,8 @@ export const withActivationTransaction = async <T>(args: {
 }): Promise<T> => {
   const { installDir, agents, operation } = args;
 
-  await recoverPendingActivations();
-
+  // Recovery of any crashed transaction runs at install-lock acquisition, which
+  // wraps every activation caller, so it is not repeated here.
   const txnRoot = getTxnRoot();
   const backupDir = path.join(txnRoot, randomUUID());
   await fs.mkdir(backupDir, { recursive: true });
@@ -172,10 +191,11 @@ export const withActivationTransaction = async <T>(args: {
       await captureEntry({ targetPath: targets[i], backupDir, index: i }),
     );
   }
-  // Persist the snapshot so a crash mid-operation can be rolled back later.
+  // Persist the snapshot so a crash mid-operation can be rolled back later. The
+  // owner pid lets recovery skip this transaction while this process is alive.
   await fs.writeFile(
     path.join(backupDir, "index.json"),
-    JSON.stringify({ entries }),
+    JSON.stringify({ ownerPid: process.pid, entries }),
   );
 
   try {

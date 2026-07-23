@@ -18,6 +18,7 @@ import {
   recoverPendingActivations,
   withActivationTransaction,
 } from "@/cli/features/install/activationTransaction.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 
 import type { AgentConfig, AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -29,8 +30,9 @@ vi.mock("os", async (importOriginal) => {
 const createTestAgent = (args: {
   loaders: Array<AgentLoader>;
   externalSettingsFiles?: ReadonlyArray<string> | null;
+  mcpManagedPaths?: ReadonlyArray<string> | null;
 }): AgentConfig => {
-  const { loaders, externalSettingsFiles } = args;
+  const { loaders, externalSettingsFiles, mcpManagedPaths } = args;
   return {
     name: "claude-code",
     displayName: "Test Agent",
@@ -55,6 +57,7 @@ const createTestAgent = (args: {
     getLoaders: () => loaders,
     getExternalSettingsFiles:
       externalSettingsFiles != null ? () => externalSettingsFiles : null,
+    getMcpManagedPaths: mcpManagedPaths != null ? () => mcpManagedPaths : null,
     getArtifactPatterns: null,
     getLegacyManifestPath: null,
   };
@@ -204,6 +207,30 @@ describe("withActivationTransaction", () => {
 
     expect(read(settingsPath)).toBe('{"statusLine":"A"}');
   });
+
+  it("restores the project MCP file when the operation throws", async () => {
+    const mcpPath = path.join(installDir, ".mcp.json");
+    await write(mcpPath, '{"mcpServers":{"a":{}}}');
+    const agentWithMcp = createTestAgent({
+      loaders: [
+        { name: "instr", description: "d", run: async () => undefined },
+      ],
+      mcpManagedPaths: [mcpPath],
+    });
+
+    await expect(
+      withActivationTransaction({
+        installDir,
+        agents: [agentWithMcp],
+        operation: async () => {
+          await write(mcpPath, '{"mcpServers":{"b":{}}}');
+          throw new Error("mcp agent failed");
+        },
+      }),
+    ).rejects.toThrow("mcp agent failed");
+
+    expect(read(mcpPath)).toBe('{"mcpServers":{"a":{}}}');
+  });
 });
 
 describe("recoverPendingActivations", () => {
@@ -262,5 +289,21 @@ describe("recoverPendingActivations", () => {
 
   it("is a no-op when there is no staging dir", async () => {
     await expect(recoverPendingActivations()).resolves.toBeUndefined();
+  });
+
+  it("heals a leftover transaction when the install lock is acquired", async () => {
+    const target = path.join(agentDir, "CLAUDE.md");
+    await write(target, "PROFILE B (broken)");
+    await seedLeftover({
+      id: "crashed",
+      targetPath: target,
+      backupContent: "PROFILE A",
+      committed: false,
+    });
+
+    await withInstallLock({ operation: async () => undefined });
+
+    expect(read(target)).toBe("PROFILE A");
+    expect(fsSync.existsSync(path.join(tempHome, ".nori", ".txn"))).toBe(false);
   });
 });
