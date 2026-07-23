@@ -62,13 +62,15 @@ The repository must expose an explicit
 `refs/heads/skillsets/my-skillset` branch with an exact lowercase root
 `nori.json` regular file whose manifest has `"name": "my-skillset"` and
 `"type": "skillset"`; a tag with the same name does not satisfy the branch
-requirement. The command requests the branch's normal full history, stores it at
-`~/.nori/profiles/personal/my-skillset/`, and keeps it as a Git working tree.
-The clone explicitly overrides Git's `clone.rejectShallow` setting so local Git
-configuration cannot change Nori's source policy: by default, an unpinned
-checkout may come from a shallow source and remains attached to the branch's
-current tip. To install an exact historical commit, pass its full SHA-1 or
-SHA-256 object ID:
+requirement. Git 2.29 or newer is required. The command requests that branch's
+tip with `ls-remote`, initializes
+`~/.nori/profiles/personal/my-skillset/` as a repository, and fetches only the
+exact branch ref without tags, a `FETCH_HEAD` write, or a client-imposed depth
+limit. The fetch accepts a shallow source's advertised boundary, but a normal
+source retains its complete branch history. An unpinned install remains attached
+to the fetched current tip. Historical pin resolution rejects the source if Git
+reports incomplete shallow history. To install an exact historical commit, pass
+its full SHA-1 or SHA-256 object ID:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git \
@@ -87,23 +89,31 @@ prove complete ancestry.
 Interactive installs ask you to trust the source; unattended installs must add
 `--trust-source`. Unattended Git processes set `GIT_TERMINAL_PROMPT=0` and use
 OpenSSH batch mode, so Git, SSH host-key confirmation, and SSH
-password/passphrase challenges fail instead of prompting. Arbitrary SSH command
-wrappers and clients that do not accept OpenSSH options are outside this
-feature's compatibility contract. Credential-bearing URL components are redacted
-from trust prompts and Git errors; sensitive query keys are recognized after
-percent-decoding and may be separated by `&` or `;`:
+password/passphrase challenges fail instead of prompting. `GIT_SSH` executables,
+arbitrary SSH command wrappers, and clients that do not accept OpenSSH options
+are outside this feature's compatibility contract. Credential-bearing URL
+components are redacted from trust prompts and Git errors; sensitive query keys
+are recognized after percent-decoding and may be separated by `&` or `;`:
 
 ```bash
 sks install my-skillset --from git@github.com:myorg/skillsets.git --trust-source
 ```
 
-Git retains the supplied remote as ordinary origin metadata. Prefer Git
-credential helpers, environment-based authentication, or SSH agents instead of
-putting literal credentials in the remote URL.
-
 Git-backed installs do not automatically fetch later commits. Run the command
 only for a new local name: an existing `personal/my-skillset` is never
-overwritten. Before reading the manifest, they reject tracked symbolic links,
+overwritten. Git remote-helper syntax and URL schemes outside `http`, `https`,
+`ssh`, `git`, `git+ssh`, and `file` are rejected before the trust prompt; local
+paths and SCP-style SSH remotes remain supported. Git commands have a bounded
+timeout, and acquisition avoids writing the credential-bearing fetch URL to
+`FETCH_HEAD`. Remote credentials and terminal control characters are sanitized
+in output. Relative local remotes are resolved once to an absolute path for
+acquisition and ordinary stored origin metadata. That stored `origin` removes
+passwords, every query parameter and fragment, and HTTP(S)/file usernames. It is
+command-local credential hygiene, not durable Nori source, update, trust, or
+authentication metadata. Prefer Git credential helpers, environment-based
+authentication, or SSH agents instead of literal credentials in a remote URL.
+
+Before reading the manifest, Git-backed installs reject tracked symbolic links,
 submodules, every path whose first root component normalizes to the Registry
 `.nori-version` name, and every non-exact or descendant path whose first root
 component normalizes to `nori.json`. Normalization includes compatibility
@@ -112,8 +122,17 @@ filesystems, so reserved directory aliases such as `.NORI-VERSION/...` or
 `NORI.JSON/...` are rejected too. The sole accepted manifest authority is the
 exact lowercase root regular file `nori.json`. Git installs never fall back to
 the Registry and do not persist Nori-specific source provenance or trust state.
-A successful `--silent` install also suppresses activation-loader status,
-warning, and summary output.
+
+Activation targets all configured agents, then commits `personal/my-skillset`
+as the global active identity only after every agent succeeds. Each agent's
+`.nori-managed` marker is written only after that agent activates successfully.
+Managed files and markers written for earlier agents are not rolled back if a
+later activation fails. A failed activation or final config commit retains the
+checkout and reports a POSIX-shell-quoted recovery command that preserves the
+effective install-directory and single-agent scope. Console, stdout, and stderr
+from nested activation are buffered until overall success and discarded on
+failure; `--silent` also discards them after success. This buffering and delayed
+identity commit are not shared transactional activation.
 
 ## How Skillsets Work
 
