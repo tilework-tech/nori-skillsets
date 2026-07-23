@@ -57,12 +57,8 @@ const TOP_LEVEL_GENERATED_FILES = new Set([".mcp.json"]);
 const GIT_ENTRY_NAMES = new Set([".git"]);
 const NORI_MANAGED_MARKER = ".nori-managed";
 
-type ManagedOutputPlan = {
-  rootDir: string;
-  files: ReadonlyArray<string>;
-  dirs: ReadonlyArray<string>;
-  cleanupDirs: ReadonlyArray<string>;
-};
+const realpathOrNull = (entryPath: string): Promise<string | null> =>
+  fs.realpath(entryPath).catch(() => null);
 
 const hasManifest = async (args: { skillsetDir: string }): Promise<boolean> => {
   try {
@@ -82,23 +78,35 @@ const hasFilesystemName = async (args: {
     return true;
   }
 
-  const entryRealPath = await fs.realpath(entryPath).catch(() => null);
+  const entryRealPath = await realpathOrNull(entryPath);
   if (entryRealPath == null) {
     return false;
   }
-  for (const name of names) {
-    const namedRealPath = await fs
-      .realpath(path.join(path.dirname(entryPath), name))
-      .catch(() => null);
-    if (namedRealPath === entryRealPath) {
-      return true;
-    }
-  }
-  return false;
+  return (
+    await Promise.all(
+      Array.from(names, (name) =>
+        realpathOrNull(path.join(path.dirname(entryPath), name)),
+      ),
+    )
+  ).includes(entryRealPath);
 };
 
-const assertDestinationParentContained = async (args: {
+const isSameOrDescendant = (args: {
+  ancestor: string;
+  candidate: string;
+}): boolean => {
+  const relative = path.relative(args.ancestor, args.candidate);
+  return (
+    relative === "" ||
+    (!path.isAbsolute(relative) &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`))
+  );
+};
+
+const assertDestinationContained = async (args: {
   destPath: string;
+  sourceDir: string;
 }): Promise<void> => {
   const profilesRoot = getNoriSkillsetsDir();
   const parentDir = path.dirname(args.destPath);
@@ -108,15 +116,28 @@ const assertDestinationParentContained = async (args: {
     fs.realpath(profilesRoot),
     fs.realpath(parentDir),
   ]);
-  const relativeParent = path.relative(profilesRootReal, parentDirReal);
   if (
-    path.isAbsolute(relativeParent) ||
-    relativeParent === ".." ||
-    relativeParent.startsWith(`..${path.sep}`)
+    !isSameOrDescendant({
+      ancestor: profilesRootReal,
+      candidate: parentDirReal,
+    })
   ) {
     throw new Error(
       "Fork destination must remain inside the profiles directory",
     );
+  }
+
+  const prospectiveDestination = path.join(
+    parentDirReal,
+    path.basename(args.destPath),
+  );
+  if (
+    isSameOrDescendant({
+      ancestor: args.sourceDir,
+      candidate: prospectiveDestination,
+    })
+  ) {
+    throw new Error("Fork destination must not be inside the source skillset");
   }
 };
 
@@ -143,18 +164,11 @@ const rejectSubmodules = async (args: { sourceDir: string }): Promise<void> => {
       },
     ));
   } catch (error) {
+    const gitError = error as NodeJS.ErrnoException & { stderr?: unknown };
     if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ENOENT"
+      gitError.code === "ENOENT" ||
+      /not a git repository/i.test(String(gitError.stderr ?? ""))
     ) {
-      return;
-    }
-    const stderr =
-      error instanceof Error && "stderr" in error
-        ? String((error as { stderr?: unknown }).stderr ?? "")
-        : "";
-    if (/not a git repository/i.test(stderr)) {
       return;
     }
     throw error;
@@ -171,23 +185,18 @@ const rejectSubmodules = async (args: { sourceDir: string }): Promise<void> => {
 
 const collectManagedOutputPlan = async (args: {
   sourceDir: string;
-  destDir: string;
-}): Promise<ManagedOutputPlan> => {
-  const { sourceDir, destDir } = args;
-  const files = new Set<string>();
-  const dirs = new Set<string>();
-  const cleanupDirs = new Set<string>();
+}): Promise<ReadonlySet<string>> => {
+  const { sourceDir } = args;
+  const outputs = new Set<string>();
+  const addOutput = async (outputPath: string): Promise<void> => {
+    const resolved = await realpathOrNull(outputPath);
+    if (resolved != null) {
+      outputs.add(resolved);
+    }
+  };
 
   for (const agent of AgentRegistry.getInstance().getAll()) {
     const sourceAgentDir = agent.getAgentDir({ installDir: sourceDir });
-    const sourceAgentDirStat = await fs.lstat(sourceAgentDir).catch(() => null);
-    if (
-      sourceAgentDirStat == null ||
-      !sourceAgentDirStat.isDirectory() ||
-      sourceAgentDirStat.isSymbolicLink()
-    ) {
-      continue;
-    }
     const markerStat = await fs
       .lstat(path.join(sourceAgentDir, NORI_MANAGED_MARKER))
       .catch(() => null);
@@ -201,127 +210,42 @@ const collectManagedOutputPlan = async (args: {
       continue;
     }
 
-    const destAgentDir = agent.getAgentDir({ installDir: destDir });
-    cleanupDirs.add(destAgentDir);
     for (const dir of [
-      agent.getSkillsDir({ installDir: destDir }),
-      agent.getSubagentsDir({ installDir: destDir }),
-      agent.getSlashcommandsDir({ installDir: destDir }),
+      agent.getSkillsDir({ installDir: sourceDir }),
+      agent.getSubagentsDir({ installDir: sourceDir }),
+      agent.getSlashcommandsDir({ installDir: sourceDir }),
     ]) {
-      dirs.add(dir);
-      cleanupDirs.add(dir);
+      await addOutput(dir);
     }
 
     const sourceInstructionsFile = agent.getInstructionsFilePath({
       installDir: sourceDir,
     });
     if (path.dirname(sourceInstructionsFile) !== sourceDir) {
-      const destInstructionsFile = agent.getInstructionsFilePath({
-        installDir: destDir,
-      });
-      files.add(destInstructionsFile);
-      cleanupDirs.add(path.dirname(destInstructionsFile));
+      await addOutput(sourceInstructionsFile);
     }
     if (agent.getProjectMcpFile != null) {
-      files.add(agent.getProjectMcpFile({ installDir: destDir }));
+      await addOutput(agent.getProjectMcpFile({ installDir: sourceDir }));
     }
   }
 
-  return {
-    rootDir: destDir,
-    files: Array.from(files),
-    dirs: Array.from(dirs),
-    cleanupDirs: Array.from(cleanupDirs).sort(
-      (a, b) => b.split(path.sep).length - a.split(path.sep).length,
-    ),
-  };
+  return outputs;
 };
 
-const makeCleanupWritable = async (args: {
-  plan: ManagedOutputPlan;
-}): Promise<Array<{ dir: string; mode: number }>> => {
-  const candidates = new Set<string>();
-  for (const outputPath of [
-    ...args.plan.files.map((file) => path.dirname(file)),
-    ...args.plan.dirs,
-    ...args.plan.cleanupDirs,
-  ]) {
-    let dir = outputPath;
-    while (dir !== path.dirname(args.plan.rootDir)) {
-      const relative = path.relative(args.plan.rootDir, dir);
-      if (
-        path.isAbsolute(relative) ||
-        relative === ".." ||
-        relative.startsWith(`..${path.sep}`)
-      ) {
-        break;
-      }
-      candidates.add(dir);
-      if (dir === args.plan.rootDir) {
-        break;
-      }
-      dir = path.dirname(dir);
-    }
-  }
+const isManagedOutput = (args: {
+  outputs: ReadonlySet<string>;
+  sourcePath: string;
+}): boolean =>
+  Array.from(args.outputs).some((output) =>
+    isSameOrDescendant({ ancestor: output, candidate: args.sourcePath }),
+  );
 
-  const originalModes: Array<{ dir: string; mode: number }> = [];
-  for (const dir of candidates) {
-    const stat = await fs.lstat(dir).catch(() => null);
-    if (stat == null || !stat.isDirectory() || stat.isSymbolicLink()) {
-      continue;
-    }
-    const mode = stat.mode & 0o7777;
-    originalModes.push({ dir, mode });
-    await fs.chmod(dir, mode | 0o300);
-  }
-  return originalModes;
-};
-
-const removeManagedOutput = async (args: {
-  plan: ManagedOutputPlan;
+const makeDestinationFileWritable = async (args: {
+  filePath: string;
 }): Promise<void> => {
-  const originalModes = await makeCleanupWritable({ plan: args.plan });
-  for (const file of args.plan.files) {
-    await fs.rm(file, { force: true });
-  }
-  for (const dir of args.plan.dirs) {
-    const entries = await fs
-      .readdir(dir, { withFileTypes: true })
-      .catch(() => []);
-    for (const entry of entries) {
-      if (!entry.name.startsWith(".")) {
-        await fs.rm(path.join(dir, entry.name), {
-          recursive: true,
-          force: true,
-        });
-      }
-    }
-  }
-  for (const dir of args.plan.cleanupDirs) {
-    await fs.rmdir(dir).catch((error) => {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        ["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
-          String((error as NodeJS.ErrnoException).code),
-        )
-      ) {
-        return;
-      }
-      throw error;
-    });
-  }
-  for (const { dir, mode } of originalModes.reverse()) {
-    await fs.chmod(dir, mode).catch((error) => {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        (error as NodeJS.ErrnoException).code === "ENOENT"
-      ) {
-        return;
-      }
-      throw error;
-    });
+  const stat = await fs.lstat(args.filePath).catch(() => null);
+  if (stat != null && stat.isFile()) {
+    await fs.chmod(args.filePath, (stat.mode & 0o7777) | 0o600);
   }
 };
 
@@ -342,12 +266,11 @@ const copyCanonicalContent = async (args: {
   destDir: string;
 }): Promise<void> => {
   const { sourceDir, destDir } = args;
-  const managedOutputPlan = await collectManagedOutputPlan({
+  const managedOutputs = await collectManagedOutputPlan({
     sourceDir,
-    destDir,
   });
   const entries = await fs.readdir(sourceDir);
-  const copyEntry = async (entry: string): Promise<void> => {
+  for (const entry of entries) {
     await fs.cp(path.join(sourceDir, entry), path.join(destDir, entry), {
       recursive: true,
       force: false,
@@ -355,6 +278,12 @@ const copyCanonicalContent = async (args: {
       filter: async (source) => {
         const relativePath = path.relative(sourceDir, source);
         const segments = relativePath.split(path.sep);
+        const stat = await fs.lstat(source);
+        if (stat.isSymbolicLink()) {
+          throw new Error(
+            "Skillsets containing symbolic links cannot be forked",
+          );
+        }
         if (
           await hasFilesystemName({
             entryPath: source,
@@ -385,21 +314,18 @@ const copyCanonicalContent = async (args: {
         ) {
           return false;
         }
-
-        const stat = await fs.lstat(source);
-        if (stat.isSymbolicLink()) {
-          throw new Error(
-            "Skillsets containing symbolic links cannot be forked",
-          );
+        if (
+          isManagedOutput({
+            outputs: managedOutputs,
+            sourcePath: await fs.realpath(source),
+          })
+        ) {
+          return false;
         }
         return true;
       },
     });
-  };
-  for (const entry of entries) {
-    await copyEntry(entry);
   }
-  await removeManagedOutput({ plan: managedOutputPlan });
 };
 
 export const forkSkillsetMain = async (args: {
@@ -439,7 +365,7 @@ export const forkSkillsetMain = async (args: {
   const destPath = skillsetCreateDir({ name: newSkillset });
 
   const sourceDir =
-    sourcePath == null ? null : await fs.realpath(sourcePath).catch(() => null);
+    sourcePath == null ? null : await realpathOrNull(sourcePath);
   const sourceIsSkillset =
     sourceDir != null &&
     ((await hasManifest({ skillsetDir: sourceDir })) ||
@@ -467,7 +393,7 @@ export const forkSkillsetMain = async (args: {
     };
   }
 
-  await assertDestinationParentContained({ destPath });
+  await assertDestinationContained({ destPath, sourceDir });
 
   await rejectSubmodules({ sourceDir });
 
@@ -478,10 +404,16 @@ export const forkSkillsetMain = async (args: {
     await copyCanonicalContent({ sourceDir, destDir: destPath });
 
     await ensureNoriJson({ skillsetDir: destPath });
+    await makeDestinationFileWritable({
+      filePath: path.join(destPath, MANIFEST_FILE),
+    });
     const metadata = await readSkillsetMetadata({ skillsetDir: destPath });
     metadata.name = path.basename(newSkillset);
     delete metadata.registryURL;
     await writeSkillsetMetadata({ skillsetDir: destPath, metadata });
+    await makeDestinationFileWritable({
+      filePath: path.join(destPath, ".gitignore"),
+    });
     await ensureNoriGitignore({ dir: destPath });
     initializeGitRepository({ dir: destPath });
   } catch (error) {

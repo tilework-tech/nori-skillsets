@@ -232,6 +232,10 @@ agent output, and the source repository's Git history. The destination is a new
 Git repository with no commit or remote; committing and publishing remain
 explicit later steps.
 
+For v1, registered provider output files and directories are treated as wholly
+generated and omitted by path. Authored sibling paths in shared directories are
+preserved; `fork` does not attempt to reverse-render mixed generated files.
+
 The source may itself be linked into the profile library, but package content
 inside it must be self-contained. Forking rejects interior symbolic links,
 submodules, and nested repositories. It never overwrites an existing
