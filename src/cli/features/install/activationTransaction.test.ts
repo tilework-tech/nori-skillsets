@@ -14,7 +14,10 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { updateConfig } from "@/cli/config.js";
-import { withActivationTransaction } from "@/cli/features/install/activationTransaction.js";
+import {
+  recoverPendingActivations,
+  withActivationTransaction,
+} from "@/cli/features/install/activationTransaction.js";
 
 import type { AgentConfig, AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -25,8 +28,9 @@ vi.mock("os", async (importOriginal) => {
 
 const createTestAgent = (args: {
   loaders: Array<AgentLoader>;
+  externalSettingsFiles?: ReadonlyArray<string> | null;
 }): AgentConfig => {
-  const { loaders } = args;
+  const { loaders, externalSettingsFiles } = args;
   return {
     name: "claude-code",
     displayName: "Test Agent",
@@ -49,6 +53,8 @@ const createTestAgent = (args: {
     getInstructionsFilePath: (a: { installDir: string }) =>
       path.join(a.installDir, ".test-agent", "CLAUDE.md"),
     getLoaders: () => loaders,
+    getExternalSettingsFiles:
+      externalSettingsFiles != null ? () => externalSettingsFiles : null,
     getArtifactPatterns: null,
     getLegacyManifestPath: null,
   };
@@ -173,5 +179,88 @@ describe("withActivationTransaction", () => {
       read(path.join(tempHome, ".nori-config.json")) ?? "{}",
     );
     expect(config.activeSkillset).toBe("personal/profile-a");
+  });
+
+  it("restores an external settings file when the operation throws", async () => {
+    const settingsPath = path.join(tempHome, ".claude", "settings.json");
+    await write(settingsPath, '{"statusLine":"A"}');
+    const agentWithSettings = createTestAgent({
+      loaders: [
+        { name: "instr", description: "d", run: async () => undefined },
+      ],
+      externalSettingsFiles: [settingsPath],
+    });
+
+    await expect(
+      withActivationTransaction({
+        installDir,
+        agents: [agentWithSettings],
+        operation: async () => {
+          await write(settingsPath, '{"statusLine":"B"}');
+          throw new Error("settings agent failed");
+        },
+      }),
+    ).rejects.toThrow("settings agent failed");
+
+    expect(read(settingsPath)).toBe('{"statusLine":"A"}');
+  });
+});
+
+describe("recoverPendingActivations", () => {
+  const seedLeftover = async (args: {
+    id: string;
+    targetPath: string;
+    backupContent: string | null;
+    committed: boolean;
+  }): Promise<void> => {
+    const { id, targetPath, backupContent, committed } = args;
+    const txnDir = path.join(tempHome, ".nori", ".txn", id);
+    await fs.mkdir(txnDir, { recursive: true });
+    let backupPath: string | null = null;
+    if (backupContent != null) {
+      backupPath = path.join(txnDir, "0");
+      await fs.writeFile(backupPath, backupContent);
+    }
+    await fs.writeFile(
+      path.join(txnDir, "index.json"),
+      JSON.stringify({ entries: [{ targetPath, backupPath }] }),
+    );
+    if (committed) await fs.writeFile(path.join(txnDir, "committed"), "");
+  };
+
+  it("restores an uncommitted leftover and clears the staging dir", async () => {
+    const target = path.join(agentDir, "CLAUDE.md");
+    await write(target, "PROFILE B (broken)");
+    await seedLeftover({
+      id: "crashed",
+      targetPath: target,
+      backupContent: "PROFILE A",
+      committed: false,
+    });
+
+    await recoverPendingActivations();
+
+    expect(read(target)).toBe("PROFILE A");
+    expect(fsSync.existsSync(path.join(tempHome, ".nori", ".txn"))).toBe(false);
+  });
+
+  it("leaves a committed leftover in place and only clears the staging dir", async () => {
+    const target = path.join(agentDir, "CLAUDE.md");
+    await write(target, "PROFILE B (committed)");
+    await seedLeftover({
+      id: "committed-run",
+      targetPath: target,
+      backupContent: "PROFILE A",
+      committed: true,
+    });
+
+    await recoverPendingActivations();
+
+    expect(read(target)).toBe("PROFILE B (committed)");
+    expect(fsSync.existsSync(path.join(tempHome, ".nori", ".txn"))).toBe(false);
+  });
+
+  it("is a no-op when there is no staging dir", async () => {
+    await expect(recoverPendingActivations()).resolves.toBeUndefined();
   });
 });

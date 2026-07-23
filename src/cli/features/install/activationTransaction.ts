@@ -51,6 +51,9 @@ const managedPathsForAgent = (args: {
   }
   paths.add(agent.getInstructionsFilePath({ installDir }));
   paths.add(path.join(agentDir, ".nori-managed"));
+  for (const settingsFile of agent.getExternalSettingsFiles?.() ?? []) {
+    paths.add(settingsFile);
+  }
   return Array.from(paths);
 };
 
@@ -100,6 +103,55 @@ const restoreEntry = async (entry: SnapshotEntry): Promise<void> => {
   await fs.cp(entry.backupPath, entry.targetPath, { recursive: true });
 };
 
+const getTxnRoot = (): string => path.join(getHomeDir(), ".nori", ".txn");
+
+const readIndexEntries = async (args: {
+  txnDir: string;
+}): Promise<Array<SnapshotEntry>> => {
+  try {
+    const raw = await fs.readFile(
+      path.join(args.txnDir, "index.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { entries?: Array<SnapshotEntry> };
+    return parsed.entries ?? [];
+  } catch {
+    // A missing or corrupt index cannot be rolled back; recovery discards it.
+    return [];
+  }
+};
+
+const recoverOne = async (args: { txnDir: string }): Promise<void> => {
+  const { txnDir } = args;
+  // A committed transaction already applied its new state; only clean up.
+  if (!(await pathExists(path.join(txnDir, "committed")))) {
+    for (const entry of await readIndexEntries({ txnDir })) {
+      await restoreEntry(entry);
+    }
+  }
+  await fs.rm(txnDir, { recursive: true, force: true });
+};
+
+/**
+ * Restore any activation transaction left behind by a crashed process. Runs at
+ * the start of the next activation so a killed install/switch/update self-heals
+ * to its previous usable state. Restore is idempotent, so re-running is safe.
+ */
+export const recoverPendingActivations = async (): Promise<void> => {
+  const txnRoot = getTxnRoot();
+  let ids: Array<string>;
+  try {
+    ids = await fs.readdir(txnRoot);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  for (const id of ids) {
+    await recoverOne({ txnDir: path.join(txnRoot, id) });
+  }
+  await fs.rmdir(txnRoot).catch(() => undefined);
+};
+
 export const withActivationTransaction = async <T>(args: {
   installDir: string;
   agents: ReadonlyArray<AgentConfig>;
@@ -107,7 +159,9 @@ export const withActivationTransaction = async <T>(args: {
 }): Promise<T> => {
   const { installDir, agents, operation } = args;
 
-  const txnRoot = path.join(getHomeDir(), ".nori", ".txn");
+  await recoverPendingActivations();
+
+  const txnRoot = getTxnRoot();
   const backupDir = path.join(txnRoot, randomUUID());
   await fs.mkdir(backupDir, { recursive: true });
 
@@ -118,9 +172,17 @@ export const withActivationTransaction = async <T>(args: {
       await captureEntry({ targetPath: targets[i], backupDir, index: i }),
     );
   }
+  // Persist the snapshot so a crash mid-operation can be rolled back later.
+  await fs.writeFile(
+    path.join(backupDir, "index.json"),
+    JSON.stringify({ entries }),
+  );
 
   try {
     const result = await operation();
+    // Mark committed before cleanup so a crash in the cleanup window does not
+    // roll back an already-applied activation.
+    await fs.writeFile(path.join(backupDir, "committed"), "");
     return result;
   } catch (error) {
     for (const entry of entries) {
