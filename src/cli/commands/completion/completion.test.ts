@@ -43,6 +43,7 @@ const VISIBLE_SUBCOMMANDS = [
   "watch",
   "dir",
   "fork",
+  "publish",
   "edit",
   "install-location",
   "factory-reset",
@@ -133,6 +134,17 @@ describe("generateBashCompletion", () => {
     expect(installBlock).toContain("--from");
     expect(installBlock).toContain("--pin");
     expect(installBlock).toContain("--trust-source");
+  });
+
+  it("should contain deliberate Git publish flags", () => {
+    const result = generateBashCompletion();
+    const publishBlock = result.match(
+      /\n    publish\)\n([\s\S]*?)\n      ;;/,
+    )?.[1];
+    expect(publishBlock).toBeDefined();
+    expect(publishBlock ?? "").toContain("--to");
+    expect(publishBlock ?? "").toContain("--message");
+    expect(publishBlock ?? "").toContain("--yes");
   });
 
   it("should contain external-specific flags", () => {
@@ -243,6 +255,13 @@ describe("generateZshCompletion", () => {
     expect(installBlock).toContain("--from");
     expect(installBlock).toContain("--pin");
     expect(installBlock).toContain("--trust-source");
+    const publishBlock = result.match(
+      /\n        publish\)\n([\s\S]*?)\n          ;;/,
+    )?.[1];
+    expect(publishBlock).toBeDefined();
+    expect(publishBlock ?? "").toContain("--to");
+    expect(publishBlock ?? "").toContain("--message");
+    expect(publishBlock ?? "").toContain("--yes");
   });
 
   it("should reference list for dynamic switch completion", () => {

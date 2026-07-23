@@ -169,7 +169,7 @@ This separation lets you maintain multiple Skillsets, target multiple agents at 
 ## Requirements
 
 - Node.js 22 or higher
-- Git available on `PATH` for `sks new`, `sks fork`, and `install --from`; SHA-256 repository support depends on the installed Git build
+- Git available on `PATH` for `sks new`, `sks fork`, `sks publish`, and `install --from`; SHA-256 repository support depends on the installed Git build
 - At least one supported coding agent CLI installed (Claude Code, Cursor, Codex, Gemini CLI, etc.)
 - Mac or Linux operating system
 
@@ -229,8 +229,7 @@ The fork contains the authored package content with its manifest renamed for
 the destination. It preserves authored metadata and existing `.gitignore`
 rules, but removes Registrar provenance, Nori-local state, caches, generated
 agent output, and the source repository's Git history. The destination is a new
-Git repository with no commit or remote; committing and publishing remain
-explicit later steps.
+Git repository with no commit or remote.
 
 For v1, registered provider output files and directories are treated as wholly
 generated and omitted by path. Authored sibling paths in shared directories are
@@ -241,6 +240,46 @@ inside it must be self-contained. Forking rejects interior symbolic links,
 submodules, and nested repositories. It never overwrites an existing
 destination, never mutates the source, and removes only the newly created
 destination if the operation fails.
+
+Publish a Git-native skillset deliberately to an explicit remote:
+
+```bash
+sks publish my-skillset --to git@github.com:myorg/skillsets.git
+```
+
+`publish` resolves local names through the normal profile rules, including a
+configured `defaultOrg`; an explicit namespace such as `acme/my-skillset`
+selects that exact local profile. The selected skillset must be the root of its
+own Git repository. Nori stages the complete non-ignored workspace, validates
+the staged package, and shows the sanitized Git diff before asking for
+confirmation. Confirmation defaults to No. Unattended use must be explicit:
+
+```bash
+sks publish acme/my-skillset \
+  --to git@github.com:myorg/skillsets.git \
+  --message "Publish my-skillset" \
+  --yes
+```
+
+The staged `nori.json` must have type `skillset` and a name matching the local
+slug. Every declared skill and subagent dependency must already be materialized
+as `skills/<name>/SKILL.md`, `subagents/<name>/SUBAGENT.md`, or
+`subagents/<name>.md`. Slash-command dependencies, tracked symbolic links,
+submodules, and tracked Registry `.nori-version` provenance are rejected.
+
+When changes exist, Nori commits the exact reviewed tree with the user's normal
+Git identity and hooks. The default message is `Publish <slug>`; `--message`
+overrides it. A hook may refuse the commit, but it may not silently change the
+reviewed package: Nori verifies the committed tree before pushing. A clean
+repository publishes its existing `HEAD` without creating an empty commit.
+
+The push uses the explicit ref
+`HEAD:refs/heads/skillsets/<slug>` and ordinary Git fast-forward protection.
+Nori never force-pushes, configures a remote or upstream, contacts Registrar,
+activates the skillset, or changes trust state. Cancellation, validation, and
+pre-commit failures restore the exact original Git index. Once a commit exists,
+any later verification or push failure keeps that local commit so the author can
+inspect, reconcile, and retry it.
 
 Git-backed skillsets use Git as their source authority. Mutating Registrar
 commands therefore refuse to download into or upload from a Git-governed
