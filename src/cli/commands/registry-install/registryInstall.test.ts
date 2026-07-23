@@ -7,6 +7,32 @@ import * as fs from "fs/promises";
 import * as clack from "@clack/prompts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mockInstallLock = vi.hoisted(() => {
+  let active = false;
+  return {
+    reset: () => {
+      active = false;
+    },
+    withInstallLock: vi.fn(
+      async <T>(args: { operation: () => Promise<T> }): Promise<T> => {
+        if (active) {
+          throw new Error("Another Nori installation is already in progress");
+        }
+        active = true;
+        try {
+          return await args.operation();
+        } finally {
+          active = false;
+        }
+      },
+    ),
+  };
+});
+
+vi.mock("@/cli/features/install/installLock.js", () => ({
+  withInstallLock: mockInstallLock.withInstallLock,
+}));
+
 vi.mock("os", async () => {
   const actual: any = await vi.importActual("os");
   return {

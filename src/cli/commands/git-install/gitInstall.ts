@@ -9,6 +9,7 @@ import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
 import { markInstall } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
@@ -720,7 +721,7 @@ const acquireCheckout = async (args: {
   return resolvedCommit;
 };
 
-export const gitInstallMain = async (
+const gitInstallMainImpl = async (
   args: GitInstallArgs,
 ): Promise<CommandStatus> => {
   const nameError = validateSkillsetName({ value: args.slug });
@@ -876,3 +877,8 @@ export const gitInstallMain = async (
     if (silent === true) setSilentMode({ silent: wasSilent });
   }
 };
+
+export const gitInstallMain = async (
+  args: GitInstallArgs,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => gitInstallMainImpl(args) });
