@@ -141,7 +141,7 @@ vi.mock("@/cli/logger.js", () => ({
 }));
 
 import { registryDownloadMain } from "@/cli/commands/registry-download/registryDownload.js";
-import { loadConfig, updateConfig } from "@/cli/config.js";
+import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
 import { main as installMain } from "@/cli/features/install/install.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold } from "@/cli/logger.js";
@@ -203,14 +203,88 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       skillset: "public/senior-swe",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
 
     // Should NOT call switchSkillset or second install (initial install handles it)
     expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).toHaveBeenCalledTimes(1);
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledWith({
+      activeSkillset: "public/senior-swe",
+    });
+  });
+
+  it("does not commit the active skillset when a later agent install fails", async () => {
+    vi.mocked(getDefaultAgents).mockReturnValueOnce([
+      "claude-code",
+      "gemini-cli",
+    ]);
+    vi.mocked(installMain)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("gemini install failed"));
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(false);
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ persistActiveSkillset: false }),
+    );
+    expect(installMain).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ persistActiveSkillset: false }),
+    );
+    expect(updateConfig).not.toHaveBeenCalled();
+  });
+
+  it("commits once after both agent installs succeed", async () => {
+    const transactionEvents: Array<string> = [];
+    vi.mocked(getDefaultAgents).mockReturnValueOnce([
+      "claude-code",
+      "gemini-cli",
+    ]);
+    vi.mocked(installMain).mockImplementation(async (args) => {
+      transactionEvents.push(`install:${args?.agent ?? "missing-agent"}`);
+    });
+    vi.mocked(updateConfig).mockImplementation(async () => {
+      transactionEvents.push("commit");
+    });
+
+    const result = await registryInstallMain({
+      packageSpec: "senior-swe",
+    });
+
+    expect(result.success).toBe(true);
+    expect(installMain).toHaveBeenCalledTimes(2);
+    expect(installMain).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        agent: "claude-code",
+        persistActiveSkillset: false,
+      }),
+    );
+    expect(installMain).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        agent: "gemini-cli",
+        persistActiveSkillset: false,
+      }),
+    );
+    expect(updateConfig).toHaveBeenCalledTimes(1);
+    expect(updateConfig).toHaveBeenCalledWith({
+      activeSkillset: "public/senior-swe",
+    });
+    expect(transactionEvents).toEqual([
+      "install:claude-code",
+      "install:gemini-cli",
+      "commit",
+    ]);
   });
 
   it("should not persist global activeSkillset for a transient --install-dir install", async () => {
@@ -261,7 +335,7 @@ describe("registry-install", () => {
       agent: "claude-code",
       silent: true,
       skillset: "public/senior-swe",
-      persistActiveSkillset: true,
+      persistActiveSkillset: false,
     });
 
     expect(registryDownloadMain).toHaveBeenCalledTimes(1);
@@ -305,8 +379,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       skillset: "public/product-manager",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
   });
 
@@ -329,8 +403,8 @@ describe("registry-install", () => {
       installDir: "/mock-home",
       skillset: "public/documenter",
       agent: "claude-code",
-      silent: null,
-      persistActiveSkillset: true,
+      silent: true,
+      persistActiveSkillset: false,
     });
   });
 

@@ -19,6 +19,7 @@ import {
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -382,7 +383,7 @@ const downloadSubagentDependencies = async (args: {
  *
  * @returns Result indicating success or failure
  */
-export const registryDownloadMain = async (args: {
+type RegistryDownloadArgs = {
   packageSpec: string;
   cwd?: string | null;
   installDir?: string | null;
@@ -391,7 +392,11 @@ export const registryDownloadMain = async (args: {
   cliName?: CliName | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-}): Promise<CommandStatus> => {
+};
+
+const registryDownloadMainImpl = async (
+  args: RegistryDownloadArgs,
+): Promise<CommandStatus> => {
   const {
     packageSpec,
     installDir,
@@ -447,7 +452,9 @@ export const registryDownloadMain = async (args: {
     log.info("Setting up Nori for first time use...");
     try {
       await initMain({
+        captureExisting: false,
         installDir: resolvedInstallDir,
+        markInstalled: false,
         nonInteractive: nonInteractive ?? silent ?? false,
         skipWarning: true,
       });
@@ -872,6 +879,11 @@ export const registryDownloadMain = async (args: {
     message: result.statusMessage,
   };
 };
+
+export const registryDownloadMain = async (
+  args: RegistryDownloadArgs,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => registryDownloadMainImpl(args) });
 
 /**
  * Register the 'registry-download' command with commander

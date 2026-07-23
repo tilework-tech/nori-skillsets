@@ -28,6 +28,7 @@ Path: @/src/cli/commands/switch-skillset
 | `onPrepareSwitchInfo` | Detects local changes via manifest comparison for a given agent |
 | `onCaptureConfig` | Captures unmanaged config as a named skillset before overwriting |
 | `onExecuteSwitch` | Validates the target skillset, then runs `installMain` in silent mode |
+| `onCommit` | Persists `activeSkillset` after every agent succeeds and before success UI is displayed; omitted for transient CLI install-directory overrides |
 | `onRedownload` | Re-downloads the skillset, pinned to the registry recorded in its `.nori-version` provenance (omitted when `redownloadOnSwitch` is disabled; a no-op when `resolveRedownloadSource` finds no recorded registry — the locally-created `personal/` bucket) |
 | `onReadFileDiff` | Reads the original source and current installed content for a managed file, used by the flow to display diffs of local changes |
 
@@ -45,7 +46,7 @@ For subagents, the flat file path is checked first via `fs.access`. If it does n
 
 **Non-interactive flow**: Checks for local changes on the first default agent. If changes exist and `--force` is not set, it throws. Otherwise, it iterates all default agents, calling `switchSkillsetOp` then `installMain` for each. The command-level lock prevents another install or switch transaction from interleaving between agents.
 
-**Config persistence**: `activeSkillset` is written to config via `updateConfig` after a successful switch, unless the install dir came from a CLI override (transient context). The transient-override guard (`resolved.source !== "cli"`) now also propagates into the silent reinstall: both `installMain(...)` call sites (the interactive `onExecuteSwitch` callback and the non-interactive loop) pass `persistActiveSkillset: resolved.source !== "cli"`. This closes a hole where the reinstall's own `updateConfig({ activeSkillset })` in @/src/cli/features/install/install.ts would clobber the global `activeSkillset` even though the switch command itself skipped persistence — a `--install-dir` switch now never mutates global `activeSkillset` end-to-end. `updateConfig` persists it as the canonical namespaced identity (see @/src/cli/docs.md), so a bare `foo` becomes `public/foo` / `personal/foo` on disk.
+**Config persistence**: Nested `installMain(...)` calls always receive `persistActiveSkillset: false`, so no individual agent can commit global state. In the interactive path, the flow invokes `onCommit` only after every agent's switch and reinstall succeeds, and does so before stopping the spinner or displaying the success note. Cancellation or any earlier failure exits without a commit. The non-interactive path follows the same transaction shape by committing only after its full agent loop. Both paths omit the outer commit when the install dir came from a CLI override (`resolved.source === "cli"`), so a transient switch never mutates global `activeSkillset`. `updateConfig` persists successful commits as the canonical namespaced identity (see @/src/cli/docs.md), so a bare `foo` becomes `public/foo` / `personal/foo` on disk.
 
 ### Things to Know
 

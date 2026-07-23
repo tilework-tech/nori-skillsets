@@ -20,6 +20,14 @@ import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 60_000;
 const MINIMUM_GIT_VERSION = { major: 2, minor: 29 } as const;
+const SUPPORTED_REMOTE_SCHEMES = new Set([
+  "file",
+  "git",
+  "git+ssh",
+  "http",
+  "https",
+  "ssh",
+]);
 
 type GitInstallArgs = {
   slug: string;
@@ -34,18 +42,28 @@ const assertSupportedRemote = (args: { remote: string }): void => {
   if (/^[^:/\\]+::/u.test(args.remote)) {
     throw new Error("Git remote-helper URLs are not supported");
   }
+  const scheme = args.remote.match(/^([^:/\\]+):\/\//u)?.[1]?.toLowerCase();
+  if (scheme != null && !SUPPORTED_REMOTE_SCHEMES.has(scheme)) {
+    throw new Error(`Unsupported Git remote scheme "${scheme}"`);
+  }
 };
+
+const sanitizeDisplayText = (args: { value: string }): string =>
+  args.value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, "?");
+
+const sanitizeErrorDetail = (error: unknown): string =>
+  sanitizeDisplayText({
+    value: error instanceof Error ? error.message : String(error),
+  });
+
+const SCP_USER_INFO_PATTERN = /^([^@/\\\s:]+)@(\[[^\]\s]+\]|[^/\\\s:]+):/u;
 
 const redactRemote = (args: { remote: string }): string => {
   const { remote } = args;
-  const withoutControlCharacters = remote.replace(
-    /[\u0000-\u001f\u007f]/gu,
-    "?",
-  );
-  const withoutUserInfo = withoutControlCharacters.replace(
-    /^([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/iu,
-    "$1***@",
-  );
+  const withoutControlCharacters = sanitizeDisplayText({ value: remote });
+  const withoutUserInfo = withoutControlCharacters
+    .replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/iu, "$1***@")
+    .replace(SCP_USER_INFO_PATTERN, "***@$2:");
   try {
     const url = new URL(withoutUserInfo);
     for (const name of [...url.searchParams.keys()]) {
@@ -114,7 +132,9 @@ const assertSupportedGitVersion = async (): Promise<void> => {
 
 const isSshRemote = (args: { remote: string }): boolean => {
   const { remote } = args;
-  const scheme = remote.match(/^([a-z][a-z0-9+.-]*):\/\//iu)?.[1];
+  const scheme = remote
+    .match(/^([a-z][a-z0-9+.-]*):\/\//iu)?.[1]
+    ?.toLowerCase();
   if (scheme != null) return scheme === "ssh" || scheme === "git+ssh";
   if (/^[a-z]:[\\/]/iu.test(remote)) return false;
   return /^[^/\\]+:.+/u.test(remote);
@@ -155,11 +175,17 @@ const sanitizeGitError = (args: {
   let { value } = args;
   if (remote != null && remote.length > 0) {
     value = value.replaceAll(remote, redactRemote({ remote }));
+    const scpUserInfo = remote.match(SCP_USER_INFO_PATTERN);
+    if (scpUserInfo != null) {
+      const [, user, host] = scpUserInfo;
+      value = value.replaceAll(`${user}@${host}`, `***@${host}`);
+    }
   }
   return value
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/giu, "$1***@")
     .replace(/([?&][^=&#\s]+)=([^&#\s]+)/giu, "$1=***")
-    .replace(/#[^\s]+/gu, "#***");
+    .replace(/#[^\s]+/gu, "#***")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, "?");
 };
 
 const runGit = async (args: {
@@ -239,7 +265,7 @@ const validateCheckout = async (args: {
     if (mode === "160000") {
       throw new Error("Git-backed skillsets cannot contain submodules");
     }
-    if (filePath === ".nori-version") {
+    if (filePath.toLowerCase() === ".nori-version") {
       throw new Error(
         "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
       );
@@ -258,7 +284,7 @@ const validateCheckout = async (args: {
   }
   if (metadata.name !== slug) {
     throw new Error(
-      `Skillset manifest name "${metadata.name}" does not match requested name "${slug}"`,
+      `Skillset manifest name "${sanitizeDisplayText({ value: metadata.name })}" does not match requested name "${slug}"`,
     );
   }
   if (metadata.type !== "skillset") {
@@ -421,14 +447,14 @@ const gitInstallMainImpl = async (
           agent,
           skillset: identity,
           persistActiveSkillset: false,
-          silent,
+          silent: true,
         });
       }
       if (resolvedInstallDir.source !== "cli") {
         await updateConfig({ activeSkillset: identity });
       }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = sanitizeErrorDetail(error);
       const recoveryCommand = [
         "sks",
         ...(resolvedInstallDir.source === "cli"
@@ -458,7 +484,7 @@ const gitInstallMainImpl = async (
     return {
       success: false,
       cancelled: false,
-      message: `Failed to install Git-backed skillset "${slug}": ${error instanceof Error ? error.message : String(error)}`,
+      message: `Failed to install Git-backed skillset "${slug}": ${sanitizeErrorDetail(error)}`,
     };
   } finally {
     if (silent === true) setSilentMode({ silent: wasSilent });
@@ -485,7 +511,7 @@ export const gitInstallMain = async (
     return {
       success: false,
       cancelled: false,
-      message: `Failed to install Git-backed skillset "${args.slug}": ${error instanceof Error ? error.message : String(error)}`,
+      message: `Failed to install Git-backed skillset "${args.slug}": ${sanitizeErrorDetail(error)}`,
     };
   }
 };

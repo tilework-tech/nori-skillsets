@@ -7,6 +7,7 @@ import * as clack from "@clack/prompts";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
+import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 
 import { initMain, registerInitCommand } from "./init.js";
 
@@ -149,6 +150,17 @@ describe("init command", () => {
   });
 
   describe("initMain", () => {
+    it("rejects a held install lock before writing configuration", async () => {
+      await createHeldInstallLock({ homeDir: tempDir });
+      const configPath = getConfigPath();
+
+      await expect(
+        initMain({ installDir: tempDir, nonInteractive: true }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+
+      await expect(fsPromises.access(configPath)).rejects.toThrow();
+    });
+
     it("should create .nori-config.json with minimal structure on first run", async () => {
       const CONFIG_PATH = getConfigPath();
 
@@ -502,6 +514,33 @@ describe("init command", () => {
       // Verify .nori-managed marker was created for the agent
       const markerPath = path.join(tempDir, ".claude", ".nori-managed");
       expect(fs.existsSync(markerPath)).toBe(true);
+    });
+
+    it("should initialize storage without agent markers when requested", async () => {
+      const instructionsPath = path.join(tempDir, ".claude", "CLAUDE.md");
+      await fsPromises.mkdir(path.dirname(instructionsPath), {
+        recursive: true,
+      });
+      await fsPromises.writeFile(instructionsPath, "# Existing instructions");
+
+      await initMain({
+        captureExisting: false,
+        installDir: tempDir,
+        markInstalled: false,
+        nonInteractive: true,
+      });
+
+      expect(fs.existsSync(getConfigPath())).toBe(true);
+      expect(fs.existsSync(path.join(TEST_NORI_DIR, "profiles"))).toBe(true);
+      expect(
+        fs.existsSync(path.join(tempDir, ".claude", ".nori-managed")),
+      ).toBe(false);
+      await expect(fsPromises.readFile(instructionsPath, "utf8")).resolves.toBe(
+        "# Existing instructions",
+      );
+      expect(
+        fs.existsSync(path.join(TEST_NORI_DIR, "profiles", "my-profile")),
+      ).toBe(false);
     });
 
     it("should call captureExistingConfig for all default agents when capturing in non-interactive mode", async () => {

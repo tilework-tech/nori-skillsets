@@ -10,6 +10,7 @@ import { log } from "@clack/prompts";
 import { loadConfig, updateConfig, getDefaultAgents } from "@/cli/config.js";
 import { removeSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
 /**
@@ -20,7 +21,7 @@ import { resolveInstallDir } from "@/utils/path.js";
  * @param args - Configuration arguments
  * @param args.installDir - Custom installation directory override
  */
-export const clearMain = async (args?: {
+const clearMainImpl = async (args?: {
   installDir?: string | null;
 }): Promise<void> => {
   const { installDir: cliInstallDir } = args ?? {};
@@ -49,3 +50,7 @@ export const clearMain = async (args?: {
 
   log.success("Cleared all Nori-managed configuration.");
 };
+
+export const clearMain = async (args?: {
+  installDir?: string | null;
+}): Promise<void> => withInstallLock({ operation: () => clearMainImpl(args) });

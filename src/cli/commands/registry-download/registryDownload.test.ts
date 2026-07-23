@@ -103,6 +103,7 @@ import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { initMain } from "@/cli/commands/init/init.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
@@ -203,6 +204,34 @@ describe("registry-download", () => {
   });
 
   describe("registryDownloadMain", () => {
+    it("rejects downloads while another mutation owns the lock", async () => {
+      let release!: () => void;
+      let markStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const canFinish = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const holder = withInstallLock({
+        operation: async () => {
+          markStarted();
+          await canFinish;
+        },
+      });
+      await started;
+
+      try {
+        await expect(
+          registryDownloadMain({ packageSpec: "test-profile" }),
+        ).rejects.toThrow(/another Nori installation is already in progress/i);
+        expect(registrarApi.getPackument).not.toHaveBeenCalled();
+      } finally {
+        release();
+        await holder;
+      }
+    });
+
     it("should download and install profile to correct directory", async () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
@@ -351,7 +380,9 @@ describe("registry-download", () => {
 
         // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
         expect(initMain).toHaveBeenCalledWith({
+          captureExisting: false,
           installDir: emptyHomeDir,
+          markInstalled: false,
           nonInteractive: false,
           skipWarning: true,
         });
@@ -410,11 +441,11 @@ describe("registry-download", () => {
         });
 
         // Verify initMain was called with the custom install dir (interactive mode for user prompts, skip warning for download flow)
-        expect(initMain).toHaveBeenCalledWith({
-          installDir: customInstallDir,
-          nonInteractive: false,
-          skipWarning: true,
-        });
+        expect(initMain).toHaveBeenCalledWith(
+          expect.objectContaining({
+            installDir: customInstallDir,
+          }),
+        );
 
         // Verify download proceeded
         expect(registrarApi.downloadTarball).toHaveBeenCalled();
@@ -555,11 +586,11 @@ describe("registry-download", () => {
         expect(result.success).toBe(false);
 
         // Verify initMain was called with home dir (interactive mode for user prompts, skip warning for download flow)
-        expect(initMain).toHaveBeenCalledWith({
-          installDir: emptyHomeDir,
-          nonInteractive: false,
-          skipWarning: true,
-        });
+        expect(initMain).toHaveBeenCalledWith(
+          expect.objectContaining({
+            installDir: emptyHomeDir,
+          }),
+        );
 
         // Verify error message about init failure was shown
         const allErrorOutput = getClackErrorOutput();
@@ -2815,11 +2846,11 @@ describe("registry-download", () => {
           nonInteractive: true,
         });
 
-        expect(initMain).toHaveBeenCalledWith({
-          installDir: emptyHomeDir,
-          nonInteractive: true,
-          skipWarning: true,
-        });
+        expect(initMain).toHaveBeenCalledWith(
+          expect.objectContaining({
+            nonInteractive: true,
+          }),
+        );
       } finally {
         await fs.rm(emptyHomeDir, { recursive: true, force: true });
       }

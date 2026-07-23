@@ -8,6 +8,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getConfigPath } from "@/cli/config.js";
 import { installSkillset } from "@/cli/features/agentOperations.js";
+import {
+  displaySeaweedBed,
+  displayWelcomeBanner,
+} from "@/cli/features/install/asciiArt.js";
+import { sendAnalyticsEvent } from "@/cli/installTracking.js";
 import { saveTestingConfig } from "@/cli/test-utils/config.js";
 import { getHomeDir } from "@/utils/home.js";
 
@@ -494,7 +499,31 @@ describe("install noninteractive", () => {
     expect(nestedOperationCompleted).toBe(true);
   });
 
-  it("does not let an expired predecessor remove its replacement lock", async () => {
+  it("runs an operation when the configured Nori home does not exist", async () => {
+    const previousGlobalConfig = process.env.NORI_GLOBAL_CONFIG;
+    const missingNoriHome = path.join(tempDir, "missing-nori-home");
+    process.env.NORI_GLOBAL_CONFIG = missingNoriHome;
+
+    try {
+      let operationCompleted = false;
+      await withInstallLock({
+        operation: async () => {
+          operationCompleted = true;
+        },
+      });
+
+      expect(operationCompleted).toBe(true);
+      await expect(fsPromises.access(missingNoriHome)).resolves.toBeUndefined();
+    } finally {
+      if (previousGlobalConfig == null) {
+        delete process.env.NORI_GLOBAL_CONFIG;
+      } else {
+        process.env.NORI_GLOBAL_CONFIG = previousGlobalConfig;
+      }
+    }
+  });
+
+  it("does not reclaim an old lock owned by a live process", async () => {
     let releaseFirst!: () => void;
     let markFirstStarted!: () => void;
     const firstStarted = new Promise<void>((resolve) => {
@@ -502,14 +531,6 @@ describe("install noninteractive", () => {
     });
     const firstCanFinish = new Promise<void>((resolve) => {
       releaseFirst = resolve;
-    });
-    let releaseSecond!: () => void;
-    let markSecondStarted!: () => void;
-    const secondStarted = new Promise<void>((resolve) => {
-      markSecondStarted = resolve;
-    });
-    const secondCanFinish = new Promise<void>((resolve) => {
-      releaseSecond = resolve;
     });
     const lockPath = path.join(getHomeDir(), ".nori-install.lock");
 
@@ -531,29 +552,18 @@ describe("install noninteractive", () => {
       expiredAt,
     );
 
-    const second = withInstallLock({
-      operation: async () => {
-        markSecondStarted();
-        await secondCanFinish;
-      },
-    });
-    await secondStarted;
-
     try {
-      releaseFirst();
-      await first;
       await expect(
         withInstallLock({ operation: async () => undefined }),
       ).rejects.toThrow(/another Nori installation is already in progress/i);
     } finally {
       releaseFirst();
-      releaseSecond();
-      await Promise.allSettled([first, second]);
+      await first;
       await fsPromises.rm(lockPath, { recursive: true, force: true });
     }
   });
 
-  it("recovers an expired installation lock even when its PID has been reused", async () => {
+  it("does not reclaim a legacy lock whose PID is still live", async () => {
     await saveTestingConfig({
       username: null,
       organizationUrl: null,
@@ -571,16 +581,87 @@ describe("install noninteractive", () => {
     );
 
     try {
-      await noninteractive({
-        installDir: tempDir,
-        skillset: "senior-swe",
-      });
+      await expect(
+        noninteractive({
+          installDir: tempDir,
+          skillset: "senior-swe",
+        }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
 
-      expect(installSkillset).toHaveBeenCalledTimes(1);
-      await expect(fsPromises.access(lockPath)).rejects.toThrow();
+      expect(installSkillset).not.toHaveBeenCalled();
+      await expect(fsPromises.access(lockPath)).resolves.toBeUndefined();
     } finally {
       await fsPromises.rm(lockPath, { recursive: true, force: true });
     }
+  });
+
+  it("does not reclaim an unowned lock directory based only on age", async () => {
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+    await fsPromises.mkdir(lockPath);
+    const expiredAt = new Date("2000-01-01T00:00:00.000Z");
+    await fsPromises.utimes(lockPath, expiredAt, expiredAt);
+
+    try {
+      await expect(
+        withInstallLock({ operation: async () => undefined }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+      await expect(fsPromises.access(lockPath)).resolves.toBeUndefined();
+    } finally {
+      await fsPromises.rm(lockPath, { recursive: true, force: true });
+    }
+  });
+
+  it("does not follow a symbolic-link lock during stale recovery", async () => {
+    const lockPath = path.join(getHomeDir(), ".nori-install.lock");
+    const externalDir = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), "nori-external-lock-"),
+    );
+    const externalMarker = path.join(
+      externalDir,
+      "owner-2147483647-00000000-0000-0000-0000-000000000000",
+    );
+    await fsPromises.writeFile(externalMarker, "");
+    await fsPromises.symlink(externalDir, lockPath);
+
+    try {
+      await expect(
+        withInstallLock({ operation: async () => undefined }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+      await expect(fsPromises.access(externalMarker)).resolves.toBeUndefined();
+    } finally {
+      await fsPromises.rm(lockPath, { force: true });
+      await fsPromises.rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not report success before the install marker is durable", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    await fsPromises.mkdir(path.join(tempDir, ".claude", ".nori-managed"), {
+      recursive: true,
+    });
+
+    await expect(
+      noninteractive({
+        installDir: tempDir,
+        skillset: "senior-swe",
+      }),
+    ).rejects.toThrow(/directory|EISDIR/i);
+
+    expect(installSkillset).toHaveBeenCalledTimes(1);
+    expect(sendAnalyticsEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: "noriprof_install_completed" }),
+    );
+    expect(displayWelcomeBanner).not.toHaveBeenCalled();
+    expect(displaySeaweedBed).not.toHaveBeenCalled();
+    expect(clack.note).not.toHaveBeenCalledWith(
+      expect.any(String),
+      "Installation Complete",
+    );
   });
 
   it("releases the installation lock after failure so a retry can succeed", async () => {

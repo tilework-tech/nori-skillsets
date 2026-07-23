@@ -23,6 +23,7 @@ import {
   getActiveSkillset,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { addSkillDependency } from "@/cli/features/skillResolver.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { skillDownloadFlow } from "@/cli/prompts/flows/index.js";
@@ -124,7 +125,7 @@ const applyTemplateSubstitutionToDir = async (args: {
  *
  * @returns Command status
  */
-export const skillDownloadMain = async (args: {
+type SkillDownloadArgs = {
   skillSpec: string;
   cwd?: string | null;
   installDir?: string | null;
@@ -134,7 +135,11 @@ export const skillDownloadMain = async (args: {
   cliName?: CliName | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-}): Promise<CommandStatus> => {
+};
+
+const skillDownloadMainImpl = async (
+  args: SkillDownloadArgs,
+): Promise<CommandStatus> => {
   const {
     skillSpec,
     installDir,
@@ -617,6 +622,11 @@ export const skillDownloadMain = async (args: {
 
   return { success: true, cancelled: false, message: result.statusMessage };
 };
+
+export const skillDownloadMain = async (
+  args: SkillDownloadArgs,
+): Promise<CommandStatus> =>
+  withInstallLock({ operation: () => skillDownloadMainImpl(args) });
 
 /**
  * Register the 'skill-download' command with commander

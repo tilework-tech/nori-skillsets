@@ -234,10 +234,16 @@ const switchSkillsetActionImpl = async (args: {
             agent: agentName,
             silent: true,
             skillset: pName,
-            // A transient --install-dir switch must not clobber global activeSkillset.
-            persistActiveSkillset: resolved.source !== "cli",
+            // The outer transaction commits only after every agent succeeds.
+            persistActiveSkillset: false,
           });
         },
+        onCommit:
+          resolved.source !== "cli"
+            ? async () => {
+                await updateConfig({ activeSkillset: name });
+              }
+            : undefined,
         onRedownload: redownloadEnabled
           ? async ({ skillsetName: pName }) => {
               const source = await resolveRedownloadSource({ name: pName });
@@ -347,11 +353,6 @@ const switchSkillsetActionImpl = async (args: {
       },
     });
 
-    // Persist activeSkillset to config unless this is a transient CLI override
-    if (resolved.source !== "cli") {
-      await updateConfig({ activeSkillset: name });
-    }
-
     if (flowResult == null) {
       return { success: false, cancelled: true, message: "" };
     }
@@ -410,8 +411,8 @@ const switchSkillsetActionImpl = async (args: {
       agent: agentName,
       silent: true,
       skillset: name,
-      // A transient --install-dir switch must not clobber global activeSkillset.
-      persistActiveSkillset: resolved.source !== "cli",
+      // The outer transaction commits only after every agent succeeds.
+      persistActiveSkillset: false,
     });
   }
 

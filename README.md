@@ -74,9 +74,11 @@ This initial version does not pin revisions or automatically fetch later
 commits. Run the command only for a new local name: an existing
 `personal/my-skillset` is never overwritten. Git-backed installs reject
 symbolic links, submodules, and Registry `.nori-version` files, and they never
-fall back to the Registry. Git remote-helper syntax is rejected before the
-source-trust prompt; credential-bearing URL components are redacted from output
-and omitted from the stored origin. The Git 2.29 requirement allows
+fall back to the Registry. Git remote-helper syntax and URL schemes outside
+`http`, `https`, `ssh`, `git`, `git+ssh`, and `file` are rejected before the
+source-trust prompt; local paths and SCP-style SSH remotes remain supported.
+Credential-bearing URL components and terminal control characters are sanitized
+in output, and credentials are omitted from the stored origin. The Git 2.29 requirement allows
 `--no-write-fetch-head`, which keeps the credential-bearing fetch URL out of
 `FETCH_HEAD`. Unattended SSH installs use OpenSSH batch mode by default, while
 preserving an existing `GIT_SSH`, `GIT_SSH_COMMAND`, or `core.sshCommand`.

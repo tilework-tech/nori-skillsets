@@ -93,13 +93,15 @@ const displayCompletionBanners = (): void => {
  * @param args.config - Configuration to use
  * @param args.agent - AI agent implementation
  * @param args.nonInteractive - Whether running in non-interactive mode
+ * @param args.skillsetName - Skillset identity to persist in the install marker
  */
 const completeInstallation = async (args: {
   config: Config;
   agent: ReturnType<typeof AgentRegistry.prototype.get>;
   nonInteractive: boolean;
+  skillsetName: string;
 }): Promise<void> => {
-  const { config, agent, nonInteractive } = args;
+  const { config, agent, nonInteractive, skillsetName } = args;
 
   // Track installation start (fire-and-forget)
   void (async () => {
@@ -124,6 +126,12 @@ const completeInstallation = async (args: {
   } finally {
     cleanupProgressMarker();
   }
+
+  markInstall({
+    agent,
+    path: config.installDir,
+    skillsetName,
+  });
 
   // Track completion (fire-and-forget)
   void (async () => {
@@ -172,7 +180,8 @@ const noninteractiveImpl = async (args?: NoninteractiveArgs): Promise<void> => {
     name: agent ?? AgentRegistry.getInstance().getDefaultAgentName(),
   });
 
-  // Step 1: Init - Set up folders (non-interactive skips existing config capture)
+  // Step 1: Initialize storage and preserve any existing agent configuration.
+  // Installation defers managed markers until each agent's loaders succeed.
   await ensureNoriInitialized({
     installDir: normalizedInstallDir,
     skillset,
@@ -239,10 +248,6 @@ const noninteractiveImpl = async (args?: NoninteractiveArgs): Promise<void> => {
     },
     agent: agentImpl,
     nonInteractive: true,
-  });
-  markInstall({
-    agent: agentImpl,
-    path: normalizedInstallDir,
     skillsetName: selectedSkillset,
   });
 };

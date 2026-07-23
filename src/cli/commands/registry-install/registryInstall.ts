@@ -139,12 +139,14 @@ const registryInstallMainImpl = async (
           installDir: targetInstallDir,
           skillset: skillsetName,
           agent: agentName,
-          silent: silent ?? null,
-          // A transient --install-dir install must not clobber global activeSkillset.
-          persistActiveSkillset: resolved.source !== "cli",
+          silent: true,
+          // The outer transaction commits only after every agent succeeds.
+          persistActiveSkillset: false,
         });
       }
-      // Initial install already sets the skillset and displays its own completion banners
+      if (resolved.source !== "cli") {
+        await updateConfig({ activeSkillset: skillsetName });
+      }
       return {
         success: true,
         cancelled: false,
@@ -182,8 +184,8 @@ const registryInstallMainImpl = async (
         agent: agentName,
         silent: true,
         skillset: skillsetName,
-        // A transient --install-dir switch must not clobber global activeSkillset.
-        persistActiveSkillset: resolved.source !== "cli",
+        // The outer transaction commits only after every agent succeeds.
+        persistActiveSkillset: false,
       });
     }
 

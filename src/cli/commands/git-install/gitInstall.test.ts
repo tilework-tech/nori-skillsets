@@ -346,6 +346,22 @@ describe("gitInstallMain", () => {
     expect(promptArgs.message).not.toContain("SECRET_FRAGMENT");
   });
 
+  it("redacts the user component of an SCP-style remote from the trust prompt", async () => {
+    const remote = "SECRET_SCP_USER@example.invalid:repository.git";
+    prompt.confirm.mockResolvedValueOnce(false);
+
+    await install({
+      remote,
+      trustSource: null,
+      nonInteractive: false,
+      silent: false,
+    });
+
+    const promptArgs = prompt.confirm.mock.calls[0]?.[0] as { message: string };
+    expect(promptArgs.message).not.toContain("SECRET_SCP_USER");
+    expect(promptArgs.message).toContain("***@example.invalid");
+  });
+
   it.each(["http", "1foo"])(
     "rejects %s remote-helper syntax without exposing embedded credentials",
     async (transport) => {
@@ -361,6 +377,61 @@ describe("gitInstallMain", () => {
       expectFailure(result, /remote-helper.*not supported/i);
       expect(result.message).not.toContain(secret);
       expect(prompt.confirm).not.toHaveBeenCalled();
+      await expect(fs.access(target)).rejects.toThrow();
+    },
+  );
+
+  it.each(["ftp", "unknown", "foo+bar", "1foo"])(
+    "rejects unsupported %s URL schemes before source approval",
+    async (scheme) => {
+      const result = await install({
+        remote: `${scheme}://example.invalid/repository.git`,
+        trustSource: null,
+        nonInteractive: false,
+        silent: false,
+      });
+
+      expectFailure(result, /unsupported Git remote scheme/i);
+      expect(prompt.confirm).not.toHaveBeenCalled();
+      await expect(fs.access(target)).rejects.toThrow();
+    },
+  );
+
+  it("sanitizes controls in a rejected remote scheme", async () => {
+    const result = await install({
+      remote:
+        "bad\u0000\n\u001b[31m\u007f\u0085\u009bVISIBLE://example.invalid/repository.git",
+      trustSource: null,
+      nonInteractive: false,
+      silent: false,
+    });
+
+    expectFailure(result, /unsupported Git remote scheme/i);
+    expect(result.message).toMatch(/visible/i);
+    expect(result.message).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
+    expect(prompt.confirm).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "HTTP://example.invalid/repository.git",
+    "https://example.invalid/repository.git",
+    "ssh://example.invalid/repository.git",
+    "git://example.invalid/repository.git",
+    "git+ssh://example.invalid/repository.git",
+    "file:///tmp/repository.git",
+    "git@example.invalid:repository.git",
+  ])(
+    "allows the supported remote form %s to reach source approval",
+    async (remote) => {
+      const result = await install({
+        remote,
+        trustSource: null,
+        nonInteractive: false,
+        silent: false,
+      });
+
+      expect(result.cancelled).toBe(true);
+      expect(prompt.confirm).toHaveBeenCalledTimes(1);
       await expect(fs.access(target)).rejects.toThrow();
     },
   );
@@ -551,6 +622,68 @@ describe("gitInstallMain", () => {
     }
   });
 
+  it("removes terminal control characters from Git failures", async () => {
+    const sshExecutable = path.join(testRoot, "control-output-ssh.sh");
+    await fs.writeFile(
+      sshExecutable,
+      "#!/bin/sh\nprintf '\\033[31mREMOTE-CONTROL\\033[0m\\n' >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+    const previousEnvironment = {
+      GIT_SSH: process.env.GIT_SSH,
+      GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND,
+    };
+
+    try {
+      process.env.GIT_SSH = sshExecutable;
+      delete process.env.GIT_SSH_COMMAND;
+
+      const result = await install({
+        remote: "ssh://example.invalid/repository.git",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("REMOTE-CONTROL");
+      expect(result.message).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
+    } finally {
+      for (const [name, value] of Object.entries(previousEnvironment)) {
+        if (value == null) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
+  it("redacts the user component of an SCP-style remote from Git failures", async () => {
+    const sshExecutable = path.join(testRoot, "echo-args-ssh.sh");
+    await fs.writeFile(
+      sshExecutable,
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+    const previousEnvironment = {
+      GIT_SSH: process.env.GIT_SSH,
+      GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND,
+    };
+
+    try {
+      process.env.GIT_SSH = sshExecutable;
+      delete process.env.GIT_SSH_COMMAND;
+
+      const result = await install({
+        remote: "SECRET_SCP_USER@example.invalid:repository.git",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).not.toContain("SECRET_SCP_USER");
+      expect(result.message).toContain("***@example.invalid");
+    } finally {
+      for (const [name, value] of Object.entries(previousEnvironment)) {
+        if (value == null) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
   it("suppresses all visible output in silent mode", async () => {
     await repository.commit({ slug: "reviewer" });
     const output: Array<string> = [];
@@ -590,6 +723,45 @@ describe("gitInstallMain", () => {
     });
 
     await expectRejectedCheckout(/Registry provenance|\.nori-version/i);
+  });
+
+  it("rejects mixed-case Registry provenance", async () => {
+    await repository.commit({
+      slug: "reviewer",
+      files: {
+        ".nOrI-vErSiOn": "https://registry.example.invalid\n1.0.0\n",
+      },
+    });
+
+    await expectRejectedCheckout(/Registry provenance|\.nori-version/i);
+  });
+
+  it("removes terminal control characters from manifest validation errors", async () => {
+    await repository.commit({
+      slug: "reviewer",
+      manifest: {
+        name: "REMOTE\u0000\n\u001b[31m\u007f\u0085\u009b-CONTROL",
+      },
+    });
+
+    const result = await install();
+
+    expectFailure(result, /does not match requested name/i);
+    expect(result.message).toContain("REMOTE");
+    expect(result.message).toContain("-CONTROL");
+    expect(result.message).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
+  });
+
+  it("removes terminal control characters from malformed manifest errors", async () => {
+    await repository.commit({
+      slug: "reviewer",
+      files: { "nori.json": "\u001b[31mnot-json" },
+    });
+
+    const result = await install();
+
+    expectFailure(result, /invalid skillset manifest/i);
+    expect(result.message).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
   });
 
   it("rejects symbolic links", async () => {
@@ -664,7 +836,10 @@ describe("gitInstallMain", () => {
         }),
       },
     });
-    await fs.writeFile(path.join(testRoot, ".claude.json"), "not valid json");
+    await fs.writeFile(
+      path.join(testRoot, ".claude.json"),
+      "\u001b[31mnot valid json",
+    );
 
     const scopedInstallDir = path.join(
       testRoot,
@@ -673,6 +848,7 @@ describe("gitInstallMain", () => {
     const result = await install({ installDir: scopedInstallDir });
 
     expectFailure(result, /activation.*incomplete|checkout.*retained/i);
+    expect(result.message).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u);
     await expect(fs.access(target)).resolves.toBe(undefined);
     const config = JSON.parse(
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),

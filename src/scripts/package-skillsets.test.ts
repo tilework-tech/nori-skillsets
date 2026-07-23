@@ -48,6 +48,11 @@ describe("main package.json", () => {
     expect(pkg.engines).toBeDefined();
   });
 
+  it("should advertise the documented Node.js 22 minimum", () => {
+    const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
+    expect(pkg.engines.node).toBe(">=22");
+  });
+
   it("should have correct bin entry for nori-skillsets", () => {
     const pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf-8"));
     expect(pkg.bin["nori-skillsets"]).toBe("./build/src/cli/nori-skillsets.js");

@@ -179,6 +179,69 @@ describe("generateBashCompletion", () => {
       fs.unlinkSync(tmpFile);
     }
   });
+
+  it.each([
+    {
+      words: "sks --silent install ''",
+      currentWord: 3,
+    },
+    {
+      words: "sks --install-dir /tmp/project --silent install ''",
+      currentWord: 5,
+    },
+    {
+      words: "sks --install-dir=/tmp/project --silent install ''",
+      currentWord: 4,
+    },
+    {
+      words: "sks -d /tmp/project --silent install ''",
+      currentWord: 5,
+    },
+    {
+      words: "sks -a claude-code install ''",
+      currentWord: 4,
+    },
+    {
+      words: "sks -d/tmp/project install ''",
+      currentWord: 3,
+    },
+  ])(
+    "should find the subcommand after global options: $words",
+    ({ words, currentWord }) => {
+      const result = generateBashCompletion();
+      const tmpFile = path.join(
+        os.tmpdir(),
+        `nori-bash-global-option-test-${Date.now()}.sh`,
+      );
+      try {
+        fs.writeFileSync(tmpFile, result);
+        const options = execFileSync(
+          "bash",
+          [
+            "-c",
+            [
+              'source "$1"',
+              `COMP_WORDS=(${words})`,
+              `COMP_CWORD=${currentWord}`,
+              "_nori_skillsets_completions",
+              'printf "%s\\n" "${COMPREPLY[@]}"',
+            ].join("\n"),
+            "bash",
+            tmpFile,
+          ],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 10_000,
+          },
+        );
+        expect(options).toContain("--from");
+        expect(options).toContain("--trust-source");
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
 });
 
 describe("generateZshCompletion", () => {
@@ -288,54 +351,61 @@ describe("generateZshCompletion", () => {
     }
   });
 
-  it.runIf(hasZsh)("should offer Git install options", () => {
-    const result = generateZshCompletion();
-    const tmpDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "nori-zsh-install-completion-test-"),
-    );
-    const tmpFile = path.join(tmpDir, "completion.zsh");
-    try {
-      fs.writeFileSync(tmpFile, result);
-      const options = execFileSync(
-        "zsh",
-        [
-          "-f",
-          "-c",
-          [
-            "compdef() { :; }",
-            'source "$1"',
-            "typeset -ga captured_options",
-            "typeset -gi arguments_call=0",
-            "_arguments() {",
-            "  (( arguments_call += 1 ))",
-            "  if (( arguments_call == 1 )); then",
-            "    state=args",
-            '    words=( "${words[@]:1}" )',
-            "    (( CURRENT -= 1 ))",
-            "  else",
-            '    captured_options=( "$@" )',
-            "  fi",
-            "}",
-            "words=(sks install '')",
-            "CURRENT=3",
-            "_nori_skillsets",
-            "print -rl -- $captured_options",
-          ].join("\n"),
-          "zsh",
-          tmpFile,
-        ],
-        {
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"],
-          timeout: 10_000,
-        },
+  it.runIf(hasZsh)(
+    "should offer Git install options through zsh compsys",
+    () => {
+      const result = generateZshCompletion();
+      const tmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "nori-zsh-install-completion-test-"),
       );
-      expect(options).toContain("--from");
-      expect(options).toContain("--trust-source");
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+      const tmpFile = path.join(tmpDir, "completion.zsh");
+      const zcompdump = path.join(tmpDir, ".zcompdump");
+      try {
+        fs.writeFileSync(tmpFile, result);
+        const options = execFileSync(
+          "zsh",
+          [
+            "-f",
+            "-c",
+            [
+              "zmodload zsh/zpty",
+              "zpty nori env COLUMNS=120 PS1='NORI_PROMPT> ' zsh -dfi",
+              "read_until_prompt() {",
+              "  local chunk output=''",
+              "  integer attempts=0",
+              "  while (( attempts++ < 200 )); do",
+              "    if zpty -r nori chunk '*NORI_PROMPT> *' 2>/dev/null; then",
+              "      output+=$chunk",
+              "      break",
+              "    fi",
+              "    sleep 0.01",
+              "  done",
+              "  print -r -- $output",
+              "}",
+              "read_until_prompt >/dev/null",
+              "zpty -w nori \"autoload -Uz compinit; compinit -u -d ${(q)2}; source ${(q)1}\"$'\\n'",
+              "read_until_prompt >/dev/null",
+              "zpty -w nori $'sks --install-dir /tmp --silent install --\\t\\t\\003'",
+              "read_until_prompt",
+              "zpty -d nori",
+            ].join("\n"),
+            "zsh",
+            tmpFile,
+            zcompdump,
+          ],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 10_000,
+          },
+        );
+        expect(options).toContain("--from");
+        expect(options).toContain("--trust-source");
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("completionMain", () => {

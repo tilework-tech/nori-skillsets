@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { saveTestingConfig } from "@/cli/test-utils/config.js";
 
 // Mock os.homedir so config paths resolve to temp directory
@@ -117,6 +118,44 @@ describe("clearMain", () => {
 
     // Verify auth was preserved
     expect(config?.auth?.username).toBe("user@example.com");
+  });
+
+  it("does not clear files while another mutation owns the lock", async () => {
+    await saveTestingConfig({
+      username: null,
+      organizationUrl: null,
+      activeSkillset: "senior-swe",
+      installDir: tempDir,
+    });
+    const markerPath = path.join(tempDir, ".claude", ".nori-managed");
+    await fs.writeFile(markerPath, "senior-swe");
+
+    let release!: () => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const canFinish = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = withInstallLock({
+      operation: async () => {
+        markStarted();
+        await canFinish;
+      },
+    });
+    await started;
+
+    try {
+      await expect(clearMain()).rejects.toThrow(
+        /another Nori installation is already in progress/i,
+      );
+      await expect(fs.readFile(markerPath, "utf8")).resolves.toBe("senior-swe");
+      expect((await loadConfig())?.activeSkillset).toBe("senior-swe");
+    } finally {
+      release();
+      await holder;
+    }
   });
 
   it("should handle case when no config exists", async () => {

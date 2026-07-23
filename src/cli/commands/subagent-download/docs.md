@@ -15,6 +15,7 @@ The subagent-download command downloads and installs individual subagent package
 - The UX flow is delegated to `subagentDownloadFlow` from `@/cli/prompts/flows/subagentDownload.js`, following the same callback-injection pattern as all other flows.
 - Package mechanics come from the shared primitives in @/src/packaging/: per-registry search and message formatting from `registryLookup.ts`, atomic install/update from `atomicReplace.ts`, and `.nori-version` provenance from `provenance.ts`. Search errors from `searchSpecificRegistry` are swallowed at the call site, preserving pre-refactor behavior.
 - Multi-agent broadcasting uses the same pattern as `skill-download`: after installing to the primary agent, the flattened `.md` file is copied to each additional default agent's agents directory. Default agents are resolved via `getDefaultAgents({ config })`, which automatically incorporates the global `--agent` flag override set by the CLI `preAction` hook (see @/src/cli/docs.md).
+- The complete download, profile-manifest update, and live multi-agent copy run under the reentrant global transaction lock, preventing partial interleaving with activation, cleanup, config mutation, or another live download.
 
 ### Core Implementation
 

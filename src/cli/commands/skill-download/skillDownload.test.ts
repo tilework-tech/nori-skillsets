@@ -95,6 +95,7 @@ vi.spyOn(console, "error").mockImplementation(() => undefined);
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig, getRegistryAuth } from "@/cli/config.js";
+import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { skillDownloadMain } from "./skillDownload.js";
@@ -196,6 +197,7 @@ describe("skill-download", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
     if (testDir) {
       await fs.rm(testDir, { recursive: true, force: true });
@@ -203,6 +205,24 @@ describe("skill-download", () => {
   });
 
   describe("skillDownloadMain", () => {
+    it("rejects a held install lock before requesting registry data", async () => {
+      vi.stubEnv("NORI_GLOBAL_CONFIG", testDir);
+      await createHeldInstallLock({ homeDir: testDir });
+
+      await expect(
+        skillDownloadMain({
+          skillSpec: "test-skill",
+          cwd: testDir,
+        }),
+      ).rejects.toThrow(/another Nori installation is already in progress/i);
+
+      expect(registrarApi.getSkillPackument).not.toHaveBeenCalled();
+      expect(registrarApi.downloadSkillTarball).not.toHaveBeenCalled();
+      await expect(
+        fs.access(path.join(skillsDir, "test-skill")),
+      ).rejects.toThrow();
+    });
+
     it("should download and install skill to correct directory", async () => {
       // Mock config (no private registries)
       vi.mocked(loadConfig).mockResolvedValue({
