@@ -87,9 +87,7 @@ const collectArchiveFilePaths = async (args: {
     const realPath = await fs.realpath(absolutePath).catch(() => null);
     if (
       realPath == null ||
-      realPath
-        .split(path.sep)
-        .some((segment) => segment.toLowerCase() === ".git") ||
+      realPath.split(path.sep).some((segment) => segment === ".git") ||
       excludedRealPaths.some((excludedPath) => {
         const relativeToExcluded = path.relative(excludedPath, realPath);
         return (
@@ -125,30 +123,85 @@ const collectArchiveFilePaths = async (args: {
   return files;
 };
 
-const findNearestGitEntry = async (args: {
+const findAncestorGitEntries = async (args: {
   sourceDir: string;
-}): Promise<string | null> => {
+}): Promise<Array<string>> => {
   let currentDir = await fs.realpath(args.sourceDir);
+  const gitEntries: Array<string> = [];
   while (true) {
     const candidate = path.join(currentDir, ".git");
     if ((await fs.lstat(candidate).catch(() => null)) != null) {
-      return candidate;
+      gitEntries.push(candidate);
     }
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) {
-      return null;
+      return gitEntries;
     }
     currentDir = parentDir;
   }
 };
 
-const resolveGitMetadataRealPaths = async (args: {
-  sourceDir: string;
+const isGitEntry = async (args: {
+  dir: string;
+  entryName: string;
+}): Promise<boolean> => {
+  const { dir, entryName } = args;
+  if (entryName === ".git") {
+    return true;
+  }
+  if (entryName.toLowerCase() !== ".git") {
+    return false;
+  }
+
+  const [entryRealPath, dotGitRealPath] = await Promise.all([
+    fs.realpath(path.join(dir, entryName)).catch(() => null),
+    fs.realpath(path.join(dir, ".git")).catch(() => null),
+  ]);
+  return entryRealPath != null && entryRealPath === dotGitRealPath;
+};
+
+const findReachableGitEntries = async (args: {
+  dir: string;
+  relativeDir: string;
+  visitedRealDirs: Set<string>;
 }): Promise<Array<string>> => {
-  const dotGitPath = await findNearestGitEntry(args);
-  if (dotGitPath == null) {
+  const { dir, relativeDir, visitedRealDirs } = args;
+  const realDir = await fs.realpath(dir);
+  if (visitedRealDirs.has(realDir)) {
     return [];
   }
+  visitedRealDirs.add(realDir);
+
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const gitEntries: Array<string> = [];
+  for (const entry of entries) {
+    const absolutePath = path.join(dir, entry.name);
+    const relativePath = path.join(relativeDir, entry.name);
+    if (await isGitEntry({ dir, entryName: entry.name })) {
+      gitEntries.push(absolutePath);
+      continue;
+    }
+    if (shouldExcludeFromUpload({ relativePath })) {
+      continue;
+    }
+    const stat = await fs.stat(absolutePath).catch(() => null);
+    if (stat?.isDirectory() === true) {
+      gitEntries.push(
+        ...(await findReachableGitEntries({
+          dir: absolutePath,
+          relativeDir: relativePath,
+          visitedRealDirs,
+        })),
+      );
+    }
+  }
+  return gitEntries;
+};
+
+const resolveGitMetadataRealPaths = async (args: {
+  dotGitPath: string;
+}): Promise<Array<string>> => {
+  const { dotGitPath } = args;
   const dotGitRealPath = await fs.realpath(dotGitPath).catch(() => null);
   if (dotGitRealPath == null) {
     return [];
@@ -156,24 +209,23 @@ const resolveGitMetadataRealPaths = async (args: {
 
   const excludedPaths = [dotGitRealPath];
   const stat = await fs.stat(dotGitPath).catch(() => null);
-  if (stat?.isFile() !== true) {
-    return excludedPaths;
+  let gitDirRealPath = stat?.isDirectory() === true ? dotGitRealPath : null;
+  if (stat?.isFile() === true) {
+    const pointer = await fs.readFile(dotGitPath, "utf-8").catch(() => null);
+    const gitDir = pointer?.match(/^gitdir:\s*(.+?)\s*$/i)?.[1];
+    if (gitDir != null) {
+      gitDirRealPath = await fs
+        .realpath(path.resolve(path.dirname(dotGitPath), gitDir))
+        .catch(() => null);
+    }
   }
-
-  const pointer = await fs.readFile(dotGitPath, "utf-8").catch(() => null);
-  const gitDir = pointer?.match(/^gitdir:\s*(.+?)\s*$/i)?.[1];
-  if (gitDir == null) {
-    return excludedPaths;
-  }
-
-  const gitDirRealPath = await fs
-    .realpath(path.resolve(path.dirname(dotGitPath), gitDir))
-    .catch(() => null);
   if (gitDirRealPath == null) {
     return excludedPaths;
   }
+  if (gitDirRealPath !== dotGitRealPath) {
+    excludedPaths.push(gitDirRealPath);
+  }
 
-  excludedPaths.push(gitDirRealPath);
   const commonDir = await fs
     .readFile(path.join(gitDirRealPath, "commondir"), "utf-8")
     .catch(() => null);
@@ -186,6 +238,25 @@ const resolveGitMetadataRealPaths = async (args: {
     }
   }
   return excludedPaths;
+};
+
+const findGitMetadataRealPaths = async (args: {
+  sourceDir: string;
+}): Promise<Array<string>> => {
+  const { sourceDir } = args;
+  const gitEntries = await findReachableGitEntries({
+    dir: sourceDir,
+    relativeDir: "",
+    visitedRealDirs: new Set(),
+  });
+  gitEntries.push(...(await findAncestorGitEntries({ sourceDir })));
+
+  const metadataPaths = await Promise.all(
+    [...new Set(gitEntries)].map((dotGitPath) =>
+      resolveGitMetadataRealPaths({ dotGitPath }),
+    ),
+  );
+  return [...new Set(metadataPaths.flat())];
 };
 
 /**
@@ -204,7 +275,7 @@ export const createArchive = async (args: {
   sourceDir: string;
 }): Promise<Buffer> => {
   const { sourceDir } = args;
-  const excludedRealPaths = await resolveGitMetadataRealPaths({ sourceDir });
+  const excludedRealPaths = await findGitMetadataRealPaths({ sourceDir });
 
   const relPaths = await collectArchiveFilePaths({
     ancestorRealDirs: new Set(),

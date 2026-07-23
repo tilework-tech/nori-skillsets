@@ -53,6 +53,65 @@ const seedSourceDir = async (): Promise<string> => {
   return sourceDir;
 };
 
+const archiveAndExtract = async (args: {
+  destinationName: string;
+  sourceDir: string;
+}): Promise<string> => {
+  const archive = await createArchive({ sourceDir: args.sourceDir });
+  const destDir = path.join(tempDir, args.destinationName);
+  await fs.mkdir(destDir, { recursive: true });
+  await extractArchive({
+    tarballData: toArrayBuffer({ buf: archive }),
+    targetDir: destDir,
+  });
+  return destDir;
+};
+
+const createLinkedWorktree = async (args: {
+  symlinkGitDir: boolean;
+}): Promise<{ commonMetadataDir: string; worktreeDir: string }> => {
+  const repositoryDir = path.join(tempDir, "repository");
+  const commonMetadataDir = path.join(tempDir, "shared-metadata");
+  const worktreeDir = path.join(tempDir, "linked-worktree");
+  await execFileAsync(
+    "git",
+    ["init", "--quiet", "--separate-git-dir", commonMetadataDir, repositoryDir],
+    { cwd: tempDir },
+  );
+  await fs.writeFile(
+    path.join(repositoryDir, "nori.json"),
+    '{"name":"linked"}',
+  );
+  await execFileAsync("git", ["add", "nori.json"], { cwd: repositoryDir });
+  await execFileAsync(
+    "git",
+    [
+      "-c",
+      "user.name=Nori Test",
+      "-c",
+      "user.email=nori-test@example.invalid",
+      "commit",
+      "--quiet",
+      "-m",
+      "initial",
+    ],
+    { cwd: repositoryDir },
+  );
+  await execFileAsync(
+    "git",
+    ["worktree", "add", "--quiet", "--detach", worktreeDir],
+    { cwd: repositoryDir },
+  );
+  if (args.symlinkGitDir) {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--git-dir"], {
+      cwd: worktreeDir,
+    });
+    await fs.unlink(path.join(worktreeDir, ".git"));
+    await fs.symlink(stdout.trim(), path.join(worktreeDir, ".git"), "dir");
+  }
+  return { commonMetadataDir, worktreeDir };
+};
+
 describe("isGzipped", () => {
   it("detects gzip magic bytes", () => {
     expect(isGzipped({ buffer: Buffer.from([0x1f, 0x8b, 0x00]) })).toBe(true);
@@ -167,62 +226,148 @@ describe("createArchive + extractArchive roundtrip", () => {
   });
 
   it("excludes aliases into a linked worktree's common Git metadata", async () => {
-    const repositoryDir = path.join(tempDir, "repository");
-    const commonMetadataDir = path.join(tempDir, "shared-metadata");
-    const worktreeDir = path.join(tempDir, "linked-worktree");
-    await execFileAsync(
-      "git",
-      [
-        "init",
-        "--quiet",
-        "--separate-git-dir",
-        commonMetadataDir,
-        repositoryDir,
-      ],
-      { cwd: tempDir },
-    );
-    await fs.writeFile(
-      path.join(repositoryDir, "nori.json"),
-      '{"name":"linked"}',
-    );
-    await execFileAsync("git", ["add", "nori.json"], { cwd: repositoryDir });
-    await execFileAsync(
-      "git",
-      [
-        "-c",
-        "user.name=Nori Test",
-        "-c",
-        "user.email=nori-test@example.invalid",
-        "commit",
-        "--quiet",
-        "-m",
-        "initial",
-      ],
-      { cwd: repositoryDir },
-    );
-    await execFileAsync(
-      "git",
-      ["worktree", "add", "--quiet", "--detach", worktreeDir],
-      { cwd: repositoryDir },
-    );
+    const { commonMetadataDir, worktreeDir } = await createLinkedWorktree({
+      symlinkGitDir: false,
+    });
     await fs.symlink(
       commonMetadataDir,
       path.join(worktreeDir, "metadata"),
       "dir",
     );
 
-    const archive = await createArchive({ sourceDir: worktreeDir });
-    const destDir = path.join(tempDir, "dest-linked-worktree");
-    await fs.mkdir(destDir);
-    await extractArchive({
-      tarballData: toArrayBuffer({ buf: archive }),
-      targetDir: destDir,
+    const destDir = await archiveAndExtract({
+      destinationName: "dest-linked-worktree",
+      sourceDir: worktreeDir,
     });
 
     await expect(
       fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
     ).resolves.toContain('"name":"linked"');
     await expect(fs.access(path.join(destDir, "metadata"))).rejects.toThrow();
+  });
+
+  it("excludes common Git metadata when a worktree .git is a directory symlink", async () => {
+    const { commonMetadataDir, worktreeDir } = await createLinkedWorktree({
+      symlinkGitDir: true,
+    });
+    await fs.symlink(
+      commonMetadataDir,
+      path.join(worktreeDir, "metadata"),
+      "dir",
+    );
+
+    const destDir = await archiveAndExtract({
+      destinationName: "dest-symlinked-worktree",
+      sourceDir: worktreeDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    ).resolves.toContain('"name":"linked"');
+    await expect(fs.access(path.join(destDir, "metadata"))).rejects.toThrow();
+  });
+
+  it("excludes aliases into nested repositories with separate Git metadata", async () => {
+    const sourceDir = await seedSourceDir();
+    const nestedRepositoryDir = path.join(sourceDir, "nested");
+    const nestedMetadataDir = path.join(tempDir, "nested-metadata");
+    await fs.mkdir(nestedRepositoryDir);
+    await execFileAsync(
+      "git",
+      [
+        "init",
+        "--quiet",
+        "--separate-git-dir",
+        nestedMetadataDir,
+        nestedRepositoryDir,
+      ],
+      { cwd: tempDir },
+    );
+    await fs.symlink(
+      nestedMetadataDir,
+      path.join(sourceDir, "metadata-alias"),
+      "dir",
+    );
+
+    const destDir = await archiveAndExtract({
+      destinationName: "dest-nested-repository",
+      sourceDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    ).resolves.toContain('"name":"x"');
+    await expect(
+      fs.access(path.join(destDir, "metadata-alias")),
+    ).rejects.toThrow();
+  });
+
+  it("excludes aliases into every ancestor repository's Git metadata", async () => {
+    const outerRepositoryDir = path.join(tempDir, "outer-repository");
+    const outerMetadataDir = path.join(tempDir, "outer-metadata");
+    const nestedRepositoryDir = path.join(outerRepositoryDir, "nested");
+    await execFileAsync(
+      "git",
+      [
+        "init",
+        "--quiet",
+        "--separate-git-dir",
+        outerMetadataDir,
+        outerRepositoryDir,
+      ],
+      { cwd: tempDir },
+    );
+    await fs.mkdir(nestedRepositoryDir);
+    await execFileAsync("git", ["init", "--quiet"], {
+      cwd: nestedRepositoryDir,
+    });
+    await fs.writeFile(
+      path.join(nestedRepositoryDir, "nori.json"),
+      '{"name":"nested"}',
+    );
+    await fs.symlink(
+      outerMetadataDir,
+      path.join(nestedRepositoryDir, "outer-metadata-alias"),
+      "dir",
+    );
+
+    const destDir = await archiveAndExtract({
+      destinationName: "dest-nested-ancestor",
+      sourceDir: nestedRepositoryDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
+    ).resolves.toContain('"name":"nested"');
+    await expect(
+      fs.access(path.join(destDir, "outer-metadata-alias")),
+    ).rejects.toThrow();
+  });
+
+  it("preserves authored .GIT directories on case-sensitive filesystems", async () => {
+    const sourceDir = await seedSourceDir();
+    await fs.mkdir(path.join(sourceDir, ".GIT"));
+    await fs.writeFile(
+      path.join(sourceDir, ".GIT", "README.md"),
+      "authored content",
+    );
+    if (
+      await fs
+        .realpath(path.join(sourceDir, ".git"))
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      return;
+    }
+
+    const destDir = await archiveAndExtract({
+      destinationName: "dest-uppercase-git",
+      sourceDir,
+    });
+
+    await expect(
+      fs.readFile(path.join(destDir, ".GIT", "README.md"), "utf-8"),
+    ).resolves.toBe("authored content");
   });
 
   it("excludes aliases into ancestor Git metadata for a subdirectory upload", async () => {
