@@ -52,13 +52,15 @@ const directoryExists = async (args: { dirPath: string }): Promise<boolean> => {
  *
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory
+ * @param args.persistInstallMarkers - Whether to write .nori-managed markers
  * @param args.skillset - Skillset name to write to .nori-managed markers
  */
 export const ensureNoriInitialized = async (args?: {
   installDir?: string | null;
+  persistInstallMarkers?: boolean | null;
   skillset?: string | null;
 }): Promise<void> => {
-  const { installDir, skillset } = args ?? {};
+  const { installDir, persistInstallMarkers, skillset } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -129,17 +131,19 @@ export const ensureNoriInitialized = async (args?: {
     }
   }
 
-  // Mark this directory as having all default agents installed
-  for (const agentName of defaultAgentNames) {
-    const agent = AgentRegistry.getInstance().get({ name: agentName });
-    markInstall({
-      agent,
-      path: normalizedInstallDir,
-      skillsetName:
-        capturedSkillsetName ??
-        skillset ??
-        existingConfig?.activeSkillset ??
-        null,
-    });
+  if (persistInstallMarkers !== false) {
+    // Mark this directory as having all default agents installed
+    for (const agentName of defaultAgentNames) {
+      const agent = AgentRegistry.getInstance().get({ name: agentName });
+      markInstall({
+        agent,
+        path: normalizedInstallDir,
+        skillsetName:
+          capturedSkillsetName ??
+          skillset ??
+          existingConfig?.activeSkillset ??
+          null,
+      });
+    }
   }
 };
