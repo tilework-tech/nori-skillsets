@@ -9,6 +9,7 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 
 import { factoryResetMain } from "./factoryReset.js";
 
@@ -64,6 +65,7 @@ describe("factoryResetMain", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(tempDir, { recursive: true, force: true });
     AgentRegistry.resetInstance();
   });
@@ -75,6 +77,27 @@ describe("factoryResetMain", () => {
         path: tempDir,
       }),
     ).rejects.toThrow("Unknown agent");
+  });
+
+  it("rejects a held install lock before deleting agent artifacts", async () => {
+    vi.stubEnv("NORI_GLOBAL_CONFIG", tempDir);
+    const claudeDir = path.join(tempDir, ".claude");
+    await fs.mkdir(claudeDir, { recursive: true });
+    await createHeldInstallLock({ homeDir: tempDir });
+    const { factoryResetFlow } =
+      await import("@/cli/prompts/flows/factoryReset.js");
+
+    await expect(
+      factoryResetMain({
+        agentName: "claude-code",
+        path: tempDir,
+      }),
+    ).rejects.toThrow(/another Nori installation is already in progress/i);
+
+    await expect(fs.stat(claudeDir)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    });
+    expect(factoryResetFlow).not.toHaveBeenCalled();
   });
 
   it("should call factoryResetFlow and delete artifacts via callbacks", async () => {

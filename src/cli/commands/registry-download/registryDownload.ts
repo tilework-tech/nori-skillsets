@@ -20,6 +20,7 @@ import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { isGitGovernedPath } from "@/cli/features/gitSourceAuthority.js";
+import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -387,7 +388,7 @@ const downloadSubagentDependencies = async (args: {
  *
  * @returns Result indicating success or failure
  */
-export const registryDownloadMain = async (args: {
+const registryDownloadMainImpl = async (args: {
   packageSpec: string;
   cwd?: string | null;
   installDir?: string | null;
@@ -942,4 +943,21 @@ export const registerRegistryDownloadCommand = (args: {
         }
       },
     );
+};
+
+export const registryDownloadMain = async (args: {
+  packageSpec: string;
+  cwd?: string | null;
+  installDir?: string | null;
+  registryUrl?: string | null;
+  listVersions?: boolean | null;
+  cliName?: CliName | null;
+  nonInteractive?: boolean | null;
+  silent?: boolean | null;
+}): Promise<RegistryDownloadStatus> => {
+  // Read-only version listing must not serialize behind or create install state.
+  if (args.listVersions === true) {
+    return registryDownloadMainImpl(args);
+  }
+  return withInstallLock({ operation: () => registryDownloadMainImpl(args) });
 };
