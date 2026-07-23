@@ -60,105 +60,34 @@ export const extractArchive = async (args: {
   }
 };
 
-const isGitMetadataEntry = async (args: {
-  dir: string;
-  entryName: string;
-}): Promise<boolean> => {
-  const { dir, entryName } = args;
-  if (entryName === ".git") return true;
-  if (entryName.toLowerCase() !== ".git") return false;
-
-  const [entryRealPath, dotGitRealPath] = await Promise.all([
-    fs.realpath(path.join(dir, entryName)).catch(() => null),
-    fs.realpath(path.join(dir, ".git")).catch(() => null),
-  ]);
-  return entryRealPath != null && entryRealPath === dotGitRealPath;
-};
-
-const resolveArchiveSource = async (args: {
-  sourceDir: string;
-}): Promise<string> => {
-  let unresolvedPath = path.resolve(args.sourceDir);
-  const visitedSymlinks = new Set<string>();
-
-  while (true) {
-    const parsedPath = path.parse(unresolvedPath);
-    const segments = unresolvedPath
-      .slice(parsedPath.root.length)
-      .split(path.sep)
-      .filter((segment) => segment.length > 0);
-    let resolvedPath = parsedPath.root;
-    let followedSymlink = false;
-
-    for (let index = 0; index < segments.length; index++) {
-      const entryName = segments[index];
-      const entryPath = path.join(resolvedPath, entryName);
-      if (await isGitMetadataEntry({ dir: resolvedPath, entryName })) {
-        throw new Error(
-          `Upload archive source cannot be inside Git metadata: ${entryPath}`,
-        );
-      }
-
-      const stat = await fs.lstat(entryPath);
-      if (!stat.isSymbolicLink()) {
-        resolvedPath = entryPath;
-        continue;
-      }
-
-      if (visitedSymlinks.has(entryPath)) {
-        throw new Error(
-          `Upload archive source contains a symbolic link cycle: ${args.sourceDir}`,
-        );
-      }
-      visitedSymlinks.add(entryPath);
-      const linkTarget = await fs.readlink(entryPath);
-      unresolvedPath = path.resolve(
-        resolvedPath,
-        linkTarget,
-        ...segments.slice(index + 1),
-      );
-      followedSymlink = true;
-      break;
-    }
-
-    if (!followedSymlink) {
-      return await fs.realpath(resolvedPath);
-    }
-  }
-};
-
 const collectArchiveFilePaths = async (args: {
+  ancestorRealDirs: ReadonlySet<string>;
   dir: string;
   relativeDir: string;
 }): Promise<Array<string>> => {
-  const { dir, relativeDir } = args;
+  const { ancestorRealDirs, dir, relativeDir } = args;
+  const realDir = await fs.realpath(dir);
+  if (ancestorRealDirs.has(realDir)) {
+    return [];
+  }
+
+  const nextAncestorRealDirs = new Set(ancestorRealDirs);
+  nextAncestorRealDirs.add(realDir);
+
   const entries = await fs.readdir(dir, { withFileTypes: true });
-  const hasCargoManifest = entries.some(
-    (entry) => entry.name === "Cargo.toml" && entry.isFile(),
-  );
   const files: Array<string> = [];
 
   for (const entry of entries) {
     const absolutePath = path.join(dir, entry.name);
     const relativePath = path.join(relativeDir, entry.name);
-    if (await isGitMetadataEntry({ dir, entryName: entry.name })) {
+    const stat = await fs.stat(absolutePath).catch(() => null);
+    if (stat == null) {
       continue;
-    }
-    if (shouldExcludeFromUpload({ relativePath })) {
-      continue;
-    }
-    if (hasCargoManifest && entry.name === "target" && entry.isDirectory()) {
-      continue;
-    }
-    const stat = await fs.lstat(absolutePath);
-    if (stat.isSymbolicLink()) {
-      throw new Error(
-        `Upload archives cannot contain symbolic links: ${relativePath}`,
-      );
     }
     if (stat.isDirectory()) {
       files.push(
         ...(await collectArchiveFilePaths({
+          ancestorRealDirs: nextAncestorRealDirs,
           dir: absolutePath,
           relativeDir: relativePath,
         })),
@@ -173,37 +102,12 @@ const collectArchiveFilePaths = async (args: {
   return files;
 };
 
-const inspectArchiveSource = async (args: {
-  sourceDir: string;
-}): Promise<{ resolvedSourceDir: string; relPaths: Array<string> }> => {
-  const resolvedSourceDir = await resolveArchiveSource(args);
-  const relPaths = await collectArchiveFilePaths({
-    dir: resolvedSourceDir,
-    relativeDir: "",
-  });
-  return { resolvedSourceDir, relPaths };
-};
-
-/**
- * Validate that a package source contains no upload-eligible symbolic links.
- * The package root itself may be linked; it is resolved before validation.
- *
- * @param args - The function arguments
- * @param args.sourceDir - The package directory to validate
- */
-export const validateArchiveSource = async (args: {
-  sourceDir: string;
-}): Promise<void> => {
-  await inspectArchiveSource(args);
-};
-
 /**
  * Create a gzipped tarball of a package source directory.
  *
- * Resolves a linked package root, then packs regular files except paths
- * excluded by the upload filter (Git metadata, build output, etc.).
- * Upload-eligible symbolic links below the package root are rejected.
- * Produces the archive in memory without writing beside the source directory.
+ * Packs every file (following symlinks, so linked skillsets work) except
+ * paths excluded by the upload filter (node_modules, build output, etc.).
+ * Uses a temporary .tgz next to the source dir and always cleans it up.
  *
  * @param args - The function arguments
  * @param args.sourceDir - The package directory to pack
@@ -214,8 +118,11 @@ export const createArchive = async (args: {
   sourceDir: string;
 }): Promise<Buffer> => {
   const { sourceDir } = args;
-  const { resolvedSourceDir, relPaths } = await inspectArchiveSource({
-    sourceDir,
+
+  const relPaths = await collectArchiveFilePaths({
+    ancestorRealDirs: new Set(),
+    dir: sourceDir,
+    relativeDir: "",
   });
   const cargoManifestDirs = collectCargoManifestDirs({
     relativePaths: relPaths,
@@ -226,34 +133,21 @@ export const createArchive = async (args: {
       !shouldExcludeFromUpload({ relativePath, cargoManifestDirs }),
   );
 
-  let packedSymlinkPath: string | null = null;
-  const archiveStream = tar.create(
-    {
-      cwd: resolvedSourceDir,
-      filter: (entryPath, stat) => {
-        if ("isSymbolicLink" in stat && stat.isSymbolicLink()) {
-          packedSymlinkPath = entryPath;
-          return false;
-        }
-        return true;
-      },
-      follow: false,
-      gzip: true,
-      noDirRecurse: true,
-      strict: true,
-    },
-    filesToPack.map((relativePath) => `./${relativePath}`),
+  const tempTarPath = path.join(
+    sourceDir,
+    "..",
+    `.${path.basename(sourceDir)}-upload.tgz`,
   );
-  const chunks: Array<Buffer> = [];
-  for await (const chunk of archiveStream) {
-    chunks.push(Buffer.from(chunk));
-  }
-  if (packedSymlinkPath != null) {
-    throw new Error(
-      `Upload archives cannot contain symbolic links: ${packedSymlinkPath}`,
+
+  try {
+    await tar.create(
+      { gzip: true, file: tempTarPath, cwd: sourceDir, follow: true },
+      filesToPack,
     );
+    return await fs.readFile(tempTarPath);
+  } finally {
+    await fs.unlink(tempTarPath).catch(() => undefined);
   }
-  return Buffer.concat(chunks);
 };
 
 /**

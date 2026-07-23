@@ -379,8 +379,6 @@ describe("registry-install", () => {
       success: false,
       message: "Registrar update refused for a Git working tree",
     });
-    expect(fs.stat).not.toHaveBeenCalled();
-    expect(clack.log.warn).not.toHaveBeenCalled();
     expect(mockSwitchSkillset).not.toHaveBeenCalled();
     expect(installMain).not.toHaveBeenCalled();
   });

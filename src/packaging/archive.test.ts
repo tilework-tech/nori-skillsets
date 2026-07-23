@@ -49,26 +49,6 @@ const seedSourceDir = async (): Promise<string> => {
   return sourceDir;
 };
 
-const seedGitMetadata = async (gitDir: string): Promise<void> => {
-  await fs.mkdir(path.join(gitDir, "objects"), { recursive: true });
-  await fs.writeFile(path.join(gitDir, "config"), "url=https://secret");
-  await fs.writeFile(path.join(gitDir, "objects", "payload"), "git object");
-};
-
-const archiveAndExtract = async (args: {
-  destinationName: string;
-  sourceDir: string;
-}): Promise<string> => {
-  const archive = await createArchive({ sourceDir: args.sourceDir });
-  const destDir = path.join(tempDir, args.destinationName);
-  await fs.mkdir(destDir, { recursive: true });
-  await extractArchive({
-    tarballData: toArrayBuffer({ buf: archive }),
-    targetDir: destDir,
-  });
-  return destDir;
-};
-
 describe("isGzipped", () => {
   it("detects gzip magic bytes", () => {
     expect(isGzipped({ buffer: Buffer.from([0x1f, 0x8b, 0x00]) })).toBe(true);
@@ -80,8 +60,6 @@ describe("isGzipped", () => {
 describe("createArchive + extractArchive roundtrip", () => {
   it("packs files, excludes upload-filtered paths, and extracts them back", async () => {
     const sourceDir = await seedSourceDir();
-    await seedGitMetadata(path.join(sourceDir, ".git"));
-    await fs.writeFile(path.join(sourceDir, ".gitignore"), ".nori/\n");
     const archive = await createArchive({ sourceDir });
     expect(isGzipped({ buffer: archive })).toBe(true);
 
@@ -108,170 +86,33 @@ describe("createArchive + extractArchive roundtrip", () => {
     await expect(
       fs.access(path.join(destDir, "node_modules")),
     ).rejects.toThrow();
-    await expect(fs.access(path.join(destDir, ".git"))).rejects.toThrow();
-    await expect(
-      fs.readFile(path.join(destDir, ".gitignore"), "utf-8"),
-    ).resolves.toBe(".nori/\n");
   });
 
-  it("resolves a symlinked top-level source directory", async () => {
+  it("packs files from symlinked directories", async () => {
     const sourceDir = await seedSourceDir();
-    const linkedSourceDir = path.join(tempDir, "linked-source");
-    await fs.symlink(sourceDir, linkedSourceDir, "dir");
-
-    const destDir = await archiveAndExtract({
-      destinationName: "dest-linked-source",
-      sourceDir: linkedSourceDir,
-    });
-
-    await expect(
-      fs.readFile(path.join(destDir, "nori.json"), "utf-8"),
-    ).resolves.toContain('"name":"x"');
-  });
-
-  it.each([".git", path.join(".git", "objects")])(
-    "rejects a linked source rooted at %s",
-    async (gitMetadataPath) => {
-      const repositoryDir = path.join(
-        tempDir,
-        `repository-${path.basename(gitMetadataPath)}`,
-      );
-      await seedGitMetadata(path.join(repositoryDir, ".git"));
-      const linkedSourceDir = path.join(
-        tempDir,
-        `linked-${path.basename(gitMetadataPath)}`,
-      );
-      await fs.symlink(
-        path.join(repositoryDir, gitMetadataPath),
-        linkedSourceDir,
-        "dir",
-      );
-
-      await expect(
-        createArchive({ sourceDir: linkedSourceDir }),
-      ).rejects.toThrow(/archive source.*Git metadata/i);
-    },
-  );
-
-  it("rejects a linked source that passes through a symlinked .git directory", async () => {
-    const repositoryDir = path.join(tempDir, "repository-symlinked-git");
-    const externalGitDir = path.join(tempDir, "external-git-metadata");
-    await fs.mkdir(repositoryDir);
-    await seedGitMetadata(externalGitDir);
-    await fs.symlink(externalGitDir, path.join(repositoryDir, ".git"), "dir");
-    const linkedSourceDir = path.join(tempDir, "linked-symlinked-git");
-    await fs.symlink(path.join(repositoryDir, ".git"), linkedSourceDir, "dir");
-
-    await expect(createArchive({ sourceDir: linkedSourceDir })).rejects.toThrow(
-      /archive source.*Git metadata/i,
+    const linkedSkillDir = path.join(tempDir, "linked-skill");
+    await fs.mkdir(linkedSkillDir, { recursive: true });
+    await fs.writeFile(path.join(linkedSkillDir, "SKILL.md"), "# linked");
+    await fs.symlink(
+      linkedSkillDir,
+      path.join(sourceDir, "skills", "linked"),
+      "dir",
     );
-  });
 
-  it("does not overwrite a sibling matching the former temp archive name", async () => {
-    const sourceDir = await seedSourceDir();
-    const siblingPath = path.join(tempDir, ".source-upload.tgz");
-    await fs.writeFile(siblingPath, "keep me");
-
-    await createArchive({ sourceDir });
-
-    await expect(fs.readFile(siblingPath, "utf-8")).resolves.toBe("keep me");
-  });
-
-  it.each([
-    { linkName: "linked-file", targetName: "nori.json", type: "file" },
-    { linkName: "linked-directory", targetName: "skills", type: "directory" },
-    { linkName: "broken-link", targetName: "missing", type: "broken" },
-  ])("rejects an interior $type symlink", async ({ linkName, targetName }) => {
-    const sourceDir = await seedSourceDir();
-    await fs.symlink(targetName, path.join(sourceDir, linkName));
-
-    await expect(createArchive({ sourceDir })).rejects.toThrow(
-      new RegExp(`symbolic links?.*${linkName}`, "i"),
-    );
-  });
-
-  it("preserves authored .GIT directories on case-sensitive filesystems", async () => {
-    const sourceDir = await seedSourceDir();
-    await fs.mkdir(path.join(sourceDir, ".GIT"));
-    await fs.writeFile(
-      path.join(sourceDir, ".GIT", "README.md"),
-      "authored content",
-    );
-    const aliasesLowercaseGit = await fs
-      .realpath(path.join(sourceDir, ".git"))
-      .then(() => true)
-      .catch(() => false);
-
-    const destDir = await archiveAndExtract({
-      destinationName: "dest-uppercase-git",
-      sourceDir,
+    const archive = await createArchive({ sourceDir });
+    const destDir = path.join(tempDir, "dest-linked");
+    await fs.mkdir(destDir, { recursive: true });
+    await extractArchive({
+      tarballData: toArrayBuffer({ buf: archive }),
+      targetDir: destDir,
     });
 
-    if (aliasesLowercaseGit) {
-      await expect(fs.access(path.join(destDir, ".GIT"))).rejects.toThrow();
-    } else {
-      await expect(
-        fs.readFile(path.join(destDir, ".GIT", "README.md"), "utf-8"),
-      ).resolves.toBe("authored content");
-    }
-  });
-
-  it("excludes a case-variant alias to .git", async () => {
-    const sourceDir = await seedSourceDir();
-    await fs.mkdir(path.join(sourceDir, ".git"));
-    const caseVariantPath = path.join(sourceDir, ".GIT");
-    const namesAlias = await fs
-      .realpath(caseVariantPath)
-      .then(() => true)
-      .catch(() => false);
-    if (!namesAlias) {
-      await fs.symlink(".git", caseVariantPath, "dir");
-    }
-
-    const destDir = await archiveAndExtract({
-      destinationName: "dest-git-case-alias",
-      sourceDir,
-    });
-
-    await expect(fs.access(path.join(destDir, ".git"))).rejects.toThrow();
-    await expect(fs.access(path.join(destDir, ".GIT"))).rejects.toThrow();
-  });
-
-  it("ignores symlinks inside Cargo target output", async () => {
-    const sourceDir = await seedSourceDir();
-    await fs.writeFile(path.join(sourceDir, "Cargo.toml"), "[package]\n");
-    await fs.mkdir(path.join(sourceDir, "target"));
-    await fs.symlink("missing", path.join(sourceDir, "target", "ignored"));
-
-    const destDir = await archiveAndExtract({
-      destinationName: "dest-cargo-target",
-      sourceDir,
-    });
-
-    await expect(fs.access(path.join(destDir, "target"))).rejects.toThrow();
-  });
-
-  it("round-trips an authored filename beginning with @", async () => {
-    const tar = await import("tar");
-    const sourceDir = await seedSourceDir();
-    const payloadDir = path.join(tempDir, "payload");
-    const payloadTar = path.join(sourceDir, "@payload.tar");
-    await fs.mkdir(payloadDir);
-    await fs.writeFile(path.join(payloadDir, "injected.txt"), "not authored");
-    await tar.create({ cwd: payloadDir, file: payloadTar }, ["injected.txt"]);
-    const expected = await fs.readFile(payloadTar);
-
-    const destDir = await archiveAndExtract({
-      destinationName: "dest-at-filename",
-      sourceDir,
-    });
-
-    await expect(
-      fs.readFile(path.join(destDir, "@payload.tar")),
-    ).resolves.toEqual(expected);
-    await expect(
-      fs.access(path.join(destDir, "injected.txt")),
-    ).rejects.toThrow();
+    expect(
+      await fs.readFile(
+        path.join(destDir, "skills", "linked", "SKILL.md"),
+        "utf-8",
+      ),
+    ).toBe("# linked");
   });
 
   it("extracts plain (non-gzipped) tarballs too", async () => {

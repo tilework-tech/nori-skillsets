@@ -23,6 +23,7 @@ import {
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { guardPublicUpload } from "@/cli/commands/publicUploadGuard.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
+import { isGitGovernedPath } from "@/cli/features/gitSourceAuthority.js";
 import { bold } from "@/cli/logger.js";
 import { uploadFlow, listVersionsFlow } from "@/cli/prompts/flows/index.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -38,7 +39,6 @@ import {
 import { syncLocalStateAfterUpload } from "@/core/uploadSync.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
-import { validateArchiveSource } from "@/packaging/archive.js";
 import { isDirentDirectory } from "@/utils/dirent.js";
 import {
   parseNamespacedPackage,
@@ -823,6 +823,20 @@ export const registryUploadMain = async (args: {
     };
   }
 
+  if (dryRun !== true) {
+    try {
+      if (await isGitGovernedPath({ targetPath: skillsetDir })) {
+        const message = `Git-governed skillset detected at "${skillsetDir}"; Registrar upload refused. Publish this source through Git instead.`;
+        log.error(message);
+        return { success: false, cancelled: false, message };
+      }
+    } catch (error) {
+      const message = `Failed to inspect skillset source at "${skillsetDir}": ${error instanceof Error ? error.message : String(error)}`;
+      log.error(message);
+      return { success: false, cancelled: false, message };
+    }
+  }
+
   // Helper to sync local state after upload, surfacing non-fatal warnings
   // and swallowing errors (a sync failure must not mask a successful upload)
   const trySyncLocalState = async (syncArgs: {
@@ -868,14 +882,6 @@ export const registryUploadMain = async (args: {
       cancelled: false,
       message: `[Dry run] Would upload "${profileDisplayName}@${versionResult.version}" to ${targetRegistryUrl}`,
     };
-  }
-
-  try {
-    await validateArchiveSource({ sourceDir: skillsetDir });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.error(message);
-    return { success: false, cancelled: false, message };
   }
 
   // Backfill type field on existing nori.json files before upload
@@ -990,7 +996,6 @@ export const registryUploadMain = async (args: {
   // Use the upload flow for interactive upload
   // Store upload version for callbacks closure
   let uploadVersion: string | null = null;
-  let uploadFailureMessage: string | null = null;
 
   const result = await uploadFlow({
     profileDisplayName,
@@ -1017,10 +1022,9 @@ export const registryUploadMain = async (args: {
       },
       onUpload: async (uploadCallbackArgs) => {
         if (uploadVersion == null) {
-          uploadFailureMessage = "Version not determined";
-          return { success: false, error: uploadFailureMessage };
+          return { success: false, error: "Version not determined" };
         }
-        const uploadResult = await performUpload({
+        return performUpload({
           resolutionStrategy: uploadCallbackArgs.resolutionStrategy,
           subagentResolutionStrategy:
             uploadCallbackArgs.subagentResolutionStrategy,
@@ -1028,10 +1032,6 @@ export const registryUploadMain = async (args: {
           inlineSubagents: uploadCallbackArgs.inlineSubagentIds,
           uploadVersion,
         });
-        if (!uploadResult.success && "error" in uploadResult) {
-          uploadFailureMessage = uploadResult.error;
-        }
-        return uploadResult;
       },
       onReadLocalSkillMd: async ({ skillId }) => {
         const skillMdPath = path.join(
@@ -1073,13 +1073,6 @@ export const registryUploadMain = async (args: {
   });
 
   if (result == null) {
-    if (uploadFailureMessage != null) {
-      return {
-        success: false,
-        cancelled: false,
-        message: uploadFailureMessage,
-      };
-    }
     return {
       success: false,
       cancelled: !(nonInteractive ?? false),

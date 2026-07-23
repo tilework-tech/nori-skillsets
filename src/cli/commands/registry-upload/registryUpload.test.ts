@@ -149,6 +149,10 @@ import {
 } from "@/utils/fetch.js";
 
 import { registryUploadMain } from "./registryUpload.js";
+import {
+  commitTestGitRepository,
+  getTestGitStatus,
+} from "../../../../tests/helpers/gitRepository.js";
 
 const createManagedBlockMarker = async (dir: string): Promise<void> => {
   const claudeDir = path.join(dir, ".claude");
@@ -293,6 +297,48 @@ describe("registry-upload", () => {
   });
 
   describe("registryUploadMain", () => {
+    it("refuses to upload a Git-governed skillset to Registrar", async () => {
+      const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
+      await fs.mkdir(skillsetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(skillsetDir, "nori.json"),
+        JSON.stringify({
+          name: "my-profile",
+          version: "1.0.0",
+        }),
+      );
+      await fs.writeFile(
+        path.join(skillsetDir, "CLAUDE.md"),
+        "# Legacy instructions\n",
+      );
+      await commitTestGitRepository({ repositoryDir: skillsetDir });
+      vi.mocked(loadConfig).mockResolvedValue({
+        installDir: testDir,
+        auth: {
+          username: "test@example.com",
+          refreshToken: "test-token",
+          organizations: ["myorg"],
+          organizationUrl: "https://myorg.tilework.tech",
+        },
+      });
+      vi.mocked(getRegistryAuthToken).mockResolvedValue("auth-token");
+
+      const result = await registryUploadMain({
+        profileSpec: "myorg/my-profile",
+        cwd: testDir,
+        nonInteractive: true,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(false);
+      expect(result.message).toMatch(/Git.*Registrar upload refused/i);
+      expect(registrarApi.getPackument).not.toHaveBeenCalled();
+      expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
+      await expect(
+        getTestGitStatus({ repositoryDir: skillsetDir }),
+      ).resolves.toBe("");
+    });
+
     describe("profile spec parsing", () => {
       it("should reject invalid profile spec", async () => {
         vi.mocked(loadConfig).mockResolvedValue({
@@ -436,7 +482,6 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
           cwd: testDir,
-          nonInteractive: true,
         });
 
         expect(result.success).toBe(false);
@@ -1280,6 +1325,7 @@ describe("registry-upload", () => {
 
     describe("--list-versions flag", () => {
       it("should list versions when flag is set", async () => {
+        await fs.mkdir(path.join(skillsetsDir, ".git"));
         vi.mocked(loadConfig).mockResolvedValue({
           installDir: testDir,
           auth: {
@@ -1922,6 +1968,7 @@ describe("registry-upload", () => {
           path.join(skillsetDir, "AGENTS.md"),
           "# My Profile\n",
         );
+        await commitTestGitRepository({ repositoryDir: skillsetDir });
 
         vi.mocked(loadConfig).mockResolvedValue({
           installDir: testDir,
@@ -6154,7 +6201,7 @@ describe("registry-upload", () => {
         expect(registrarApi.uploadSkillset).toHaveBeenCalled();
       });
 
-      it("rejects a symlinked skill inside the skillset", async () => {
+      it("should detect symlinked skill subdirectories as inline candidates", async () => {
         // Create a skillset with a symlinked skill directory
         const skillsetDir = path.join(skillsetsDir, "myorg", "my-profile");
         await fs.mkdir(skillsetDir, { recursive: true });
@@ -6201,15 +6248,14 @@ describe("registry-upload", () => {
         const result = await registryUploadMain({
           profileSpec: "myorg/my-profile",
           cwd: testDir,
+          nonInteractive: true,
         });
 
-        expect(result.success).toBe(false);
-        expect(result.cancelled).toBe(false);
-        expect(getClackOutput()).toMatch(/symbolic links?.*skills.*my-skill/i);
-        expect(registrarApi.uploadSkillset).not.toHaveBeenCalled();
-        await expect(
-          fs.access(path.join(externalSkillDir, "nori.json")),
-        ).rejects.toThrow();
+        expect(result.success).toBe(true);
+
+        // The tarball should include the symlinked skill's SKILL.md
+        const uploadCall = vi.mocked(registrarApi.uploadSkillset).mock.calls[0];
+        expect(uploadCall).toBeDefined();
       });
     });
   });

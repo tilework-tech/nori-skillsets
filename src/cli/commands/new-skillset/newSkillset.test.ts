@@ -166,10 +166,21 @@ describe("newSkillsetMain", () => {
   );
 
   it.sequential(
-    "creates an independent repository despite inherited Git routing variables",
+    "creates an independent repository despite inherited Git routing and templates",
     async () => {
       const redirectedGitDir = path.join(testHomeDir, "redirected.git");
+      const templateDir = path.join(testHomeDir, "git-template");
+      await fs.mkdir(templateDir);
+      await fs.writeFile(
+        path.join(templateDir, "config"),
+        '[remote "origin"]\n\turl = https://example.invalid/repo.git\n',
+      );
       vi.stubEnv("GIT_DIR", redirectedGitDir);
+      vi.stubEnv("GIT_TEMPLATE_DIR", templateDir);
+      vi.stubEnv("GIT_CONFIG_COUNT", "1");
+      vi.stubEnv("GIT_CONFIG_KEY_0", "init.templateDir");
+      vi.stubEnv("GIT_CONFIG_VALUE_0", templateDir);
+
       const result = await newSkillsetMain({
         skillsetName: "independent-repository",
       });
@@ -188,34 +199,6 @@ describe("newSkillsetMain", () => {
       );
       expect(path.resolve(stdout.trim())).toBe(path.resolve(destDir));
       await expect(fs.access(redirectedGitDir)).rejects.toThrow();
-    },
-  );
-
-  it.sequential(
-    "does not inherit Git templates that configure a remote",
-    async () => {
-      const templateDir = path.join(testHomeDir, "git-template");
-      await fs.mkdir(templateDir);
-      await fs.writeFile(
-        path.join(templateDir, "config"),
-        '[remote "origin"]\n\turl = https://example.invalid/repo.git\n',
-      );
-      vi.stubEnv("GIT_TEMPLATE_DIR", templateDir);
-      vi.stubEnv("GIT_CONFIG_COUNT", "1");
-      vi.stubEnv("GIT_CONFIG_KEY_0", "init.templateDir");
-      vi.stubEnv("GIT_CONFIG_VALUE_0", templateDir);
-
-      const result = await newSkillsetMain({
-        skillsetName: "template-independent",
-      });
-      expect(result.success).toBe(true);
-      vi.unstubAllEnvs();
-
-      const destDir = path.join(
-        skillsetsDir,
-        "personal",
-        "template-independent",
-      );
       const { stdout: remotes } = await execFileAsync("git", ["remote"], {
         cwd: destDir,
       });

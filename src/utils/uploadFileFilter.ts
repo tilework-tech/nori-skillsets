@@ -5,15 +5,16 @@
  * contribute to the registry's content hash.
  */
 
+import * as path from "path";
+
 const EXACT_EXCLUDED_FILES = new Set([
-  ".git",
   ".nori-version",
   ".DS_Store",
   "Thumbs.db",
 ]);
 
 // Directory names that are excluded at any nesting depth.
-const ANY_DEPTH_EXCLUDED_DIRS = new Set([".git", "node_modules", ".venv"]);
+const ANY_DEPTH_EXCLUDED_DIRS = new Set(["node_modules", ".venv"]);
 
 // Hidden vim swap files: .<name>.swp / .swo / .swn / etc.
 const VIM_SWAP_PATTERN = /^\..+\.sw[a-p]$/;
@@ -87,7 +88,7 @@ export const shouldExcludeFromUpload = (args: {
     }
   }
 
-  const baseName = segments.at(-1) ?? "";
+  const baseName = path.basename(relativePath);
 
   if (EXACT_EXCLUDED_FILES.has(baseName)) {
     return true;

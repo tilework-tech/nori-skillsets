@@ -19,6 +19,7 @@ import {
 import { initMain } from "@/cli/commands/init/init.js";
 import { getRegistryAuth, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { isGitGovernedPath } from "@/cli/features/gitSourceAuthority.js";
 import { registryDownloadFlow } from "@/cli/prompts/flows/index.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
 import { resolveOrgRegistryAuth } from "@/core/registryAuthResolution.js";
@@ -56,29 +57,6 @@ import type { Command } from "commander";
 
 export type RegistryDownloadStatus = CommandStatus & {
   failureKind?: "source-authority";
-};
-
-const isInsideGitWorkingTree = async (args: {
-  dir: string;
-}): Promise<boolean> => {
-  let currentDir = await fs.realpath(args.dir);
-
-  while (true) {
-    try {
-      await fs.lstat(path.join(currentDir, ".git"));
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        throw error;
-      }
-    }
-
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
-      return false;
-    }
-    currentDir = parentDir;
-  }
 };
 
 /**
@@ -462,6 +440,32 @@ export const registryDownloadMain = async (args: {
     log.info(defaultOrgNotice);
   }
 
+  // Downloaded packages are stored under their bucket/namespace on disk:
+  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
+  const targetDir = skillsetPath({
+    name: namespacedName({ orgId, packageName }),
+  });
+
+  if (listVersions !== true) {
+    try {
+      if (await isGitGovernedPath({ targetPath: targetDir })) {
+        return {
+          success: false,
+          cancelled: false,
+          message: `Git-governed path detected at "${targetDir}"; Registrar download refused to preserve source authority.`,
+          failureKind: "source-authority",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        cancelled: false,
+        message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
+        failureKind: "source-authority",
+      };
+    }
+  }
+
   // Resolve install directory from config and auto-init if needed
   const resolvedInstallDir = resolveInstallDir({
     cliInstallDir: installDir,
@@ -490,12 +494,6 @@ export const registryDownloadMain = async (args: {
     }
   }
 
-  // Downloaded packages are stored under their bucket/namespace on disk:
-  // public packages in profiles/public/<name>, org packages in profiles/<org>/<name>.
-  const targetDir = skillsetPath({
-    name: namespacedName({ orgId, packageName }),
-  });
-
   // Check if skillset already exists and get its version info
   let existingVersionInfo: VersionInfo | null = null;
   let profileExists = false;
@@ -505,26 +503,6 @@ export const registryDownloadMain = async (args: {
     existingVersionInfo = await readVersionInfo({ dir: targetDir });
   } catch {
     // Directory doesn't exist - continue
-  }
-
-  if (profileExists && listVersions !== true) {
-    try {
-      if (await isInsideGitWorkingTree({ dir: targetDir })) {
-        return {
-          success: false,
-          cancelled: false,
-          message: `Git working tree detected at "${targetDir}"; Registrar update refused to protect local history.`,
-          failureKind: "source-authority",
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        cancelled: false,
-        message: `Failed to inspect skillset source at "${targetDir}": ${error instanceof Error ? error.message : String(error)}`,
-        failureKind: "source-authority",
-      };
-    }
   }
 
   // Closure variables shared between onSearch and onDownload callbacks

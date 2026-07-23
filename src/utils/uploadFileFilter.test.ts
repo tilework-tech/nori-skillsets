@@ -16,17 +16,6 @@ describe("shouldExcludeFromUpload", () => {
     );
   });
 
-  it.each([".git", "nested/.git/config", "nested\\worktree\\.git"])(
-    "excludes Git metadata at %s",
-    (relativePath) => {
-      expect(shouldExcludeFromUpload({ relativePath })).toBe(true);
-    },
-  );
-
-  it("keeps the authored Git ignore file", () => {
-    expect(shouldExcludeFromUpload({ relativePath: ".gitignore" })).toBe(false);
-  });
-
   it("excludes vim swap files (.swp/.swo)", () => {
     expect(shouldExcludeFromUpload({ relativePath: ".SKILL.md.swp" })).toBe(
       true,
