@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { cancel, confirm, isCancel } from "@clack/prompts";
 
 import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
+import { markInstall } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
@@ -161,6 +162,19 @@ const isSshRemote = (args: { remote: string }): boolean => {
   return /^[^/\\]+:.+/u.test(remote);
 };
 
+const normalizeAcquisitionRemote = (args: { remote: string }): string => {
+  const { remote } = args;
+  if (
+    path.isAbsolute(remote) ||
+    /^[a-z][a-z0-9+.-]*:\/\//iu.test(remote) ||
+    /^[a-z]:[\\/]/iu.test(remote) ||
+    isSshRemote({ remote })
+  ) {
+    return remote;
+  }
+  return path.resolve(remote);
+};
+
 const quoteShellArgument = (args: { value: string }): string =>
   `'${args.value.replaceAll("'", "'\\''")}'`;
 
@@ -261,13 +275,20 @@ type GitExecution = {
 
 const executeGit = async (args: {
   command: Array<string>;
+  configuredSshCommand?: string | null;
   cwd?: string | null;
   input?: string | null;
   nonInteractive: boolean;
   remote?: string | null;
   useDefaultSshBatchMode?: boolean | null;
 }): Promise<GitExecution> => {
-  const { cwd, input, nonInteractive, useDefaultSshBatchMode } = args;
+  const {
+    configuredSshCommand,
+    cwd,
+    input,
+    nonInteractive,
+    useDefaultSshBatchMode,
+  } = args;
   const env = baseGitEnvironment();
   if (nonInteractive) {
     env.GIT_TERMINAL_PROMPT = "0";
@@ -280,19 +301,25 @@ const executeGit = async (args: {
     env.GIT_CONFIG_COUNT = String(nextConfigIndex + 1);
     env[`GIT_CONFIG_KEY_${nextConfigIndex}`] = "credential.interactive";
     env[`GIT_CONFIG_VALUE_${nextConfigIndex}`] = "false";
-    if (useDefaultSshBatchMode === true && env.GIT_SSH == null) {
+    const environmentSshCommand = env.GIT_SSH_COMMAND ?? null;
+    if (
+      useDefaultSshBatchMode === true &&
+      (environmentSshCommand != null || env.GIT_SSH == null)
+    ) {
+      const effectiveSshCommand =
+        environmentSshCommand ?? configuredSshCommand ?? null;
       if (
-        env.GIT_SSH_COMMAND != null &&
-        SSH_BATCH_MODE_DISABLED.test(env.GIT_SSH_COMMAND)
+        effectiveSshCommand != null &&
+        SSH_BATCH_MODE_DISABLED.test(effectiveSshCommand)
       ) {
         throw new Error(
-          "GIT_SSH_COMMAND must not disable SSH batch mode for unattended installs",
+          "SSH command must not disable SSH batch mode for unattended installs",
         );
       }
-      if (env.GIT_SSH_COMMAND == null) {
+      if (effectiveSshCommand == null) {
         env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
-      } else if (/^(?:.*[\\/])?ssh(?:\s|$)/u.test(env.GIT_SSH_COMMAND)) {
-        env.GIT_SSH_COMMAND = `${env.GIT_SSH_COMMAND} -oBatchMode=yes`;
+      } else if (/^(?:.*[\\/])?ssh(?:\s|$)/u.test(effectiveSshCommand)) {
+        env.GIT_SSH_COMMAND = `${effectiveSshCommand} -oBatchMode=yes`;
       }
     }
   }
@@ -357,6 +384,7 @@ const failedGitCommand = (args: {
 
 const runGit = async (args: {
   command: Array<string>;
+  configuredSshCommand?: string | null;
   cwd?: string | null;
   input?: string | null;
   nonInteractive: boolean;
@@ -582,18 +610,20 @@ const acquireCheckout = async (args: {
   remote: string;
   slug: string;
 }): Promise<string | null> => {
-  const { branch, checkoutDir, nonInteractive, pin, remote, slug } = args;
+  const { branch, checkoutDir, nonInteractive, pin, slug } = args;
+  const remote = normalizeAcquisitionRemote({ remote: args.remote });
   const sourceRef = `refs/heads/${branch}`;
   const trackingRef = `refs/remotes/origin/${branch}`;
   const sshRemote = nonInteractive && isSshRemote({ remote });
   const configuredSshCommand = sshRemote
     ? await readSshCommandConfig({ cwd: checkoutDir })
     : null;
-  const useDefaultSshBatchMode = sshRemote && configuredSshCommand == null;
+  const useDefaultSshBatchMode = sshRemote;
   const remoteBranchTip = parseRemoteBranchTip({
     branch,
     output: await runGit({
       command: ["ls-remote", "--heads", "--", remote, sourceRef],
+      configuredSshCommand,
       nonInteractive,
       remote,
       useDefaultSshBatchMode,
@@ -618,14 +648,14 @@ const acquireCheckout = async (args: {
     await runGit({
       command: [
         "fetch",
-        "--depth",
-        pin == null ? "1" : "2147483647",
         "--no-tags",
         "--no-write-fetch-head",
+        "--update-shallow",
         "--",
         remote,
         `+${sourceRef}:${trackingRef}`,
       ],
+      configuredSshCommand,
       cwd: checkoutDir,
       nonInteractive,
       remote,
@@ -657,14 +687,11 @@ const acquireCheckout = async (args: {
     cwd: checkoutDir,
     nonInteractive,
   });
-  const branchTip =
-    pin == null
-      ? await runGit({
-          command: ["rev-parse", "--verify", "--end-of-options", trackingRef],
-          cwd: checkoutDir,
-          nonInteractive,
-        })
-      : remoteBranchTip;
+  const branchTip = await runGit({
+    command: ["rev-parse", "--verify", "--end-of-options", trackingRef],
+    cwd: checkoutDir,
+    nonInteractive,
+  });
   const resolvedCommit =
     pin == null
       ? null
@@ -799,8 +826,15 @@ export const gitInstallMain = async (
             agent,
             skillset: identity,
             persistActiveSkillset: false,
+            persistInstallMarkers: false,
           });
-        replayActivationOutput.push(await withBufferedOutput({ operation }));
+        const replay = await withBufferedOutput({ operation });
+        markInstall({
+          agent: registry.get({ name: agent }),
+          path: resolvedInstallDir.path,
+          skillsetName: identity,
+        });
+        replayActivationOutput.push(replay);
       }
     } catch (error) {
       const detail = sanitizeErrorDetail(error);

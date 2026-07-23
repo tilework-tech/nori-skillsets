@@ -40,9 +40,11 @@ const GIT_ROUTING_ENVIRONMENT = [
 const GIT_ENVIRONMENT = [
   ...GIT_ROUTING_ENVIRONMENT,
   "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_KEY_0",
   "GIT_CONFIG_VALUE_0",
   "GIT_SHALLOW_FILE",
+  "GIT_SSH",
   "GIT_SSH_COMMAND",
   "GIT_TERMINAL_PROMPT",
 ] as const;
@@ -230,6 +232,56 @@ describe("gitInstallMain", () => {
     ).resolves.toBe("personal/reviewer");
   });
 
+  it("retains complete branch history for an unpinned install", async () => {
+    const historicalCommit = await repository.commit({
+      slug: "reviewer",
+      marker: "historical instructions",
+    });
+    await repository.commit({
+      slug: "reviewer",
+      marker: "current instructions",
+    });
+
+    const result = await install();
+
+    expect(result.success).toBe(true);
+    await expect(
+      execFileAsync("git", ["cat-file", "-e", `${historicalCommit}^{commit}`], {
+        cwd: target,
+      }),
+    ).resolves.toBeDefined();
+    const shallow = await execFileAsync(
+      "git",
+      ["rev-parse", "--is-shallow-repository"],
+      { cwd: target },
+    );
+    expect(shallow.stdout.trim()).toBe("false");
+  });
+
+  it("resolves a relative local remote consistently", async () => {
+    const expectedCommit = await repository.commit({
+      slug: "reviewer",
+      marker: "relative remote instructions",
+    });
+    const relativeRemote = path.relative(process.cwd(), repository.remote);
+
+    const result = await install({ remote: relativeRemote });
+
+    expect(result.success).toBe(true);
+    const checkoutCommit = await execFileAsync("git", ["rev-parse", "HEAD"], {
+      cwd: target,
+    });
+    expect(checkoutCommit.stdout.trim()).toBe(expectedCommit);
+    const advertisedOrigin = await execFileAsync(
+      "git",
+      ["ls-remote", "--heads", "origin", "refs/heads/skillsets/reviewer"],
+      { cwd: target },
+    );
+    expect(advertisedOrigin.stdout.trim()).toBe(
+      `${expectedCommit}\trefs/heads/skillsets/reviewer`,
+    );
+  });
+
   it("checks out only the requested branch head without tags", async () => {
     const firstCommit = await repository.commit({
       slug: "reviewer",
@@ -398,6 +450,68 @@ describe("gitInstallMain", () => {
     await expect(
       fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
     ).resolves.toContain("historical instructions");
+  });
+
+  it("validates a pin against the branch tip actually fetched", async () => {
+    const advertisedTip = await repository.commit({
+      slug: "reviewer",
+      marker: "advertised instructions",
+    });
+    const fetchedTip = await repository.commit({
+      slug: "reviewer",
+      marker: "fetched instructions",
+    });
+    await execFileAsync(
+      "git",
+      [
+        "--git-dir",
+        repository.remote,
+        "update-ref",
+        "refs/heads/skillsets/reviewer",
+        advertisedTip,
+        fetchedTip,
+      ],
+      { cwd: testRoot },
+    );
+    const realGit = (
+      await execFileAsync("/bin/sh", ["-c", "command -v git"], {
+        cwd: testRoot,
+      })
+    ).stdout.trim();
+    const wrapperDir = path.join(testRoot, "moving-tip-wrapper");
+    const wrapperPath = path.join(wrapperDir, "git");
+    await fs.mkdir(wrapperDir);
+    await fs.writeFile(
+      wrapperPath,
+      `#!/bin/sh
+if [ "$1" = "ls-remote" ]; then
+  output=$("${realGit}" "$@")
+  status=$?
+  if [ "$status" -eq 0 ]; then
+    "${realGit}" --git-dir "${repository.remote}" update-ref refs/heads/skillsets/reviewer "${fetchedTip}" "${advertisedTip}" || exit $?
+  fi
+  printf '%s\\n' "$output"
+  exit "$status"
+fi
+exec "${realGit}" "$@"
+`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${wrapperDir}${path.delimiter}${previousPath ?? ""}`;
+
+    const result = await install({ pin: fetchedTip });
+
+    expect(result.success).toBe(true);
+    const checkoutCommit = await execFileAsync("git", ["rev-parse", "HEAD"], {
+      cwd: target,
+    });
+    expect(checkoutCommit.stdout.trim()).toBe(fetchedTip);
+    const trackingTip = await execFileAsync(
+      "git",
+      ["rev-parse", "refs/remotes/origin/skillsets/reviewer"],
+      { cwd: target },
+    );
+    expect(trackingTip.stdout.trim()).toBe(fetchedTip);
   });
 
   it("detaches HEAD when the requested pin is the current branch tip", async () => {
@@ -1117,6 +1231,67 @@ process.exit(86);
     },
   );
 
+  it("rejects an inherited SSH command before a lower-precedence GIT_SSH executable", async () => {
+    const fakeBin = path.join(testRoot, "ssh-precedence-bin");
+    const invocation = path.join(testRoot, "ssh-precedence-invocation");
+    await fs.mkdir(fakeBin);
+    await fs.writeFile(
+      path.join(fakeBin, "ssh"),
+      `#!/bin/sh\nprintf '%s\\n' "$*" > "${invocation}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+    process.env.GIT_SSH = path.join(fakeBin, "lower-precedence-ssh");
+    process.env.GIT_SSH_COMMAND = "ssh -oBatchMode=no";
+    process.env.PATH = `${fakeBin}${path.delimiter}${previousPath ?? ""}`;
+
+    const result = await install({
+      remote: "ssh://git@example.invalid/skillsets.git",
+      nonInteractive: true,
+      silent: false,
+    });
+
+    expectFailure(result, /must not disable SSH batch mode/i);
+    await expect(fs.access(invocation)).rejects.toThrow();
+    await expect(fs.access(target)).rejects.toThrow();
+  });
+
+  it("rejects a global core.sshCommand that disables batch mode", async () => {
+    const fakeBin = path.join(testRoot, "configured-ssh-bin");
+    const invocation = path.join(testRoot, "configured-ssh-invocation");
+    const globalConfig = path.join(testRoot, "configured-ssh.gitconfig");
+    await fs.mkdir(fakeBin);
+    await fs.writeFile(
+      path.join(fakeBin, "ssh"),
+      `#!/bin/sh\nprintf '%s\\n' "$*" > "${invocation}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+    await execFileAsync(
+      "git",
+      [
+        "config",
+        "--file",
+        globalConfig,
+        "core.sshCommand",
+        "ssh -oBatchMode=no -oConnectTimeout=7",
+      ],
+      { cwd: testRoot },
+    );
+    process.env.GIT_CONFIG_GLOBAL = globalConfig;
+    delete process.env.GIT_SSH;
+    delete process.env.GIT_SSH_COMMAND;
+    process.env.PATH = `${fakeBin}${path.delimiter}${previousPath ?? ""}`;
+
+    const result = await install({
+      remote: "ssh://git@example.invalid/skillsets.git",
+      nonInteractive: true,
+      silent: false,
+    });
+
+    expectFailure(result, /must not disable SSH batch mode/i);
+    await expect(fs.access(invocation)).rejects.toThrow();
+    await expect(fs.access(target)).rejects.toThrow();
+  });
+
   it("preserves unexpected Git object inspection errors", async () => {
     const historicalCommit = await repository.commit({ slug: "reviewer" });
     await repository.commit({ slug: "reviewer", marker: "current" });
@@ -1806,6 +1981,9 @@ process.stdin.on("end", () => {
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
     expect(config.activeSkillset ?? null).toBe(null);
+    await expect(
+      fs.access(path.join(scopedInstallDir, ".claude", ".nori-managed")),
+    ).rejects.toThrow();
     const recoveryCommand = result.message.match(
       /then run: (sks [\s\S]+?)\. /u,
     )?.[1];
@@ -1882,6 +2060,16 @@ process.stdin.on("end", () => {
         }),
       },
     });
+    await fs.mkdir(path.join(testRoot, ".claude"), { recursive: true });
+    await fs.mkdir(path.join(testRoot, ".codex"), { recursive: true });
+    await fs.writeFile(
+      path.join(testRoot, ".claude", ".nori-managed"),
+      "personal/previous",
+    );
+    await fs.writeFile(
+      path.join(testRoot, ".codex", ".nori-managed"),
+      "personal/previous",
+    );
     await fs.mkdir(path.join(testRoot, ".codex", "config.toml"), {
       recursive: true,
     });
@@ -1896,6 +2084,12 @@ process.stdin.on("end", () => {
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
     expect(config.activeSkillset).toBe("personal/previous");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", ".nori-managed"), "utf8"),
+    ).resolves.toBe("personal/reviewer");
+    await expect(
+      fs.readFile(path.join(testRoot, ".codex", ".nori-managed"), "utf8"),
+    ).resolves.toBe("personal/previous");
   });
 
   it("keeps a successful explicit install directory transient", async () => {
@@ -1943,6 +2137,12 @@ process.stdin.on("end", () => {
     await expect(
       fs.readFile(path.join(scopedInstallDir, ".claude", "CLAUDE.md"), "utf8"),
     ).resolves.toContain("scoped instructions");
+    await expect(
+      fs.readFile(
+        path.join(scopedInstallDir, ".claude", ".nori-managed"),
+        "utf8",
+      ),
+    ).resolves.toBe("personal/reviewer");
     const config = JSON.parse(
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
@@ -1956,6 +2156,11 @@ process.stdin.on("end", () => {
       defaultAgents: ["claude-code"],
     });
     await repository.commit({ slug: "reviewer" });
+    await fs.mkdir(path.join(testRoot, ".claude"), { recursive: true });
+    await fs.writeFile(
+      path.join(testRoot, ".claude", ".nori-managed"),
+      "personal/previous",
+    );
     const writeJsonFileAtomic = jsonFile.writeJsonFileAtomic;
     const writeSpy = vi
       .spyOn(jsonFile, "writeJsonFileAtomic")
@@ -2014,6 +2219,9 @@ process.stdin.on("end", () => {
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
     expect(config.activeSkillset).toBe("personal/previous");
+    await expect(
+      fs.readFile(path.join(testRoot, ".claude", ".nori-managed"), "utf8"),
+    ).resolves.toBe("personal/reviewer");
   });
 
   it("rejects an unknown agent before reserving a checkout", async () => {

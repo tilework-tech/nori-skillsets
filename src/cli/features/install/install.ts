@@ -148,16 +148,24 @@ const completeInstallation = async (args: {
  * @param args - Configuration arguments
  * @param args.installDir - Installation directory (optional)
  * @param args.agent - AI agent to use (defaults to claude-code)
+ * @param args.persistInstallMarkers - When false, defer .nori-managed marker writes
  * @param args.skillset - Skillset to use (required if no existing config)
  * @param args.persistActiveSkillset - When false, do not persist the selected skillset to the global config (transient --install-dir switch)
  */
 export const noninteractive = async (args?: {
   installDir?: string | null;
   agent?: string | null;
+  persistInstallMarkers?: boolean | null;
   skillset?: string | null;
   persistActiveSkillset?: boolean | null;
 }): Promise<void> => {
-  const { installDir, agent, skillset, persistActiveSkillset } = args || {};
+  const {
+    installDir,
+    agent,
+    persistActiveSkillset,
+    persistInstallMarkers,
+    skillset,
+  } = args || {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -169,6 +177,7 @@ export const noninteractive = async (args?: {
   // Step 1: Init - Set up folders (non-interactive skips existing config capture)
   await ensureNoriInitialized({
     installDir: normalizedInstallDir,
+    persistInstallMarkers,
     skillset,
   });
 
