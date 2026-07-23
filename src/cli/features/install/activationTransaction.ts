@@ -22,6 +22,7 @@ import {
   getManagedDirs,
   getManagedFiles,
 } from "@/cli/features/agentOperations.js";
+import { getManifestPath } from "@/cli/features/manifest.js";
 import { getHomeDir } from "@/utils/home.js";
 
 import type { AgentConfig } from "@/cli/features/agentRegistry.js";
@@ -33,9 +34,11 @@ type SnapshotEntry = {
   backupPath: string | null;
 };
 
-// The exact set of absolute paths one agent's activation may overwrite in the
-// install directory: its declared managed files and directories, its
-// instructions file, and its `.nori-managed` marker.
+// The exact set of absolute paths one agent's activation may overwrite: its
+// declared managed files and directories, its instructions file, its
+// `.nori-managed` marker, its external settings files, its MCP config files,
+// and the manifest that records which files it wrote (read by change detection,
+// so a stale manifest after rollback would report phantom local changes).
 const managedPathsForAgent = (args: {
   agent: AgentConfig;
   installDir: string;
@@ -57,6 +60,7 @@ const managedPathsForAgent = (args: {
   for (const mcpFile of agent.getMcpManagedPaths?.({ installDir }) ?? []) {
     paths.add(mcpFile);
   }
+  paths.add(getManifestPath({ agentName: agent.name, installDir }));
   return Array.from(paths);
 };
 
@@ -108,6 +112,14 @@ const restoreEntry = async (entry: SnapshotEntry): Promise<void> => {
 
 const getTxnRoot = (): string => path.join(getHomeDir(), ".nori", ".txn");
 
+const discardBackup = async (args: {
+  backupDir: string;
+  txnRoot: string;
+}): Promise<void> => {
+  await fs.rm(args.backupDir, { recursive: true, force: true });
+  await fs.rmdir(args.txnRoot).catch(() => undefined);
+};
+
 const readIndexEntries = async (args: {
   txnDir: string;
 }): Promise<Array<SnapshotEntry>> => {
@@ -138,12 +150,28 @@ const recoverOne = async (args: { txnDir: string }): Promise<void> => {
   await fs.rm(txnDir, { recursive: true, force: true });
 };
 
+const quarantineTransaction = async (args: {
+  txnRoot: string;
+  id: string;
+}): Promise<void> => {
+  const failedPath = path.join(args.txnRoot, `failed-${args.id}`);
+  await fs
+    .rename(path.join(args.txnRoot, args.id), failedPath)
+    .catch(() => undefined);
+  process.emitWarning(
+    `Nori could not fully restore an interrupted activation; the previous state ` +
+      `may be partially applied. Left for inspection at ${failedPath}`,
+  );
+};
+
 /**
  * Restore any activation transaction left behind by a crashed process. Invoked
  * at install-lock acquisition, so every locked mutation self-heals to its
  * previous usable state before it runs. Restore is idempotent, so re-running is
- * safe, and a transaction that cannot be restored is skipped rather than
- * allowed to wedge every locked command.
+ * safe. A transaction that cannot be restored is quarantined (not retried and
+ * not allowed to wedge the command that triggered recovery), which both avoids
+ * blocking recovery commands like `factory-reset` and prevents its restorable
+ * entries from being re-reverted on every subsequent command.
  */
 export const recoverPendingActivations = async (): Promise<void> => {
   const txnRoot = getTxnRoot();
@@ -155,11 +183,12 @@ export const recoverPendingActivations = async (): Promise<void> => {
     throw error;
   }
   for (const id of ids) {
+    // Quarantined transactions are left for manual inspection, never retried.
+    if (id.startsWith("failed-")) continue;
     try {
       await recoverOne({ txnDir: path.join(txnRoot, id) });
     } catch {
-      // Leave an unrestorable transaction in place for a later attempt rather
-      // than blocking the command that triggered recovery (e.g. factory-reset).
+      await quarantineTransaction({ txnRoot, id });
     }
   }
   await fs.rmdir(txnRoot).catch(() => undefined);
@@ -191,19 +220,25 @@ export const withActivationTransaction = async <T>(args: {
     JSON.stringify({ entries }),
   );
 
+  let result: T;
   try {
-    const result = await operation();
-    // Mark committed before cleanup so a crash in the cleanup window does not
-    // roll back an already-applied activation.
-    await fs.writeFile(path.join(backupDir, "committed"), "");
-    return result;
+    result = await operation();
   } catch (error) {
+    // Roll back to the snapshot. If a restore step itself throws, the error
+    // propagates WITHOUT discarding the backup below, so the previous state
+    // stays recoverable at the next lock acquisition — the backup is the only
+    // copy of it. (A hard kill during rollback is likewise safe: the backup is
+    // never removed, so recovery re-runs the restore.)
     for (const entry of entries) {
       await restoreEntry(entry);
     }
+    await discardBackup({ backupDir, txnRoot });
     throw error;
-  } finally {
-    await fs.rm(backupDir, { recursive: true, force: true });
-    await fs.rmdir(txnRoot).catch(() => undefined);
   }
+
+  // Commit: mark committed before discarding the backup so a crash in the
+  // cleanup window keeps — never reverts — the applied activation.
+  await fs.writeFile(path.join(backupDir, "committed"), "");
+  await discardBackup({ backupDir, txnRoot });
+  return result;
 };

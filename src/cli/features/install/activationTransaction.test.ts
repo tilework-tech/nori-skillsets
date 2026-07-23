@@ -19,6 +19,7 @@ import {
   withActivationTransaction,
 } from "@/cli/features/install/activationTransaction.js";
 import { withInstallLock } from "@/cli/features/install/installLock.js";
+import { getManifestPath } from "@/cli/features/manifest.js";
 
 import type { AgentConfig, AgentLoader } from "@/cli/features/agentRegistry.js";
 
@@ -236,6 +237,57 @@ describe("withActivationTransaction", () => {
 
     expect(read(mcpPath)).toBe('{"mcpServers":{"a":{}}}');
   });
+
+  it("restores the keyed manifest when the operation throws", async () => {
+    // The manifest records which files activation wrote; a stale one would make
+    // change detection report phantom local changes after a rollback.
+    const manifestPath = getManifestPath({
+      agentName: "claude-code",
+      installDir,
+    });
+    await write(manifestPath, "PREVIOUS MANIFEST");
+
+    await expect(
+      withActivationTransaction({
+        installDir,
+        agents: [agent],
+        operation: async () => {
+          await write(manifestPath, "NEW MANIFEST");
+          throw new Error("manifest agent failed");
+        },
+      }),
+    ).rejects.toThrow("manifest agent failed");
+
+    expect(read(manifestPath)).toBe("PREVIOUS MANIFEST");
+  });
+
+  it("preserves the backup when rollback itself fails, so recovery can retry", async () => {
+    await write(path.join(agentDir, "CLAUDE.md"), "PROFILE A");
+
+    await expect(
+      withInstallLock({
+        operation: () =>
+          withActivationTransaction({
+            installDir,
+            agents: [agent],
+            operation: async () => {
+              // Corrupt the agent dir into a file so a restore step's mkdir fails.
+              await fs.rm(agentDir, { recursive: true, force: true });
+              await fs.writeFile(agentDir, "corrupt");
+              throw new Error("activation failed");
+            },
+          }),
+      }),
+    ).rejects.toThrow();
+
+    // The backup must NOT have been discarded — the previous state stays
+    // recoverable at the next lock acquisition.
+    const txnRoot = path.join(tempHome, ".nori", ".txn");
+    const leftovers = fsSync.existsSync(txnRoot)
+      ? fsSync.readdirSync(txnRoot)
+      : [];
+    expect(leftovers.length).toBeGreaterThan(0);
+  });
 });
 
 describe("recoverPendingActivations", () => {
@@ -310,5 +362,35 @@ describe("recoverPendingActivations", () => {
 
     expect(read(target)).toBe("PROFILE A");
     expect(fsSync.existsSync(path.join(tempHome, ".nori", ".txn"))).toBe(false);
+  });
+
+  it("quarantines an unrestorable leftover without wedging the locked command", async () => {
+    const txnRoot = path.join(tempHome, ".nori", ".txn");
+    const txnDir = path.join(txnRoot, "poison");
+    await fs.mkdir(txnDir, { recursive: true });
+    // The backup file referenced by the index does not exist, so restore throws.
+    await fs.writeFile(
+      path.join(txnDir, "index.json"),
+      JSON.stringify({
+        entries: [
+          {
+            targetPath: path.join(agentDir, "CLAUDE.md"),
+            backupPath: path.join(txnDir, "missing"),
+          },
+        ],
+      }),
+    );
+
+    let ran = false;
+    await withInstallLock({
+      operation: async () => {
+        ran = true;
+      },
+    });
+
+    // Recovery did not wedge the command, and the poison txn was quarantined
+    // (renamed) rather than retried on the next command.
+    expect(ran).toBe(true);
+    expect(fsSync.readdirSync(txnRoot)).toContain("failed-poison");
   });
 });
