@@ -16,9 +16,8 @@ import {
   removeSkillset,
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 
-const clearCurrentMainImpl = async (args?: {
+export const clearCurrentMain = async (args?: {
   dir?: string | null;
 }): Promise<void> => {
   const { dir } = args ?? {};
@@ -57,8 +56,3 @@ const clearCurrentMainImpl = async (args?: {
     `Cleared Nori-managed configuration from ${clearedDirs.size} location${clearedDirs.size === 1 ? "" : "s"}.`,
   );
 };
-
-export const clearCurrentMain = async (args?: {
-  dir?: string | null;
-}): Promise<void> =>
-  withInstallLock({ operation: () => clearCurrentMainImpl(args) });

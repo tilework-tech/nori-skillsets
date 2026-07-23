@@ -13,7 +13,6 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 
 // Mock os.homedir so manifest/config paths resolve to temp directory
 vi.mock("os", async (importOriginal) => {
@@ -124,22 +123,6 @@ describe("clearCurrentMain", () => {
       .then(() => true)
       .catch(() => false);
     expect(markerExists).toBe(false);
-  });
-
-  it("rejects a held install lock before removing managed files", async () => {
-    await seedInstallation({
-      dir: tempDir,
-      skillsetName: "senior-swe",
-      homeDir: tempDir,
-    });
-    await createHeldInstallLock({ homeDir: tempDir });
-    const markerPath = path.join(tempDir, ".claude", ".nori-managed");
-
-    await expect(clearCurrentMain({ dir: tempDir })).rejects.toThrow(
-      /another Nori installation is already in progress/i,
-    );
-
-    await expect(fs.readFile(markerPath, "utf8")).resolves.toBe("senior-swe");
   });
 
   it("should remove managed files from ancestor directories", async () => {

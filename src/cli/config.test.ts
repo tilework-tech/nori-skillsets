@@ -8,8 +8,6 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { withInstallLock } from "@/cli/features/install/installLock.js";
-
 import {
   loadConfig,
   updateConfig,
@@ -1065,40 +1063,6 @@ describe("updateConfig", () => {
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
     vi.clearAllMocks();
-  });
-
-  it("refuses to update while another mutation owns the lock", async () => {
-    await saveTestingConfig({
-      username: null,
-      organizationUrl: null,
-      activeSkillset: "old-skillset",
-      installDir: tempDir,
-    });
-    let release!: () => void;
-    let markStarted!: () => void;
-    const started = new Promise<void>((resolve) => {
-      markStarted = resolve;
-    });
-    const canFinish = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const holder = withInstallLock({
-      operation: async () => {
-        markStarted();
-        await canFinish;
-      },
-    });
-    await started;
-
-    try {
-      await expect(
-        updateConfig({ activeSkillset: "new-skillset" }),
-      ).rejects.toThrow(/another Nori installation is already in progress/i);
-      expect((await loadConfig())?.activeSkillset).toBe("old-skillset");
-    } finally {
-      release();
-      await holder;
-    }
   });
 
   it("should preserve all existing fields when updating only activeSkillset", async () => {

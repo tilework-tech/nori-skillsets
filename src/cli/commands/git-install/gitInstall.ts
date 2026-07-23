@@ -5,10 +5,9 @@ import { promisify } from "node:util";
 
 import { cancel, confirm, isCancel } from "@clack/prompts";
 
-import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
+import { getDefaultAgents, loadConfig } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 import { readSkillsetMetadata } from "@/norijson/nori.js";
@@ -142,6 +141,25 @@ const isSshRemote = (args: { remote: string }): boolean => {
 
 const quoteShellArgument = (args: { value: string }): string =>
   `'${args.value.replaceAll("'", "'\\''")}'`;
+
+const withSuppressedOutput = async (args: {
+  operation: () => Promise<void>;
+}): Promise<void> => {
+  const originalConsoleLog = console.log;
+  const originalStdoutWrite = process.stdout.write;
+  const originalStderrWrite = process.stderr.write;
+  console.log = () => undefined;
+  process.stdout.write = (() => true) as typeof process.stdout.write;
+  process.stderr.write = (() => true) as typeof process.stderr.write;
+
+  try {
+    await args.operation();
+  } finally {
+    console.log = originalConsoleLog;
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
+  }
+};
 
 const readSshCommandConfig = async (args: {
   cwd: string;
@@ -371,9 +389,18 @@ const acquireCheckout = async (args: {
   });
 };
 
-const gitInstallMainImpl = async (
+export const gitInstallMain = async (
   args: GitInstallArgs,
 ): Promise<CommandStatus> => {
+  const nameError = validateSkillsetName({ value: args.slug });
+  if (nameError != null) {
+    return {
+      success: false,
+      cancelled: false,
+      message: `Failed to install Git-backed skillset: ${sanitizeErrorDetail(nameError)}`,
+    };
+  }
+
   const { slug, remote, installDir, trustSource, nonInteractive, silent } =
     args;
   const wasSilent = isSilentMode();
@@ -442,16 +469,18 @@ const gitInstallMainImpl = async (
 
     try {
       for (const agent of agents) {
-        await activateSkillset({
-          installDir: resolvedInstallDir.path,
-          agent,
-          skillset: identity,
-          persistActiveSkillset: false,
-          silent: true,
-        });
-      }
-      if (resolvedInstallDir.source !== "cli") {
-        await updateConfig({ activeSkillset: identity });
+        const operation = async () =>
+          activateSkillset({
+            installDir: resolvedInstallDir.path,
+            agent,
+            skillset: identity,
+            persistActiveSkillset: resolvedInstallDir.source !== "cli",
+          });
+        if (silent === true) {
+          await withSuppressedOutput({ operation });
+        } else {
+          await operation();
+        }
       }
     } catch (error) {
       const detail = sanitizeErrorDetail(error);
@@ -488,30 +517,5 @@ const gitInstallMainImpl = async (
     };
   } finally {
     if (silent === true) setSilentMode({ silent: wasSilent });
-  }
-};
-
-export const gitInstallMain = async (
-  args: GitInstallArgs,
-): Promise<CommandStatus> => {
-  const nameError = validateSkillsetName({ value: args.slug });
-  if (nameError != null) {
-    return {
-      success: false,
-      cancelled: false,
-      message: `Failed to install Git-backed skillset: ${nameError}`,
-    };
-  }
-
-  try {
-    return await withInstallLock({
-      operation: () => gitInstallMainImpl(args),
-    });
-  } catch (error) {
-    return {
-      success: false,
-      cancelled: false,
-      message: `Failed to install Git-backed skillset "${args.slug}": ${sanitizeErrorDetail(error)}`,
-    };
   }
 };

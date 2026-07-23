@@ -87,7 +87,6 @@ const getClackErrorOutput = (): string => {
 };
 
 import { loadConfig } from "@/cli/config.js";
-import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 
 import { externalMain } from "./external.js";
 
@@ -110,7 +109,6 @@ describe("externalMain", () => {
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
     vi.clearAllMocks();
     if (testDir) {
       await fs.rm(testDir, { recursive: true, force: true });
@@ -133,20 +131,6 @@ describe("externalMain", () => {
 
     const allErrorOutput = getClackErrorOutput();
     expect(allErrorOutput.toLowerCase()).toContain("authentication failed");
-  });
-
-  it("rejects a held install lock before cloning the repository", async () => {
-    vi.stubEnv("NORI_GLOBAL_CONFIG", testDir);
-    await createHeldInstallLock({ homeDir: testDir });
-
-    await expect(
-      externalMain({
-        source: "owner/repo",
-        installDir: testDir,
-      }),
-    ).rejects.toThrow(/another Nori installation is already in progress/i);
-
-    expect(execFileSync).not.toHaveBeenCalled();
   });
 
   it("should error when source is not a valid GitHub URL", async () => {
@@ -271,7 +255,6 @@ describe("externalMain with --skillset", () => {
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
     vi.clearAllMocks();
     if (testDir) {
       await fs.rm(testDir, { recursive: true, force: true });

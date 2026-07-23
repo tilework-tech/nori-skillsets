@@ -59,7 +59,6 @@ describe("switchSkillsetFlow", () => {
       }),
       onCaptureConfig: vi.fn().mockResolvedValue(undefined),
       onExecuteSwitch: vi.fn().mockResolvedValue(undefined),
-      onCommit: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -126,27 +125,6 @@ describe("switchSkillsetFlow", () => {
       });
     });
 
-    it("does not report success when the final commit fails", async () => {
-      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
-      vi.mocked(mockCallbacks.onCommit!).mockRejectedValueOnce(
-        new Error("commit failed"),
-      );
-
-      await expect(
-        switchSkillsetFlow({
-          skillsetName: "product-manager",
-          installDir: "/test/dir",
-          callbacks: mockCallbacks,
-        }),
-      ).rejects.toThrow("commit failed");
-
-      expect(mockCallbacks.onCommit).toHaveBeenCalledTimes(1);
-      expect(clack.note).not.toHaveBeenCalledWith(
-        expect.any(String),
-        "Success",
-      );
-    });
-
     it("should return result with agent, profile name, and statusMessage", async () => {
       vi.mocked(clack.confirm).mockResolvedValueOnce(true);
 
@@ -207,32 +185,6 @@ describe("switchSkillsetFlow", () => {
         agentName: "agent-b",
         skillsetName: "product-manager",
       });
-      expect(mockCallbacks.onCommit).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not commit when a later agent switch fails", async () => {
-      vi.mocked(mockCallbacks.onResolveAgents).mockResolvedValueOnce([
-        { name: "claude-code", displayName: "Claude Code" },
-        { name: "agent-b", displayName: "Agent B" },
-      ]);
-      vi.mocked(mockCallbacks.onExecuteSwitch)
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("agent-b failed"));
-      vi.mocked(clack.confirm).mockResolvedValueOnce(true);
-
-      await expect(
-        switchSkillsetFlow({
-          skillsetName: "product-manager",
-          installDir: "/test/dir",
-          callbacks: mockCallbacks,
-        }),
-      ).rejects.toThrow("agent-b failed");
-
-      expect(mockCallbacks.onCommit).not.toHaveBeenCalled();
-      expect(clack.note).not.toHaveBeenCalledWith(
-        expect.any(String),
-        "Success",
-      );
     });
   });
 

@@ -6,7 +6,6 @@ import {
   updateConfig,
   type Config,
 } from "@/cli/config.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import {
   namespaceCreateSkillsetName,
   resolveUserSkillsetRef,
@@ -23,7 +22,7 @@ import type { CommandStatus } from "@/cli/commands/commandStatus.js";
  *
  * @returns Command result with success status and message
  */
-const unlinkSkillsetMainImpl = async (args: {
+export const unlinkSkillsetMain = async (args: {
   name: string;
 }): Promise<CommandStatus> => {
   const { name } = args;
@@ -93,8 +92,3 @@ const unlinkSkillsetMainImpl = async (args: {
     message: `Unlinked "${identity}"`,
   };
 };
-
-export const unlinkSkillsetMain = async (args: {
-  name: string;
-}): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => unlinkSkillsetMainImpl(args) });

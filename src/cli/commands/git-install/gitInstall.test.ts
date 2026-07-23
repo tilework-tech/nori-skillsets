@@ -15,12 +15,15 @@ import type { AddressInfo } from "node:net";
 import { gitInstallMain } from "./gitInstall.js";
 import { createTestGitRepository } from "../../../../tests/helpers/gitRepository.js";
 
-const prompt = vi.hoisted(() => ({ confirm: vi.fn() }));
+const prompt = vi.hoisted(() => ({
+  cancel: Symbol("cancel"),
+  confirm: vi.fn(),
+}));
 
 vi.mock("@clack/prompts", async (importOriginal) => ({
   ...(await importOriginal<typeof clackPrompts>()),
   confirm: prompt.confirm,
-  isCancel: (value: unknown) => typeof value === "symbol",
+  isCancel: (value: unknown) => value === prompt.cancel,
 }));
 
 const execFileAsync = promisify(execFile);
@@ -108,7 +111,7 @@ describe("gitInstallMain", () => {
     ).resolves.toBe("personal/reviewer");
   });
 
-  it("creates a shallow branch-only checkout without tags", async () => {
+  it("checks out only the requested branch head without tags", async () => {
     const firstCommit = await repository.commit({
       slug: "reviewer",
       marker: "first version",
@@ -144,15 +147,6 @@ describe("gitInstallMain", () => {
     await expect(
       fs.readFile(path.join(target, "AGENTS.md"), "utf8"),
     ).resolves.toBe("current version");
-    const commitCount = await execFileAsync(
-      "git",
-      ["rev-list", "--count", "HEAD"],
-      { cwd: target },
-    );
-    expect(commitCount.stdout.trim()).toBe("1");
-    await expect(fs.access(path.join(target, ".git", "shallow"))).resolves.toBe(
-      undefined,
-    );
     const tags = await execFileAsync("git", ["tag", "--list"], {
       cwd: target,
     });
@@ -246,48 +240,18 @@ describe("gitInstallMain", () => {
     ).resolves.toBe("keep me");
   });
 
-  it("rejects an overlapping install before reserving its checkout", async () => {
-    await repository.commit({ slug: "reviewer" });
-    const lockPath = path.join(testRoot, ".nori-install.lock");
-    await fs.mkdir(lockPath);
-    await fs.writeFile(
-      path.join(lockPath, "owner.json"),
-      JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }),
-    );
-
-    try {
-      const result = await install();
-
-      expectFailure(
-        result,
-        /another Nori installation is already in progress/i,
-      );
-      await expect(fs.access(target)).rejects.toThrow();
-    } finally {
-      await fs.rm(lockPath, { recursive: true, force: true });
-    }
-  });
-
-  it("validates a slug before rendering a lock-conflict error", async () => {
-    const lockPath = path.join(testRoot, ".nori-install.lock");
-    const owner = JSON.stringify({
-      pid: process.pid,
-      createdAt: new Date().toISOString(),
+  it("rejects and sanitizes an invalid slug before prompting for trust", async () => {
+    const result = await install({
+      slug: "invalid\nINJECTED-OUTPUT",
+      trustSource: null,
+      nonInteractive: false,
+      silent: false,
     });
-    await fs.mkdir(lockPath);
-    await fs.writeFile(path.join(lockPath, "owner.json"), owner);
 
-    try {
-      const result = await install({ slug: "invalid\nINJECTED-OUTPUT" });
-
-      expectFailure(result, /lowercase letters, numbers, and hyphens only/i);
-      expect(result.message).not.toContain("INJECTED-OUTPUT");
-      await expect(
-        fs.readFile(path.join(lockPath, "owner.json"), "utf8"),
-      ).resolves.toBe(owner);
-    } finally {
-      await fs.rm(lockPath, { recursive: true, force: true });
-    }
+    expectFailure(result, /lowercase letters, numbers, and hyphens only/i);
+    expect(result.message).not.toContain("INJECTED-OUTPUT");
+    expect(prompt.confirm).not.toHaveBeenCalled();
+    await expect(fs.access(target)).rejects.toThrow();
   });
 
   it("requires explicit trust in non-interactive mode", async () => {
@@ -299,7 +263,7 @@ describe("gitInstallMain", () => {
 
   it.each([
     { label: "decline", approval: false },
-    { label: "cancel", approval: Symbol("cancel") },
+    { label: "cancel", approval: prompt.cancel },
   ])("treats interactive $label as cancellation", async ({ approval }) => {
     await repository.commit({ slug: "reviewer" });
     prompt.confirm.mockResolvedValueOnce(approval);
@@ -344,6 +308,7 @@ describe("gitInstallMain", () => {
     expect(promptArgs.message).not.toContain("SECRET_PASSWORD");
     expect(promptArgs.message).not.toContain("SECRET_QUERY");
     expect(promptArgs.message).not.toContain("SECRET_FRAGMENT");
+    expect(promptArgs.message).toContain("example.invalid/repository.git");
   });
 
   it("redacts the user component of an SCP-style remote from the trust prompt", async () => {
@@ -450,6 +415,13 @@ describe("gitInstallMain", () => {
       { cwd: target },
     );
     expect(origin.stdout).not.toContain(secret);
+    expect(origin.stdout.trim()).toBe(repository.fileRemote);
+    const upstream = await execFileAsync(
+      "git",
+      ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+      { cwd: target },
+    );
+    expect(upstream.stdout.trim()).toBe("origin/skillsets/reviewer");
     const gitFiles = await fs.readdir(path.join(target, ".git"), {
       recursive: true,
     });
@@ -586,6 +558,44 @@ describe("gitInstallMain", () => {
       }
     },
   );
+
+  it("uses OpenSSH batch mode by default in non-interactive mode", async () => {
+    const fakeBin = path.join(testRoot, "fake-ssh-bin");
+    const marker = path.join(testRoot, "default-ssh-args");
+    await fs.mkdir(fakeBin);
+    await fs.writeFile(
+      path.join(fakeBin, "ssh"),
+      `#!/bin/sh\nprintf '%s\\n' "$*" > "${marker}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+    const previousEnvironment = {
+      GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
+      GIT_SSH: process.env.GIT_SSH,
+      GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND,
+      PATH: process.env.PATH,
+    };
+
+    try {
+      process.env.GIT_CONFIG_GLOBAL = path.join(testRoot, "empty-gitconfig");
+      delete process.env.GIT_SSH;
+      delete process.env.GIT_SSH_COMMAND;
+      process.env.PATH = `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`;
+
+      const result = await install({
+        remote: "ssh://example.invalid/repository.git",
+      });
+
+      expect(result.success).toBe(false);
+      const args = await fs.readFile(marker, "utf8");
+      expect(args).toContain("BatchMode=yes");
+      expect(args).toContain("example.invalid");
+    } finally {
+      for (const [name, value] of Object.entries(previousEnvironment)) {
+        if (value == null) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
 
   it("preserves a custom SSH executable from GIT_SSH", async () => {
     const marker = path.join(testRoot, "git-ssh-args");
@@ -854,12 +864,6 @@ describe("gitInstallMain", () => {
       await fs.readFile(path.join(testRoot, ".nori-config.json"), "utf8"),
     ) as { activeSkillset?: string | null };
     expect(config.activeSkillset ?? null).toBe(null);
-    await expect(
-      fs.access(path.join(testRoot, ".nori-install-in-progress")),
-    ).rejects.toThrow();
-    await expect(
-      fs.access(path.join(scopedInstallDir, ".claude", ".nori-managed")),
-    ).rejects.toThrow();
     const recoveryCommand = result.message.match(
       /then run: (sks [\s\S]+?)\. /u,
     )?.[1];
@@ -891,37 +895,6 @@ describe("gitInstallMain", () => {
         "",
       ].join("\n"),
     );
-  });
-
-  it("marks only agents whose activation succeeded", async () => {
-    await updateConfig({ defaultAgents: ["claude-code", "codex"] });
-    await repository.commit({
-      slug: "reviewer",
-      files: {
-        "mcp/test.json": JSON.stringify({
-          name: "test",
-          transport: "stdio",
-          command: "test-command",
-          scope: "user",
-        }),
-      },
-    });
-    await fs.mkdir(path.join(testRoot, ".codex", "config.toml"), {
-      recursive: true,
-    });
-
-    const result = await install();
-
-    expectFailure(result, /activation.*incomplete|checkout.*retained/i);
-    await expect(
-      fs.readFile(path.join(testRoot, ".claude", ".nori-managed"), "utf8"),
-    ).resolves.toBe("personal/reviewer");
-    await expect(
-      fs.readFile(path.join(testRoot, ".claude", "CLAUDE.md"), "utf8"),
-    ).resolves.toContain("test skillset");
-    await expect(
-      fs.access(path.join(testRoot, ".codex", ".nori-managed")),
-    ).rejects.toThrow();
   });
 
   it("rejects an unknown agent before reserving a checkout", async () => {

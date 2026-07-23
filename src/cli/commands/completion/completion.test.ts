@@ -1,4 +1,4 @@
-import { execFileSync } from "child_process";
+import { execSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -8,15 +8,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { generateBashCompletion } from "./bashCompletion.js";
 import { completionMain } from "./completion.js";
 import { generateZshCompletion } from "./zshCompletion.js";
-
-const hasZsh = (() => {
-  try {
-    execFileSync("zsh", ["--version"], { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
-})();
 
 // Mock @clack/prompts for error output
 const mockLogError = vi.fn();
@@ -174,74 +165,11 @@ describe("generateBashCompletion", () => {
     );
     try {
       fs.writeFileSync(tmpFile, result);
-      execFileSync("bash", ["-n", tmpFile], { stdio: "pipe" });
+      execSync(`bash -n "${tmpFile}"`, { stdio: "pipe" });
     } finally {
       fs.unlinkSync(tmpFile);
     }
   });
-
-  it.each([
-    {
-      words: "sks --silent install ''",
-      currentWord: 3,
-    },
-    {
-      words: "sks --install-dir /tmp/project --silent install ''",
-      currentWord: 5,
-    },
-    {
-      words: "sks --install-dir=/tmp/project --silent install ''",
-      currentWord: 4,
-    },
-    {
-      words: "sks -d /tmp/project --silent install ''",
-      currentWord: 5,
-    },
-    {
-      words: "sks -a claude-code install ''",
-      currentWord: 4,
-    },
-    {
-      words: "sks -d/tmp/project install ''",
-      currentWord: 3,
-    },
-  ])(
-    "should find the subcommand after global options: $words",
-    ({ words, currentWord }) => {
-      const result = generateBashCompletion();
-      const tmpFile = path.join(
-        os.tmpdir(),
-        `nori-bash-global-option-test-${Date.now()}.sh`,
-      );
-      try {
-        fs.writeFileSync(tmpFile, result);
-        const options = execFileSync(
-          "bash",
-          [
-            "-c",
-            [
-              'source "$1"',
-              `COMP_WORDS=(${words})`,
-              `COMP_CWORD=${currentWord}`,
-              "_nori_skillsets_completions",
-              'printf "%s\\n" "${COMPREPLY[@]}"',
-            ].join("\n"),
-            "bash",
-            tmpFile,
-          ],
-          {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "pipe"],
-            timeout: 10_000,
-          },
-        );
-        expect(options).toContain("--from");
-        expect(options).toContain("--trust-source");
-      } finally {
-        fs.unlinkSync(tmpFile);
-      }
-    },
-  );
 });
 
 describe("generateZshCompletion", () => {
@@ -320,106 +248,29 @@ describe("generateZshCompletion", () => {
     expect(result).toContain("stop");
   });
 
-  it.runIf(hasZsh)("should load as a zsh completion function", () => {
+  it("should generate syntactically valid zsh", () => {
+    let hasZsh = false;
+    try {
+      execSync("which zsh", { stdio: "pipe" });
+      hasZsh = true;
+    } catch {
+      // zsh not available
+    }
+    if (!hasZsh) {
+      return;
+    }
     const result = generateZshCompletion();
-    const tmpDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "nori-zsh-completion-test-"),
+    const tmpFile = path.join(
+      os.tmpdir(),
+      `nori-zsh-completion-test-${Date.now()}.zsh`,
     );
-    const tmpFile = path.join(tmpDir, "completion.zsh");
-    const zcompdump = path.join(tmpDir, ".zcompdump");
     try {
       fs.writeFileSync(tmpFile, result);
-      const functionType = execFileSync(
-        "zsh",
-        [
-          "-f",
-          "-c",
-          'set -e; autoload -Uz compinit; compinit -u -d "$2"; source "$1"; whence -w _nori_skillsets',
-          "zsh",
-          tmpFile,
-          zcompdump,
-        ],
-        {
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"],
-          timeout: 10_000,
-        },
-      );
-      expect(functionType.trim()).toBe("_nori_skillsets: function");
+      execSync(`zsh -n "${tmpFile}"`, { stdio: "pipe" });
     } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.unlinkSync(tmpFile);
     }
   });
-
-  it.runIf(hasZsh)(
-    "should offer Git install options through zsh compsys",
-    () => {
-      const result = generateZshCompletion();
-      const tmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), "nori-zsh-install-completion-test-"),
-      );
-      const tmpFile = path.join(tmpDir, "completion.zsh");
-      const zcompdump = path.join(tmpDir, ".zcompdump");
-      try {
-        fs.writeFileSync(tmpFile, result);
-        const options = execFileSync(
-          "zsh",
-          [
-            "-f",
-            "-c",
-            [
-              "zmodload zsh/zpty",
-              "export COLUMNS=120 PS1='NORI_PROMPT> '",
-              "zpty nori zsh -dfi",
-              "read_until_prompt() {",
-              "  local chunk output=''",
-              "  integer attempts=0",
-              "  while (( attempts++ < 200 )); do",
-              "    if zpty -r nori chunk '*NORI_PROMPT>*' 2>/dev/null; then",
-              "      output+=$chunk",
-              "      break",
-              "    fi",
-              "    sleep 0.01",
-              "  done",
-              "  print -r -- $output",
-              "}",
-              "read_until_options() {",
-              "  local chunk output=''",
-              "  integer attempts=0",
-              "  while (( attempts++ < 200 )); do",
-              "    if zpty -r nori chunk '*--trust-source*' 2>/dev/null; then",
-              "      output+=$chunk",
-              "      break",
-              "    fi",
-              "    sleep 0.01",
-              "  done",
-              "  print -r -- $output",
-              "}",
-              "read_until_prompt >/dev/null",
-              "zpty -w nori \"autoload -Uz compinit; compinit -u -d ${(q)2}; source ${(q)1}\"$'\\n'",
-              "read_until_prompt >/dev/null",
-              "zpty -w nori $'sks --install-dir /tmp --silent install --\\t\\t'",
-              "read_until_options",
-              "zpty -w nori $'\\003'",
-              "zpty -d nori",
-            ].join("\n"),
-            "zsh",
-            tmpFile,
-            zcompdump,
-          ],
-          {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "pipe"],
-            timeout: 10_000,
-          },
-        );
-        expect(options).toContain("--from");
-        expect(options).toContain("--trust-source");
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
-    },
-  );
 });
 
 describe("completionMain", () => {

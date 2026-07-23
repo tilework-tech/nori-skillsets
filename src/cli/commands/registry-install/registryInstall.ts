@@ -15,7 +15,6 @@ import {
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { main as installMain } from "@/cli/features/install/install.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
 import { bold, brightCyan, green } from "@/cli/logger.js";
 import { resolveSkillsetDir } from "@/norijson/skillset.js";
@@ -57,7 +56,7 @@ const checkLocalSkillsetExists = async (args: {
  *
  * @returns Result indicating success or failure
  */
-const registryInstallMainImpl = async (
+export const registryInstallMain = async (
   args: RegistryInstallArgs,
 ): Promise<CommandStatus> => {
   const { packageSpec, installDir, nonInteractive, silent } = args;
@@ -139,14 +138,12 @@ const registryInstallMainImpl = async (
           installDir: targetInstallDir,
           skillset: skillsetName,
           agent: agentName,
-          silent: true,
-          // The outer transaction commits only after every agent succeeds.
-          persistActiveSkillset: false,
+          silent: silent ?? null,
+          // A transient --install-dir install must not clobber global activeSkillset.
+          persistActiveSkillset: resolved.source !== "cli",
         });
       }
-      if (resolved.source !== "cli") {
-        await updateConfig({ activeSkillset: skillsetName });
-      }
+      // Initial install already sets the skillset and displays its own completion banners
       return {
         success: true,
         cancelled: false,
@@ -184,8 +181,8 @@ const registryInstallMainImpl = async (
         agent: agentName,
         silent: true,
         skillset: skillsetName,
-        // The outer transaction commits only after every agent succeeds.
-        persistActiveSkillset: false,
+        // A transient --install-dir switch must not clobber global activeSkillset.
+        persistActiveSkillset: resolved.source !== "cli",
       });
     }
 
@@ -209,11 +206,6 @@ const registryInstallMainImpl = async (
     };
   }
 };
-
-export const registryInstallMain = async (
-  args: RegistryInstallArgs,
-): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => registryInstallMainImpl(args) });
 
 /**
  * Register the 'registry-install' command with commander

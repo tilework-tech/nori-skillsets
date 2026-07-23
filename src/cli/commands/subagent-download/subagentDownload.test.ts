@@ -95,7 +95,6 @@ vi.spyOn(console, "error").mockImplementation(() => undefined);
 import { registrarApi, REGISTRAR_URL } from "@/api/registrar.js";
 import { getRegistryAuthToken } from "@/api/registryAuth.js";
 import { loadConfig } from "@/cli/config.js";
-import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { subagentDownloadMain } from "./subagentDownload.js";
@@ -176,7 +175,6 @@ describe("subagent-download", () => {
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
     vi.clearAllMocks();
     if (testDir) {
       await fs.rm(testDir, { recursive: true, force: true });
@@ -184,24 +182,6 @@ describe("subagent-download", () => {
   });
 
   describe("subagentDownloadMain", () => {
-    it("rejects a held install lock before requesting registry data", async () => {
-      vi.stubEnv("NORI_GLOBAL_CONFIG", testDir);
-      await createHeldInstallLock({ homeDir: testDir });
-
-      await expect(
-        subagentDownloadMain({
-          subagentSpec: "test-subagent",
-          cwd: testDir,
-        }),
-      ).rejects.toThrow(/another Nori installation is already in progress/i);
-
-      expect(registrarApi.getSubagentPackument).not.toHaveBeenCalled();
-      expect(registrarApi.downloadSubagentTarball).not.toHaveBeenCalled();
-      await expect(
-        fs.access(path.join(agentsDir, "test-subagent.md")),
-      ).rejects.toThrow();
-    });
-
     it("should download subagent and flatten SUBAGENT.md to agents dir", async () => {
       vi.mocked(loadConfig).mockResolvedValue({
         installDir: testDir,

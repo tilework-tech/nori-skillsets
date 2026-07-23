@@ -41,7 +41,6 @@ export type SwitchSkillsetCallbacks = {
     agentName: string;
     skillsetName: string;
   }) => Promise<void>;
-  onCommit?: () => Promise<void>;
   onRedownload?: ((args: { skillsetName: string }) => Promise<void>) | null;
   onReadFileDiff?:
     | ((args: {
@@ -317,7 +316,6 @@ export const switchSkillsetFlow = async (args: {
       skillsetName,
     });
   }
-  await callbacks.onCommit?.();
 
   s.stop("Skillset switched");
 

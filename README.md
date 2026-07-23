@@ -60,8 +60,8 @@ sks install my-skillset --from git@github.com:myorg/skillsets.git
 
 The repository must expose a `skillsets/my-skillset` branch whose root
 `nori.json` has `"name": "my-skillset"` and `"type": "skillset"`. The command
-requires Git 2.29 or newer and fetches only that exact branch head at depth one,
-without tags, into `~/.nori/profiles/personal/my-skillset/`. A same-named tag is
+requires Git 2.29 or newer and fetches only that exact branch head without tags
+into `~/.nori/profiles/personal/my-skillset/`. A same-named tag is
 never accepted in place of the branch. The checkout remains a Git working tree.
 Interactive installs ask you to trust the source; unattended installs must add
 `--trust-source`:
@@ -77,15 +77,12 @@ symbolic links, submodules, and Registry `.nori-version` files, and they never
 fall back to the Registry. Git remote-helper syntax and URL schemes outside
 `http`, `https`, `ssh`, `git`, `git+ssh`, and `file` are rejected before the
 source-trust prompt; local paths and SCP-style SSH remotes remain supported.
-Credential-bearing URL components and terminal control characters are sanitized
-in output, and credentials are omitted from the stored origin. The Git 2.29 requirement allows
-`--no-write-fetch-head`, which keeps the credential-bearing fetch URL out of
-`FETCH_HEAD`. Unattended SSH installs use OpenSSH batch mode by default, while
-preserving an existing `GIT_SSH`, `GIT_SSH_COMMAND`, or `core.sshCommand`.
-Git, registry, and switch install transactions are serialized end to end by a
-global lock, including their multi-agent activation loops. Nested installer
-calls reuse the owning transaction, while an independent concurrent attempt
-fails instead of interleaving changes. If activation fails, the validated
+Remote credentials and terminal control characters are sanitized in output,
+and credential-bearing URL components are omitted from the stored origin. The
+Git 2.29 requirement allows `--no-write-fetch-head`, which keeps the
+credential-bearing fetch URL out of `FETCH_HEAD`. Unattended SSH installs use
+OpenSSH batch mode by default, while preserving an existing `GIT_SSH`,
+`GIT_SSH_COMMAND`, or `core.sshCommand`. If activation fails, the validated
 checkout is retained and the error includes a recovery command with the
 original install-directory and effective single-agent options when applicable.
 Its dynamic arguments are POSIX-shell-quoted, so paths with spaces or shell

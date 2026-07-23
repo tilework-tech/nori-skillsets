@@ -4,44 +4,12 @@
  */
 
 import * as fs from "fs/promises";
-import { AsyncLocalStorage } from "node:async_hooks";
 import * as os from "os";
 import { tmpdir } from "os";
 import * as path from "path";
 
 import { Command } from "commander";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-
-const mockInstallLock = vi.hoisted(() => {
-  let active = false;
-  let context: AsyncLocalStorage<boolean> | null = null;
-  return {
-    reset: () => {
-      active = false;
-    },
-    withInstallLock: vi.fn(
-      async <T>(args: { operation: () => Promise<T> }): Promise<T> => {
-        context ??= new AsyncLocalStorage<boolean>();
-        if (context.getStore() === true) {
-          return args.operation();
-        }
-        if (active) {
-          throw new Error("Another Nori installation is already in progress");
-        }
-        active = true;
-        try {
-          return await context.run(true, args.operation);
-        } finally {
-          active = false;
-        }
-      },
-    ),
-  };
-});
-
-vi.mock("@/cli/features/install/installLock.js", () => ({
-  withInstallLock: mockInstallLock.withInstallLock,
-}));
 
 import {
   setGlobalAgentOverride,
@@ -53,14 +21,7 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 
-import {
-  registerSwitchSkillsetCommand,
-  switchSkillsetAction,
-} from "./switchSkillset.js";
-
-afterEach(() => {
-  mockInstallLock.reset();
-});
+import { registerSwitchSkillsetCommand } from "./switchSkillset.js";
 
 const addAgentOverrideHook = (program: Command): void => {
   program.hook("preAction", (thisCommand) => {
@@ -812,45 +773,6 @@ describe("switch-skillset broadcasts to all default agents", () => {
       }),
     );
   });
-
-  it("rejects a concurrent switch while the first multi-agent transaction is running", async () => {
-    let releaseInstall!: () => void;
-    let markInstallStarted!: () => void;
-    const installStarted = new Promise<void>((resolve) => {
-      markInstallStarted = resolve;
-    });
-    const installCanFinish = new Promise<void>((resolve) => {
-      releaseInstall = resolve;
-    });
-    mockInstallMain.mockImplementationOnce(async () => {
-      markInstallStarted();
-      await installCanFinish;
-    });
-    const program = new Command()
-      .option("-d, --install-dir <path>")
-      .option("-n, --non-interactive")
-      .parse(["node", "sks", "--non-interactive"]);
-
-    const first = switchSkillsetAction({
-      name: "product-manager",
-      options: {},
-      program,
-    });
-    await installStarted;
-
-    try {
-      await expect(
-        switchSkillsetAction({
-          name: "senior-swe",
-          options: {},
-          program,
-        }),
-      ).rejects.toThrow(/another Nori installation is already in progress/i);
-    } finally {
-      releaseInstall();
-      await first;
-    }
-  });
 });
 
 describe("switch-skillset passes skillset name to installMain", () => {
@@ -1236,79 +1158,6 @@ describe("switch-skillset activeSkillset persistence with --install-dir override
     // activeSkillset SHOULD be updated because no --install-dir override
     const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
     expect(updatedConfig.activeSkillset).toBe("product-manager");
-  });
-
-  it("does not persist activeSkillset when the interactive flow is cancelled", async () => {
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        activeSkillset: "senior-swe",
-        defaultAgents: ["claude-code"],
-        installDir: testInstallDir,
-      }),
-    );
-    mockSwitchSkillsetFlow.mockResolvedValueOnce(null);
-    const program = new Command()
-      .option("-d, --install-dir <path>")
-      .option("-n, --non-interactive")
-      .option("-a, --agent <name>");
-
-    const result = await switchSkillsetAction({
-      name: "product-manager",
-      options: {},
-      program,
-    });
-
-    expect(result.cancelled).toBe(true);
-    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
-    expect(updatedConfig.activeSkillset).toBe("senior-swe");
-  });
-
-  it("keeps the old activeSkillset when a later agent install fails", async () => {
-    const configPath = path.join(testInstallDir, ".nori-config.json");
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        activeSkillset: "senior-swe",
-        defaultAgents: ["claude-code", "gemini-cli"],
-        installDir: testInstallDir,
-      }),
-    );
-    mockInstallMain
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error("gemini install failed"));
-    const program = new Command()
-      .option("-d, --install-dir <path>")
-      .option("-n, --non-interactive")
-      .option("-a, --agent <name>")
-      .parse(["node", "sks", "--non-interactive"]);
-
-    await expect(
-      switchSkillsetAction({
-        name: "product-manager",
-        options: {},
-        program,
-      }),
-    ).rejects.toThrow("gemini install failed");
-
-    expect(mockInstallMain).toHaveBeenCalledTimes(2);
-    expect(mockInstallMain).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        agent: "claude-code",
-        persistActiveSkillset: false,
-      }),
-    );
-    expect(mockInstallMain).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        agent: "gemini-cli",
-        persistActiveSkillset: false,
-      }),
-    );
-    const updatedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
-    expect(updatedConfig.activeSkillset).toBe("senior-swe");
   });
 });
 
@@ -1721,7 +1570,6 @@ describe("switch-skillset interactive flow routing", () => {
       expect.objectContaining({
         agent: "claude-code",
         silent: true,
-        persistActiveSkillset: false,
       }),
     );
   });

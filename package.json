@@ -31,7 +31,7 @@
   "author": "Tilework <contact@tilework.tech>",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "scripts": {
     "build": "./scripts/build.sh",

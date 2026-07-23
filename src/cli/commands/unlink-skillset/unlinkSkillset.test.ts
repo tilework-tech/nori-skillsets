@@ -31,7 +31,6 @@ vi.mock("@/cli/config.js", async () => {
 });
 
 import { loadConfig, getActiveSkillset, updateConfig } from "@/cli/config.js";
-import { createHeldInstallLock } from "@/cli/test-utils/installLock.js";
 
 import { unlinkSkillsetMain } from "./unlinkSkillset.js";
 
@@ -52,7 +51,6 @@ describe("unlinkSkillsetMain", () => {
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
     await fs.rm(testHomeDir, { recursive: true, force: true });
     await fs.rm(targetDir, { recursive: true, force: true });
   });
@@ -65,22 +63,6 @@ describe("unlinkSkillsetMain", () => {
 
     expect(result.success).toBe(true);
     await expect(fs.lstat(linkPath)).rejects.toThrow();
-  });
-
-  it("rejects a held install lock before unlinking the skillset", async () => {
-    vi.stubEnv("NORI_GLOBAL_CONFIG", testHomeDir);
-    const linkPath = path.join(testHomeDir, ".nori", "profiles", "my-skillset");
-    await fs.symlink(targetDir, linkPath);
-    await createHeldInstallLock({ homeDir: testHomeDir });
-
-    await expect(unlinkSkillsetMain({ name: "my-skillset" })).rejects.toThrow(
-      /another Nori installation is already in progress/i,
-    );
-
-    await expect(fs.lstat(linkPath)).resolves.toMatchObject({
-      isSymbolicLink: expect.any(Function),
-    });
-    expect(updateConfig).not.toHaveBeenCalled();
   });
 
   it("should refuse to remove a real directory (not a symlink)", async () => {

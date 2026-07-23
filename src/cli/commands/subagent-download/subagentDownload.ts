@@ -28,7 +28,6 @@ import {
   getActiveSkillset,
 } from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { subagentDownloadFlow } from "@/cli/prompts/flows/subagentDownload.js";
 import { recordFlowFailure } from "@/cli/prompts/flows/utils.js";
@@ -107,7 +106,7 @@ const flattenSubagentToAgentDir = async (args: {
   await fs.writeFile(path.join(agentsDir, `${subagentName}.md`), substituted);
 };
 
-type SubagentDownloadArgs = {
+export const subagentDownloadMain = async (args: {
   subagentSpec: string;
   cwd?: string | null;
   installDir?: string | null;
@@ -117,11 +116,7 @@ type SubagentDownloadArgs = {
   cliName?: CliName | null;
   nonInteractive?: boolean | null;
   silent?: boolean | null;
-};
-
-const subagentDownloadMainImpl = async (
-  args: SubagentDownloadArgs,
-): Promise<CommandStatus> => {
+}): Promise<CommandStatus> => {
   const {
     subagentSpec,
     installDir,
@@ -613,11 +608,6 @@ const subagentDownloadMainImpl = async (
 
   return { success: true, cancelled: false, message: result.statusMessage };
 };
-
-export const subagentDownloadMain = async (
-  args: SubagentDownloadArgs,
-): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => subagentDownloadMainImpl(args) });
 
 export const registerSubagentDownloadCommand = (args: {
   program: Command;

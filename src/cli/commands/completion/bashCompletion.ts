@@ -5,7 +5,7 @@ export const generateBashCompletion = (): string => {
 #   eval "$(nori-skillsets completion bash)"
 
 _nori_skillsets_completions() {
-  local cur prev commands global_opts subcmd subcmd_index arg_index i word
+  local cur prev commands global_opts
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
@@ -13,36 +13,14 @@ _nori_skillsets_completions() {
   commands="login logout init search download install switch list link unlink download-skill external watch dir fork edit install-location clear clear-current factory-reset completion help"
   global_opts="--install-dir --non-interactive --silent --agent --help --version"
 
-  subcmd=""
-  subcmd_index=-1
-  i=1
-  while [[ \${i} -lt \${COMP_CWORD} ]]; do
-    word="\${COMP_WORDS[i]}"
-    case "\${word}" in
-      --install-dir|--agent|-d|-a)
-        ((i += 2))
-        ;;
-      --install-dir=*|--agent=*|-d?*|-a?*|--non-interactive|--silent)
-        ((i += 1))
-        ;;
-      -*)
-        ((i += 1))
-        ;;
-      *)
-        subcmd="\${word}"
-        subcmd_index=\${i}
-        break
-        ;;
-    esac
-  done
-
-  if [[ -z "\${subcmd}" ]]; then
+  # Complete subcommand at position 1
+  if [[ \${COMP_CWORD} -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "\${commands}" -- "\${cur}") )
     return 0
   fi
-  arg_index=$((COMP_CWORD - subcmd_index))
 
   # Complete based on subcommand
+  local subcmd="\${COMP_WORDS[1]}"
   case "\${subcmd}" in
     login)
       COMPREPLY=( $(compgen -W "--email --password --google --no-localhost \${global_opts}" -- "\${cur}") )
@@ -66,7 +44,7 @@ _nori_skillsets_completions() {
       COMPREPLY=( $(compgen -W "--from --trust-source \${global_opts}" -- "\${cur}") )
       ;;
     switch)
-      if [[ \${arg_index} -eq 1 ]] && [[ "\${cur}" != -* ]]; then
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
         local skillsets
         skillsets="$(nori-skillsets list 2>/dev/null | sed 's/ (linked)$//')"
         COMPREPLY=( $(compgen -W "\${skillsets}" -- "\${cur}") )
@@ -75,14 +53,14 @@ _nori_skillsets_completions() {
       fi
       ;;
     link)
-      if [[ \${arg_index} -eq 1 ]] && [[ "\${cur}" != -* ]]; then
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
         COMPREPLY=( $(compgen -d -- "\${cur}") )
       else
         COMPREPLY=( $(compgen -W "--name \${global_opts}" -- "\${cur}") )
       fi
       ;;
     unlink)
-      if [[ \${arg_index} -eq 1 ]] && [[ "\${cur}" != -* ]]; then
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
         local skillsets
         skillsets="$(nori-skillsets list 2>/dev/null | sed -n 's/ (linked)$//p')"
         COMPREPLY=( $(compgen -W "\${skillsets}" -- "\${cur}") )
@@ -97,7 +75,7 @@ _nori_skillsets_completions() {
       COMPREPLY=( $(compgen -W "--skillset --skill --all --ref \${global_opts}" -- "\${cur}") )
       ;;
     watch)
-      if [[ \${arg_index} -eq 1 ]] && [[ "\${cur}" != -* ]]; then
+      if [[ \${COMP_CWORD} -eq 2 ]] && [[ "\${cur}" != -* ]]; then
         COMPREPLY=( $(compgen -W "stop --agent --set-destination \${global_opts}" -- "\${cur}") )
       else
         COMPREPLY=( $(compgen -W "--agent --set-destination \${global_opts}" -- "\${cur}") )

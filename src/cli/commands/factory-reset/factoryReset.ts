@@ -10,7 +10,6 @@ import { log } from "@clack/prompts";
 
 import { findArtifacts } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { factoryResetFlow } from "@/cli/prompts/flows/factoryReset.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
@@ -25,15 +24,11 @@ import type { CommandStatus } from "@/cli/commands/commandStatus.js";
  *
  * @returns Command status
  */
-type FactoryResetArgs = {
+export const factoryResetMain = async (args: {
   agentName: string;
   path?: string | null;
   nonInteractive?: boolean | null;
-};
-
-const factoryResetMainImpl = async (
-  args: FactoryResetArgs,
-): Promise<CommandStatus> => {
+}): Promise<CommandStatus> => {
   const { agentName, nonInteractive } = args;
   const effectivePath = args.path ?? process.cwd();
 
@@ -86,8 +81,3 @@ const factoryResetMainImpl = async (
 
   return { success: true, cancelled: false, message: result.statusMessage };
 };
-
-export const factoryResetMain = async (
-  args: FactoryResetArgs,
-): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => factoryResetMainImpl(args) });

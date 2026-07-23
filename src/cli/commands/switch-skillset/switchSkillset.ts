@@ -22,7 +22,6 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { main as installMain } from "@/cli/features/install/install.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { substituteTemplatePaths } from "@/cli/features/template.js";
 import { setSilentMode, isSilentMode } from "@/cli/logger.js";
 import { switchSkillsetFlow } from "@/cli/prompts/flows/switchSkillset.js";
@@ -84,7 +83,7 @@ export const resolveRedownloadSource = async (args: {
  * @returns Command status
  */
 
-const switchSkillsetActionImpl = async (args: {
+export const switchSkillsetAction = async (args: {
   name?: string | null;
   options: { agent?: string; force?: boolean };
   program: Command;
@@ -234,16 +233,10 @@ const switchSkillsetActionImpl = async (args: {
             agent: agentName,
             silent: true,
             skillset: pName,
-            // The outer transaction commits only after every agent succeeds.
-            persistActiveSkillset: false,
+            // A transient --install-dir switch must not clobber global activeSkillset.
+            persistActiveSkillset: resolved.source !== "cli",
           });
         },
-        onCommit:
-          resolved.source !== "cli"
-            ? async () => {
-                await updateConfig({ activeSkillset: name });
-              }
-            : undefined,
         onRedownload: redownloadEnabled
           ? async ({ skillsetName: pName }) => {
               const source = await resolveRedownloadSource({ name: pName });
@@ -353,6 +346,11 @@ const switchSkillsetActionImpl = async (args: {
       },
     });
 
+    // Persist activeSkillset to config unless this is a transient CLI override
+    if (resolved.source !== "cli") {
+      await updateConfig({ activeSkillset: name });
+    }
+
     if (flowResult == null) {
       return { success: false, cancelled: true, message: "" };
     }
@@ -411,8 +409,8 @@ const switchSkillsetActionImpl = async (args: {
       agent: agentName,
       silent: true,
       skillset: name,
-      // The outer transaction commits only after every agent succeeds.
-      persistActiveSkillset: false,
+      // A transient --install-dir switch must not clobber global activeSkillset.
+      persistActiveSkillset: resolved.source !== "cli",
     });
   }
 
@@ -427,13 +425,6 @@ const switchSkillsetActionImpl = async (args: {
     message: `Switched to skillset "${name}"`,
   };
 };
-
-export const switchSkillsetAction = async (args: {
-  name?: string | null;
-  options: { agent?: string; force?: boolean };
-  program: Command;
-}): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => switchSkillsetActionImpl(args) });
 
 /**
  * Register the 'switch-skillset' command with commander

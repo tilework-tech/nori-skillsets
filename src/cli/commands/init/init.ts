@@ -27,7 +27,6 @@ import {
 } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { ensureNoriInitialized } from "@/cli/features/install/initialize.js";
-import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { initFlow } from "@/cli/prompts/flows/init.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { normalizeInstallDir } from "@/utils/path.js";
@@ -59,29 +58,16 @@ const directoryExists = async (dirPath: string): Promise<boolean> => {
  * @param args.nonInteractive - Whether to run in non-interactive mode
  * @param args.skipWarning - Whether to skip the skillset persistence warning (useful for auto-init in download flows)
  * @param args.skillset - Skillset name to write to .nori-managed markers
- * @param args.markInstalled - Whether initialization should create agent installation markers
- * @param args.captureExisting - Whether initialization may capture and rewrite existing agent configuration
  *
  * @returns Command status
  */
-type InitArgs = {
+export const initMain = async (args?: {
   installDir?: string | null;
   nonInteractive?: boolean | null;
   skipWarning?: boolean | null;
   skillset?: string | null;
-  markInstalled?: boolean | null;
-  captureExisting?: boolean | null;
-};
-
-const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
-  const {
-    installDir,
-    nonInteractive,
-    skipWarning,
-    skillset,
-    markInstalled = true,
-    captureExisting = true,
-  } = args ?? {};
+}): Promise<CommandStatus> => {
+  const { installDir, nonInteractive, skipWarning, skillset } = args ?? {};
   const normalizedInstallDir = normalizeInstallDir({
     installDir,
     agentDirNames: AgentRegistry.getInstance().getAgentDirNames(),
@@ -106,7 +92,6 @@ const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
           return [];
         },
         onDetectExistingConfig: async ({ installDir: dir }) => {
-          if (captureExisting === false) return null;
           const existingConfig = await loadConfig();
           if (existingConfig != null) return null;
           // Skip detection if default agent is already installed at this location
@@ -117,7 +102,6 @@ const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
           });
         },
         onCaptureConfig: async ({ installDir: dir, skillsetName }) => {
-          if (captureExisting === false) return;
           // Build a config object for the agent to use when restoring managed config
           const config: Config = {
             installDir: dir,
@@ -152,17 +136,16 @@ const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
             activeSkillset,
           });
 
-          if (markInstalled !== false) {
-            for (const agentName of defaultAgentNames) {
-              const agent = AgentRegistry.getInstance().get({
-                name: agentName,
-              });
-              markInstall({
-                agent,
-                path: dir,
-                skillsetName: capturedSkillsetName,
-              });
-            }
+          // Mark this directory as having all default agents installed
+          for (const agentName of defaultAgentNames) {
+            const agent = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            markInstall({
+              agent,
+              path: dir,
+              skillsetName: capturedSkillsetName,
+            });
           }
         },
       },
@@ -179,8 +162,6 @@ const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
   await ensureNoriInitialized({
     installDir: normalizedInstallDir,
     skillset,
-    markInstalled: markInstalled !== false,
-    captureExisting: captureExisting !== false,
   });
 
   return {
@@ -189,9 +170,6 @@ const initMainImpl = async (args?: InitArgs): Promise<CommandStatus> => {
     message: "Nori initialized successfully",
   };
 };
-
-export const initMain = async (args?: InitArgs): Promise<CommandStatus> =>
-  withInstallLock({ operation: () => initMainImpl(args) });
 
 /**
  * Register the 'init' command with commander
