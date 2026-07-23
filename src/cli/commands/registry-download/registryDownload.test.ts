@@ -106,6 +106,10 @@ import { loadConfig, getRegistryAuth } from "@/cli/config.js";
 import { computeArchiveShasum } from "@/packaging/archive.js";
 
 import { registryDownloadMain } from "./registryDownload.js";
+import {
+  commitTestGitRepository,
+  getTestGitStatus,
+} from "../../../../tests/helpers/gitRepository.js";
 
 /**
  * Create a CLAUDE.md managed block marker for Nori installation detection
@@ -1184,7 +1188,12 @@ describe("registry-download", () => {
   });
 
   describe("--list-versions flag", () => {
-    it("should list available versions instead of downloading", async () => {
+    it("should list available versions for an existing Git target without downloading", async () => {
+      await fs.mkdir(
+        path.join(skillsetsDir, "public", "test-profile", ".git"),
+        { recursive: true },
+      );
+
       // Package exists in public registry with multiple versions
       vi.mocked(registrarApi.getPackument).mockResolvedValue({
         name: "test-profile",
@@ -1287,7 +1296,11 @@ describe("registry-download", () => {
   describe("version comparison and update", () => {
     it("should update existing profile when newer version is available", async () => {
       // Create existing profile with old version
-      const existingProfileDir = path.join(skillsetsDir, "test-profile");
+      const existingProfileDir = path.join(
+        skillsetsDir,
+        "public",
+        "test-profile",
+      );
       await fs.mkdir(existingProfileDir, { recursive: true });
       await fs.writeFile(
         path.join(existingProfileDir, "nori.json"),
@@ -1326,6 +1339,95 @@ describe("registry-download", () => {
       // Verify success output (installed to, switch hint via note)
       const allOutput = getAllClackOutput();
       expect(allOutput.toLowerCase()).toContain("installed");
+      await expect(
+        fs.readFile(path.join(existingProfileDir, "package.json"), "utf-8"),
+      ).resolves.toContain("test-profile");
+    });
+
+    it.each(["root", "ancestor", "linked-subdirectory"] as const)(
+      "refuses a Registrar update when the target is Git-governed through its %s",
+      async (topology) => {
+        const existingProfileDir = path.join(
+          skillsetsDir,
+          "public",
+          "test-profile",
+        );
+        const originalManifest = JSON.stringify({
+          name: "test-profile",
+          version: "1.0.0",
+        });
+        let repositoryDir: string;
+        let repositoryProfileDir: string;
+
+        if (topology === "root") {
+          repositoryDir = existingProfileDir;
+          repositoryProfileDir = existingProfileDir;
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+        } else if (topology === "ancestor") {
+          repositoryDir = skillsetsDir;
+          repositoryProfileDir = existingProfileDir;
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+        } else {
+          repositoryDir = path.join(testDir, "external-repository");
+          repositoryProfileDir = path.join(repositoryDir, "test-profile");
+          await fs.mkdir(repositoryProfileDir, { recursive: true });
+          await fs.mkdir(path.dirname(existingProfileDir), { recursive: true });
+          await fs.symlink(repositoryProfileDir, existingProfileDir, "dir");
+        }
+
+        await fs.writeFile(
+          path.join(repositoryProfileDir, "nori.json"),
+          originalManifest,
+        );
+        await fs.writeFile(
+          path.join(repositoryProfileDir, ".nori-version"),
+          JSON.stringify({ version: "1.0.0", registryUrl: REGISTRAR_URL }),
+        );
+        await commitTestGitRepository({ repositoryDir });
+
+        vi.mocked(loadConfig).mockResolvedValue({ installDir: testDir });
+
+        const result = await registryDownloadMain({
+          packageSpec: "test-profile",
+          cwd: testDir,
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.failureKind).toBe("source-authority");
+        expect(result.message).toMatch(/Git.*Registrar download refused/i);
+        expect(registrarApi.getPackument).not.toHaveBeenCalled();
+        expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+        await expect(getTestGitStatus({ repositoryDir })).resolves.toBe("");
+        if (topology === "linked-subdirectory") {
+          await expect(
+            fs.lstat(existingProfileDir).then((stat) => stat.isSymbolicLink()),
+          ).resolves.toBe(true);
+        }
+      },
+    );
+
+    it("refuses a fresh Registrar download beneath a Git-governed ancestor", async () => {
+      await fs.writeFile(path.join(skillsetsDir, ".baseline"), "keep");
+      await commitTestGitRepository({ repositoryDir: skillsetsDir });
+      vi.mocked(loadConfig).mockResolvedValue(null);
+
+      const result = await registryDownloadMain({
+        packageSpec: "test-profile",
+        cwd: testDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.failureKind).toBe("source-authority");
+      expect(result.message).toMatch(/Git.*Registrar download refused/i);
+      expect(initMain).not.toHaveBeenCalled();
+      expect(registrarApi.getPackument).not.toHaveBeenCalled();
+      expect(registrarApi.downloadTarball).not.toHaveBeenCalled();
+      await expect(
+        getTestGitStatus({ repositoryDir: skillsetsDir }),
+      ).resolves.toBe("");
+      await expect(
+        fs.access(path.join(skillsetsDir, "public", "test-profile")),
+      ).rejects.toThrow();
     });
 
     it("should report when already at latest version", async () => {

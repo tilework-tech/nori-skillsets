@@ -13,6 +13,28 @@ const git = async (
   return result.stdout.trim();
 };
 
+export const commitTestGitRepository = async (args: {
+  repositoryDir: string;
+}): Promise<void> => {
+  await git(args.repositoryDir, "init", "--quiet");
+  await git(args.repositoryDir, "add", ".");
+  await git(
+    args.repositoryDir,
+    "-c",
+    "user.name=Nori Test",
+    "-c",
+    "user.email=nori-test@example.invalid",
+    "commit",
+    "--quiet",
+    "-m",
+    "baseline",
+  );
+};
+
+export const getTestGitStatus = async (args: {
+  repositoryDir: string;
+}): Promise<string> => git(args.repositoryDir, "status", "--short");
+
 type CommitArgs = {
   slug: string;
   marker?: string;
