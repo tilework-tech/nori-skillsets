@@ -612,3 +612,44 @@ export const updateFollowingCheckout = async (args: {
 
   return { outcome: "updated", oldSha, newSha, undo };
 };
+
+// Canonical trust key for a remote: normalize scp-form to ssh://, strip
+// credentials, drop a trailing .git and slash, and lowercase the host, so
+// trivial URL variants of the same source neither double-trust nor bypass
+// trust. Different transports (ssh vs https) remain distinct.
+export const canonicalizeRemoteForTrust = (args: {
+  remote: string;
+}): string => {
+  const withoutCreds = credentialFreeRemote({
+    remote: normalizeAcquisitionRemote({ remote: args.remote }),
+  });
+  const stripTail = (segment: string): string =>
+    segment.replace(/\.git$/iu, "").replace(/\/+$/u, "");
+
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//iu.test(withoutCreds);
+  if (!hasScheme) {
+    const scp = /^(?:[^@/\\\s:]+@)?(\[[^\]\s]+\]|[^/\\\s:]+):(.*)$/u.exec(
+      withoutCreds,
+    );
+    if (scp != null && !/^[a-z]:[\\/]/iu.test(withoutCreds)) {
+      const host = scp[1].toLowerCase();
+      const p = stripTail(scp[2].replace(/^\/+/u, ""));
+      return `ssh://${host}/${p}`;
+    }
+    return stripTail(withoutCreds);
+  }
+
+  try {
+    const url = new URL(withoutCreds);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    const scheme = url.protocol.replace(/:$/u, "").toLowerCase();
+    const host = url.host.toLowerCase();
+    const p = stripTail(url.pathname.replace(/^\/+/u, ""));
+    return `${scheme}://${host}/${p}`;
+  } catch {
+    return stripTail(withoutCreds);
+  }
+};

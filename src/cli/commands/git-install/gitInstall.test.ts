@@ -1050,6 +1050,21 @@ exec "${realGit}" "$@"
     await expect(fs.access(target)).rejects.toThrow();
   });
 
+  it("persists durable trust so a repeat install skips the trust gate", async () => {
+    await repository.commit({ slug: "reviewer" });
+
+    // First install with --trust-source records durable trust for this source.
+    expect((await install({ trustSource: true })).success).toBe(true);
+
+    prompt.confirm.mockClear();
+    // A repeat non-interactive install without --trust-source is no longer
+    // gated on trust: it fails on the existing destination, not on trust.
+    const repeat = await install({ trustSource: null, nonInteractive: true });
+    expect(repeat.success).toBe(false);
+    expect(repeat.message).not.toMatch(/--trust-source/);
+    expect(prompt.confirm).not.toHaveBeenCalled();
+  });
+
   it.each([
     { label: "decline", approval: false },
     { label: "cancel", approval: prompt.cancel },

@@ -23,6 +23,7 @@ import {
 } from "@/cli/features/gitPackage.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
 import { withInstallLock } from "@/cli/features/install/installLock.js";
+import { isTrusted, recordTrust } from "@/cli/features/trustStore.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
@@ -340,7 +341,8 @@ const gitInstallMainImpl = async (
     }
 
     const branch = `skillsets/${slug}`;
-    if (trustSource !== true) {
+    const alreadyTrusted = await isTrusted({ remote, branch });
+    if (!alreadyTrusted && trustSource !== true) {
       if (nonInteractive === true || silent === true) {
         throw new Error(
           "Git installs require --trust-source when running non-interactively",
@@ -354,6 +356,11 @@ const gitInstallMainImpl = async (
         cancel("Git installation cancelled");
         return { success: false, cancelled: true, message: "" };
       }
+    }
+    // Persist durable trust on first approval (interactive confirm or
+    // --trust-source) so re-installs of this source need neither.
+    if (!alreadyTrusted) {
+      await recordTrust({ remote, branch });
     }
 
     await assertSupportedGitVersion();

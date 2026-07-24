@@ -231,6 +231,47 @@ export const registerNoriSkillsetsUpdateCommand = (args: {
 };
 
 /**
+ * Register the 'trust' command family for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsTrustCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+  const trust = program
+    .command("trust")
+    .description("Manage durable trust for Git-backed skillset sources");
+
+  trust
+    .command("list")
+    .description("List trusted Git sources")
+    .action(async () => {
+      const { trustListMain } = await import("@/cli/commands/trust/trust.js");
+      const globalOpts = program.opts();
+      await wrapWithFraming({
+        title: "Trusted Sources",
+        silent: globalOpts.silent || null,
+        action: () => trustListMain(),
+      });
+    });
+
+  trust
+    .command("revoke <remote> <slug>")
+    .description("Revoke trust for a Git source")
+    .action(async (remote: string, slug: string) => {
+      const { trustRevokeMain } = await import("@/cli/commands/trust/trust.js");
+      const globalOpts = program.opts();
+      await wrapWithFraming({
+        title: "Revoke Trust",
+        exitOnFailure: true,
+        silent: globalOpts.silent || null,
+        action: () => trustRevokeMain({ remote, slug }),
+      });
+    });
+};
+
+/**
  * Register the 'register' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
@@ -564,6 +605,29 @@ export const registerNoriSkillsetsInstallCommand = (args: {
                 nonInteractive:
                   globalOpts.nonInteractive || globalOpts.silent || null,
                 pin: options.pin ?? null,
+                silent: globalOpts.silent || null,
+                trustSource: options.trustSource ?? null,
+              });
+            }
+            // A configured primary remote redirects bare-name installs to Git.
+            const { loadConfig } = await import("@/cli/config.js");
+            const config = await loadConfig();
+            if (config?.primaryRemote != null) {
+              if (options.pin != null) {
+                return {
+                  success: false,
+                  cancelled: false,
+                  message: "--pin requires an explicit --from <git-remote>",
+                };
+              }
+              const { gitInstallMain } =
+                await import("@/cli/commands/git-install/gitInstall.js");
+              return gitInstallMain({
+                slug: packageSpec,
+                remote: config.primaryRemote,
+                installDir: globalOpts.installDir || null,
+                nonInteractive:
+                  globalOpts.nonInteractive || globalOpts.silent || null,
                 silent: globalOpts.silent || null,
                 trustSource: options.trustSource ?? null,
               });
@@ -1322,12 +1386,17 @@ export const registerNoriSkillsetsConfigCommand = (args: {
       "--default-org <org>",
       'Default org for bare package names (empty string "" to clear)',
     )
+    .option(
+      "--primary-remote <remote>",
+      'Git remote for bare-name installs, instead of the Registry (empty string "" to clear)',
+    )
     .action(
       async (options: {
         agents?: string;
         redownloadOnSwitch?: boolean;
         claudeCodeStatusLine?: boolean;
         defaultOrg?: string;
+        primaryRemote?: string;
       }) => {
         const { configMain } = await import("@/cli/commands/config/config.js");
         const globalOpts = program.opts();
@@ -1341,6 +1410,7 @@ export const registerNoriSkillsetsConfigCommand = (args: {
               redownloadOnSwitch: options.redownloadOnSwitch ?? null,
               claudeCodeStatusLine: options.claudeCodeStatusLine ?? null,
               defaultOrg: options.defaultOrg ?? null,
+              primaryRemote: options.primaryRemote ?? null,
               nonInteractive: globalOpts.nonInteractive || null,
             }),
         });

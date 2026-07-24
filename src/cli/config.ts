@@ -48,6 +48,8 @@ export type Config = {
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
   /** Default org that a bare (non-namespaced) package name downloads from / uploads to */
   defaultOrg?: string | null;
+  /** Git remote that bare-name installs resolve to instead of the Registry */
+  primaryRemote?: string | null;
 };
 
 /**
@@ -90,6 +92,8 @@ type RawDiskConfig = {
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
   // Default org for bare (non-namespaced) package names
   defaultOrg?: string | null;
+  // Git remote that bare-name installs resolve to instead of the Registry
+  primaryRemote?: string | null;
 };
 
 /**
@@ -283,6 +287,7 @@ export const loadConfig = async (): Promise<Config | null> => {
       redownloadOnSwitch: validated.redownloadOnSwitch,
       claudeCodeStatusLine: validated.claudeCodeStatusLine,
       defaultOrg: validated.defaultOrg,
+      primaryRemote: validated.primaryRemote,
     };
 
     // Build auth - handle both nested format (v19+) and flat format (legacy)
@@ -364,6 +369,7 @@ export const loadConfig = async (): Promise<Config | null> => {
  * @param args.claudeCodeStatusLine - Whether to configure Claude Code status line during apply (null to skip)
  * @param args.apiToken - Raw API token (format `nori_<orgId>_<64hex>`) for non-interactive private-org auth (null to skip)
  * @param args.defaultOrg - Default org for bare package names (null to skip)
+ * @param args.primaryRemote - Git remote for bare-name installs (null to skip)
  */
 const writeConfigFile = async (args: {
   username: string | null;
@@ -384,6 +390,7 @@ const writeConfigFile = async (args: {
   redownloadOnSwitch?: "enabled" | "disabled" | null;
   claudeCodeStatusLine?: "enabled" | "disabled" | null;
   defaultOrg?: string | null;
+  primaryRemote?: string | null;
   installDir: string;
 }): Promise<void> => {
   const {
@@ -405,6 +412,7 @@ const writeConfigFile = async (args: {
     redownloadOnSwitch,
     claudeCodeStatusLine,
     defaultOrg,
+    primaryRemote,
     installDir,
   } = args;
   const configPath = getConfigPath();
@@ -483,6 +491,11 @@ const writeConfigFile = async (args: {
   // Add defaultOrg if provided
   if (defaultOrg != null) {
     config.defaultOrg = defaultOrg;
+  }
+
+  // Add primaryRemote if provided
+  if (primaryRemote != null) {
+    config.primaryRemote = primaryRemote;
   }
 
   // Always save installDir
@@ -613,6 +626,10 @@ const updateConfigImpl = async (updates: Partial<Config>): Promise<void> => {
       "defaultOrg" in updates
         ? (updates.defaultOrg ?? null)
         : (existing?.defaultOrg ?? null),
+    primaryRemote:
+      "primaryRemote" in updates
+        ? (updates.primaryRemote ?? null)
+        : (existing?.primaryRemote ?? null),
     installDir:
       "installDir" in updates
         ? updates.installDir!
@@ -723,6 +740,7 @@ const configSchema = {
       default: "enabled",
     },
     defaultOrg: { type: "string" },
+    primaryRemote: { type: "string" },
   },
   additionalProperties: false,
 };
