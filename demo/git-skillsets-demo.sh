@@ -123,10 +123,17 @@ pause
 banner "Bob points his primary remote at Alice's repo" \
   "Now bare-name installs resolve to Git instead of the Registry."
 sks consumer config --primary-remote "$REMOTE"
+# #1 — prove there is no Registrar in the loop: Bob's only configured source is a
+# Git remote. No 'sks login' is ever run and no Registry credentials exist.
+show "Bob's entire Nori config — just a Git remote, no login, no Registry credentials:"
+cat "$WORK/consumer/.nori-config.json"; echo
 # 'list' exits non-zero when empty; that's fine for the before/after reveal.
 show "Bob has no skillsets yet:"; sks consumer list || true
-banner "Bob installs Alice's skillset by bare name — from Git" \
-  "First install of a source prompts for trust; --trust-source approves non-interactively and records durable trust."
+banner "Bob installs Alice's skillset — trust is a real gate" \
+  "An unknown Git source must be approved before Nori will use its code."
+show "no approval (non-interactive, no --trust-source) → the source is refused:"
+sks consumer install "$SLUG" --non-interactive || true
+show "Bob approves the source with --trust-source — which records durable trust:"
 sks consumer install "$SLUG" --trust-source --non-interactive
 show "now Bob has Alice's skillset:"; sks consumer list || true
 show "sks trust list"; sks consumer trust list
@@ -179,6 +186,9 @@ banner "Bob's trust is durable and revocable" \
 show "sks trust list"; sks consumer trust list
 sks consumer trust revoke "$REMOTE" "$SLUG"
 show "sks trust list  (after revoke)"; sks consumer trust list
+# #2 — revoke has teeth: installing that source again is gated once more.
+show "trust is gone → installing from that source is refused again:"
+sks consumer install "$SLUG" --non-interactive || true
 pause 1
 
 printf '\n%s  ✔ Milestone 1: create → publish → install → pin → update → fork → trust — all over Git, no Registrar.%s\n\n' "$BOLD$GREEN" "$RESET"
