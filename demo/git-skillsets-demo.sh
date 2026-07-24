@@ -129,6 +129,7 @@ show "Bob's entire Nori config — just a Git remote, no login, no Registry cred
 cat "$WORK/consumer/.nori-config.json"; echo
 # 'list' exits non-zero when empty; that's fine for the before/after reveal.
 show "Bob has no skillsets yet:"; sks consumer list || true
+pause
 banner "Bob installs Alice's skillset — trust is a real gate" \
   "An unknown Git source must be approved before Nori will use its code."
 show "no approval (non-interactive, no --trust-source) → the source is refused:"
@@ -153,6 +154,7 @@ banner "Alice ships an update" \
 printf -- '- Write tests before implementation.\n' >> "$AUTHOR_PROFILE/skills/review.md"
 sks author publish "$SLUG" --to "$REMOTE" --yes
 TIP2="$(git ls-remote "$REMOTE" "refs/heads/skillsets/$SLUG" | cut -f1)"
+pause
 banner "Bob updates — fast-forward only, transactional" \
   "'update' fetches, fast-forwards, and re-activates atomically (rolls back on any failure)."
 sks consumer update "$SLUG"
@@ -186,7 +188,10 @@ banner "Bob's trust is durable and revocable" \
 show "sks trust list"; sks consumer trust list
 sks consumer trust revoke "$REMOTE" "$SLUG"
 show "sks trust list  (after revoke)"; sks consumer trust list
+pause
 # #2 — revoke has teeth: installing that source again is gated once more.
+banner "Revoked trust re-gates the source" \
+  "With trust gone, installing from that source is refused once more."
 show "trust is gone → installing from that source is refused again:"
 sks consumer install "$SLUG" --non-interactive || true
 pause 1
