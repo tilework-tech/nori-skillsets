@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
 
 import { cancel, confirm, isCancel } from "@clack/prompts";
 
@@ -11,14 +9,13 @@ import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import {
   assertSupportedGitVersion,
   assertSupportedRemote,
-  baseGitEnvironment,
   credentialFreeRemote,
   executeGit,
   failedGitCommand,
-  GIT_TIMEOUT_MS,
   isAncestor,
   isSshRemote,
   normalizeAcquisitionRemote,
+  readSshCommandConfig,
   redactRemote,
   runGit,
   sanitizeDisplayText,
@@ -33,7 +30,6 @@ import { resolveInstallDir } from "@/utils/path.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
-const execFileAsync = promisify(execFile);
 const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
 
 type GitInstallArgs = {
@@ -94,30 +90,6 @@ const withBufferedOutput = async (args: {
   return () => {
     for (const replay of replayActions) replay();
   };
-};
-
-const readSshCommandConfig = async (args: {
-  cwd: string;
-}): Promise<string | null> => {
-  try {
-    return (
-      await execFileAsync("git", ["config", "--get", "core.sshCommand"], {
-        cwd: args.cwd,
-        env: baseGitEnvironment(),
-        timeout: GIT_TIMEOUT_MS,
-      })
-    ).stdout.trim();
-  } catch (error) {
-    if (
-      error != null &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === 1
-    ) {
-      return null;
-    }
-    throw error;
-  }
 };
 
 const inspectPinnedObject = async (args: {

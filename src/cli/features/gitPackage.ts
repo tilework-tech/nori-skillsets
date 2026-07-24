@@ -332,6 +332,22 @@ export const runGit = async (args: {
   return result.stdout;
 };
 
+// Read the checkout's configured `core.sshCommand` (null when unset) so an
+// unattended fetch can append batch mode to the user's own SSH command rather
+// than overriding it.
+export const readSshCommandConfig = async (args: {
+  cwd: string;
+}): Promise<string | null> => {
+  const result = await executeGit({
+    command: ["config", "--get", "core.sshCommand"],
+    cwd: args.cwd,
+    nonInteractive: false,
+  });
+  if (result.exitCode === 0) return result.stdout;
+  if (result.exitCode === 1) return null;
+  throw failedGitCommand({ result });
+};
+
 export const assertSupportedGitVersion = async (): Promise<void> => {
   let output: string;
   try {
@@ -509,6 +525,16 @@ export const updateFollowingCheckout = async (args: {
   const oldSha = source.resolvedSha;
   const trackingRef = `refs/remotes/origin/${branch}`;
 
+  // Preserve a user's custom SSH command for unattended fetches (append batch
+  // mode rather than override it), mirroring install.
+  const sshRemote =
+    nonInteractive &&
+    source.remote != null &&
+    isSshRemote({ remote: source.remote });
+  const configuredSshCommand = sshRemote
+    ? await readSshCommandConfig({ cwd: checkoutDir })
+    : null;
+
   const fetchResult = await executeGit({
     command: [
       "fetch",
@@ -519,7 +545,8 @@ export const updateFollowingCheckout = async (args: {
     cwd: checkoutDir,
     nonInteractive,
     remote: source.remote,
-    useDefaultSshBatchMode: true,
+    configuredSshCommand,
+    useDefaultSshBatchMode: sshRemote,
   });
   if (fetchResult.exitCode !== 0) {
     throw failedGitCommand({ result: fetchResult, remote: source.remote });
@@ -578,7 +605,9 @@ export const updateFollowingCheckout = async (args: {
     await validateCheckout({ checkoutDir, slug, nonInteractive });
   } catch (error) {
     await undo();
-    throw error;
+    throw new Error(
+      `Updated content for "${slug}" failed validation; restored the previous version. ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   return { outcome: "updated", oldSha, newSha, undo };

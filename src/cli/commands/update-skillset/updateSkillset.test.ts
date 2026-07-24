@@ -24,6 +24,19 @@ vi.mock("@/cli/features/install/install.js", () => ({
   noninteractive: mockActivate,
 }));
 
+// Any contact with the Registrar during update must fail the test.
+vi.mock("@/api/registrar.js", () => {
+  const fail = (): never => {
+    throw new Error("Registrar must not be contacted during update");
+  };
+  return {
+    registrarApi: new Proxy({}, { get: () => fail }),
+    REGISTRAR_URL: "https://registrar.invalid",
+    NetworkError: class NetworkError extends Error {},
+    ApiError: class ApiError extends Error {},
+  };
+});
+
 import { updateSkillsetMain } from "@/cli/commands/update-skillset/updateSkillset.js";
 
 const SLUG = "my-skill";
@@ -141,5 +154,40 @@ describe("updateSkillsetMain", () => {
     expect(result.message).toMatch(/restored the previous version/i);
     expect(await git(checkoutDir, "rev-parse", "HEAD")).toBe(oldSha);
     expect(readCheckout("content.md")).toBe("v1");
+  });
+
+  it("advances a non-active skillset's source without activating it", async () => {
+    await fs.writeFile(
+      path.join(home, ".nori-config.json"),
+      JSON.stringify({
+        installDir: home,
+        defaultAgents: ["claude-code"],
+        activeSkillset: "personal/other",
+      }),
+    );
+    await advanceRemote("v2");
+
+    const result = await updateSkillsetMain({
+      slug: SLUG,
+      nonInteractive: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/not the active skillset/i);
+    expect(mockActivate).not.toHaveBeenCalled();
+    expect(readCheckout("content.md")).toBe("v2");
+    const config = JSON.parse(
+      fsSync.readFileSync(path.join(home, ".nori-config.json"), "utf-8"),
+    );
+    expect(config.activeSkillset).toBe("personal/other");
+  });
+
+  it("does not contact the Registrar on the happy path", async () => {
+    await advanceRemote("v2");
+    const result = await updateSkillsetMain({
+      slug: SLUG,
+      nonInteractive: true,
+    });
+    expect(result.success).toBe(true);
   });
 });

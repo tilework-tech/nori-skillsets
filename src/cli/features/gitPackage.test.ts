@@ -230,4 +230,78 @@ describe("updateFollowingCheckout", () => {
     expect(await git(coDir, "rev-parse", "HEAD")).toBe(before);
     expect(JSON.parse(read("nori.json")).name).toBe(SLUG);
   });
+
+  it("rejects a new tip that introduces a tracked symlink and resets", async () => {
+    await fs.symlink("nori.json", path.join(authorDir, "evil-link"));
+    await git(authorDir, "add", ".");
+    await git(authorDir, "commit", "--quiet", "-m", "symlink");
+    await git(authorDir, "push", "--quiet", "origin", `skillsets/${SLUG}`);
+
+    const before = await git(coDir, "rev-parse", "HEAD");
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/symbolic link|failed validation/i);
+
+    expect(await git(coDir, "rev-parse", "HEAD")).toBe(before);
+    expect(fsSync.existsSync(path.join(coDir, "evil-link"))).toBe(false);
+  });
+
+  it("leaves the checkout untouched when the fetch fails", async () => {
+    // Delete the branch on the remote so the fetch cannot find it.
+    await git(
+      authorDir,
+      "push",
+      "--quiet",
+      "origin",
+      "--delete",
+      `skillsets/${SLUG}`,
+    );
+    const before = await git(coDir, "rev-parse", "HEAD");
+
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow();
+
+    expect(await git(coDir, "rev-parse", "HEAD")).toBe(before);
+    expect(read("content.md")).toBe("v1");
+  });
+
+  it("refuses a shallow checkout", async () => {
+    // Give the branch history to truncate, so a depth-1 clone is truly shallow.
+    await advanceRemote("v2");
+    const originUrl = await git(coDir, "config", "--get", "remote.origin.url");
+    // `file://` forces a real (shallow-capable) clone; a plain local path clone
+    // ignores --depth.
+    const shallowUrl = originUrl.startsWith("/")
+      ? `file://${originUrl}`
+      : originUrl;
+    const shallowDir = path.join(path.dirname(coDir), "shallow");
+    await git(
+      path.dirname(coDir),
+      "clone",
+      "--quiet",
+      "--depth",
+      "1",
+      "--branch",
+      `skillsets/${SLUG}`,
+      shallowUrl,
+      shallowDir,
+    );
+
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: shallowDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/shallow/i);
+  });
 });

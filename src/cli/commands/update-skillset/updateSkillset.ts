@@ -11,7 +11,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
+import {
+  getActiveSkillset,
+  getDefaultAgents,
+  loadConfig,
+  updateConfig,
+} from "@/cli/config.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { updateFollowingCheckout } from "@/cli/features/gitPackage.js";
 import { withActivationTransaction } from "@/cli/features/install/activationTransaction.js";
@@ -86,6 +91,20 @@ const updateSkillsetMainImpl = async (args: {
     };
   }
 
+  const shortSha = updateResult.newSha.slice(0, 12);
+
+  // Gate activation on the target being the active skillset: updating a
+  // non-active skillset advances its source without hijacking the active
+  // pointer or overwriting the active skillset's rendered output.
+  const isActive = config != null && getActiveSkillset({ config }) === identity;
+  if (!isActive) {
+    return {
+      success: true,
+      cancelled: false,
+      message: `Updated "${slug}" to ${shortSha}. It is not the active skillset, so it was not re-activated; switch to it to apply the update.`,
+    };
+  }
+
   const wasSilent = isSilentMode();
   if (silent === true) setSilentMode({ silent: true });
   try {
@@ -127,7 +146,7 @@ const updateSkillsetMainImpl = async (args: {
   return {
     success: true,
     cancelled: false,
-    message: `Updated "${slug}" to ${updateResult.newSha.slice(0, 12)}.`,
+    message: `Updated "${slug}" to ${shortSha} and re-activated it.`,
   };
 };
 

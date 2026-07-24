@@ -32,7 +32,12 @@ skillsets are not handled here (they refresh on switch).
   to the fetched SHA (passing the explicit SHA, since no upstream is assumed),
   then re-validate the fetched tip with the shared `validateCheckout` (tracked
   symlink/submodule/`.nori-version` rejection, exact root `nori.json`, manifest
-  name/type). Then re-activate across all configured agents.
+  name/type).
+- **Activation is gated on the target being the active skillset.** Updating the
+  *active* skillset re-renders it across all configured agents (transactionally).
+  Updating a skillset that is **not** currently active advances its source
+  checkout only — it does not re-render or hijack the active pointer; the new
+  content applies when the user next switches to it.
 
 ### Two composed rollback layers
 
@@ -48,9 +53,10 @@ layers (mirroring "keep acquisition cleanup separate from activation rollback"):
 
 ### Things to Know
 
-- Activation uses `noninteractive` (which throws), not `main` (which
-  `process.exit`s), so a mid-activation failure reaches the command's `catch`
-  and runs `undo()`.
+- Activation uses `noninteractive`, not `main` (which `process.exit`s on
+  failure): with a resolvable skillset (always true here — `identity` is passed),
+  `noninteractive`'s loaders throw on failure, so a mid-activation error reaches
+  the command's `catch` and runs `undo()` rather than exiting the process.
 - The transaction owns the single `activeSkillset` commit: per-agent activation
   passes `persistActiveSkillset: false`, and the pointer is committed once,
   gated on a non-transient install dir (`--install-dir` is transient).
