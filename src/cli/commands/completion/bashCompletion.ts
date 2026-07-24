@@ -10,7 +10,7 @@ _nori_skillsets_completions() {
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
-  commands="login logout init search download install switch update list link unlink download-skill external watch dir fork publish edit install-location clear clear-current factory-reset completion help"
+  commands="login logout init search download install switch update trust list link unlink download-skill external watch dir fork publish edit install-location clear clear-current factory-reset completion help"
   global_opts="--install-dir --non-interactive --silent --agent --help --version"
 
   # Complete subcommand at position 1

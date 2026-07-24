@@ -26,6 +26,7 @@ _nori_skillsets() {
     'install:Download, install, and activate a skillset'
     'switch:Switch to a different skillset and reinstall'
     'update:Update a Git-backed skillset to its latest branch tip'
+    'trust:Manage durable trust for Git-backed skillset sources'
     'list:List locally available skillsets'
     'link:Link a local directory as a skillset'
     'unlink:Unlink a symlinked skillset'

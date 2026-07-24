@@ -5,6 +5,7 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as ConfigModule from "@/cli/config.js";
 import type * as clackPrompts from "@clack/prompts";
 
 import {
@@ -62,6 +63,12 @@ vi.mock("@/cli/commands/new-skillset/newSkillset.js", () => ({
 
 vi.mock("@/cli/commands/publish-skillset/publishSkillset.js", () => ({
   publishSkillsetMain: commandDelegates.publishSkillset,
+}));
+
+const mockLoadConfig = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@/cli/config.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof ConfigModule>()),
+  loadConfig: mockLoadConfig,
 }));
 
 describe("registerNoriSkillsetsNewCommand", () => {
@@ -139,6 +146,27 @@ describe("registerNoriSkillsetsInstallCommand", () => {
       silent: null,
     });
     expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+  });
+
+  it("routes a bare-name install to the configured primary remote", async () => {
+    mockLoadConfig.mockResolvedValueOnce({ primaryRemote: "/tmp/primary.git" });
+    await runInstall("reviewer");
+
+    expect(commandDelegates.gitInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "reviewer",
+        remote: "/tmp/primary.git",
+      }),
+    );
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
+  });
+
+  it("rejects --pin without --from even when a primary remote is configured", async () => {
+    mockLoadConfig.mockResolvedValueOnce({ primaryRemote: "/tmp/primary.git" });
+    await expectInstallFailure("reviewer", "--pin", "0".repeat(40));
+
+    expect(commandDelegates.gitInstall).not.toHaveBeenCalled();
+    expect(commandDelegates.registryInstall).not.toHaveBeenCalled();
   });
 
   it("does not fall back to the Registry when a Git install fails", async () => {
