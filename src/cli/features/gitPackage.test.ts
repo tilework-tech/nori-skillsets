@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -6,7 +7,10 @@ import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { readGitSource } from "@/cli/features/gitPackage.js";
+import {
+  readGitSource,
+  updateFollowingCheckout,
+} from "@/cli/features/gitPackage.js";
 
 const execFileAsync = promisify(execFile);
 const git = async (cwd: string, ...command: Array<string>): Promise<string> => {
@@ -61,5 +65,169 @@ describe("readGitSource", () => {
     await git(checkoutDir, "remote", "remove", "origin").catch(() => undefined);
     const source = await readGitSource({ checkoutDir });
     expect(source.remote).toBeNull();
+  });
+});
+
+describe("updateFollowingCheckout", () => {
+  const SLUG = "my-skill";
+  let remoteDir: string;
+  let authorDir: string;
+  let coDir: string;
+
+  const noriJson = (name: string): string =>
+    JSON.stringify({ name, type: "skillset", version: "1.0.0" });
+
+  beforeEach(async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "git-update-"));
+    remoteDir = path.join(base, "remote.git");
+    authorDir = path.join(base, "author");
+    coDir = path.join(base, "checkout");
+
+    await git(base, "init", "--bare", "--quiet", remoteDir);
+
+    await fs.mkdir(authorDir);
+    await git(authorDir, "init", "--quiet");
+    await git(authorDir, "config", "user.email", "t@t.dev");
+    await git(authorDir, "config", "user.name", "T");
+    await git(authorDir, "checkout", "--quiet", "-b", `skillsets/${SLUG}`);
+    await fs.writeFile(path.join(authorDir, "nori.json"), noriJson(SLUG));
+    await fs.writeFile(path.join(authorDir, "content.md"), "v1");
+    await git(authorDir, "add", ".");
+    await git(authorDir, "commit", "--quiet", "-m", "v1");
+    await git(authorDir, "remote", "add", "origin", remoteDir);
+    await git(
+      authorDir,
+      "push",
+      "--quiet",
+      "-u",
+      "origin",
+      `skillsets/${SLUG}`,
+    );
+
+    await git(
+      base,
+      "clone",
+      "--quiet",
+      "--branch",
+      `skillsets/${SLUG}`,
+      remoteDir,
+      coDir,
+    );
+    await git(coDir, "config", "user.email", "c@c.dev");
+    await git(coDir, "config", "user.name", "C");
+  });
+
+  afterEach(async () => {
+    await fs.rm(path.dirname(remoteDir), { recursive: true, force: true });
+  });
+
+  const advanceRemote = async (content: string): Promise<void> => {
+    await fs.writeFile(path.join(authorDir, "content.md"), content);
+    await git(authorDir, "add", ".");
+    await git(authorDir, "commit", "--quiet", "-m", content);
+    await git(authorDir, "push", "--quiet", "origin", `skillsets/${SLUG}`);
+  };
+
+  const read = (p: string): string =>
+    fsSync.readFileSync(path.join(coDir, p), "utf-8");
+
+  it("fast-forwards to the new tip and stays on the branch", async () => {
+    await advanceRemote("v2");
+    const result = await updateFollowingCheckout({
+      checkoutDir: coDir,
+      slug: SLUG,
+      nonInteractive: true,
+    });
+    expect(result.outcome).toBe("updated");
+    expect(result.newSha).not.toBe(result.oldSha);
+    expect(read("content.md")).toBe("v2");
+    const src = await readGitSource({ checkoutDir: coDir });
+    expect(src.mode).toBe("following");
+    expect(src.resolvedSha).toBe(result.newSha);
+  });
+
+  it("reports up-to-date when the remote has not advanced", async () => {
+    const result = await updateFollowingCheckout({
+      checkoutDir: coDir,
+      slug: SLUG,
+      nonInteractive: true,
+    });
+    expect(result.outcome).toBe("up-to-date");
+    expect(read("content.md")).toBe("v1");
+  });
+
+  it("refuses a pinned (detached) checkout", async () => {
+    const sha = await git(coDir, "rev-parse", "HEAD");
+    await git(coDir, "checkout", "--quiet", "--detach", sha);
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/pinned/i);
+  });
+
+  it("refuses a dirty checkout (untracked file)", async () => {
+    await advanceRemote("v2");
+    await fs.writeFile(path.join(coDir, "local-scratch.txt"), "x");
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/uncommitted/i);
+    expect(read("content.md")).toBe("v1");
+  });
+
+  it("refuses when the branch has diverged", async () => {
+    // local commit
+    await fs.writeFile(path.join(coDir, "content.md"), "local-change");
+    await git(coDir, "add", ".");
+    await git(coDir, "commit", "--quiet", "-m", "local");
+    // remote advances separately
+    await advanceRemote("v2");
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/diverged/i);
+  });
+
+  it("refuses when the local checkout is ahead of the remote", async () => {
+    await fs.writeFile(path.join(coDir, "content.md"), "ahead");
+    await git(coDir, "add", ".");
+    await git(coDir, "commit", "--quiet", "-m", "ahead");
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/ahead/i);
+  });
+
+  it("resets to the previous tip when the new tip fails validation", async () => {
+    // advance the remote with a manifest whose name no longer matches the slug
+    await fs.writeFile(path.join(authorDir, "nori.json"), noriJson("renamed"));
+    await git(authorDir, "add", ".");
+    await git(authorDir, "commit", "--quiet", "-m", "rename");
+    await git(authorDir, "push", "--quiet", "origin", `skillsets/${SLUG}`);
+
+    const before = await git(coDir, "rev-parse", "HEAD");
+    await expect(
+      updateFollowingCheckout({
+        checkoutDir: coDir,
+        slug: SLUG,
+        nonInteractive: true,
+      }),
+    ).rejects.toThrow(/does not match/i);
+
+    // checkout was reset back to the previous tip
+    expect(await git(coDir, "rev-parse", "HEAD")).toBe(before);
+    expect(JSON.parse(read("nori.json")).name).toBe(SLUG);
   });
 });

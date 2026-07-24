@@ -454,3 +454,132 @@ export const validateCheckout = async (args: {
     throw new Error("Invalid skillset manifest: type must be skillset");
   }
 };
+
+export type UpdateOutcome = "updated" | "up-to-date";
+
+export type UpdateResult = {
+  outcome: UpdateOutcome;
+  oldSha: string;
+  newSha: string;
+  undo: () => Promise<void>;
+};
+
+// Advance a following Git-backed skillset checkout to its branch tip,
+// fast-forward-only. Refuses a pinned (detached), dirty, shallow, diverged, or
+// behind checkout; validates the fetched tip; and exposes an `undo()` that
+// resets the working tree back to the pre-update commit (safe because a dirty
+// tree is refused). Never touches Registrar.
+export const updateFollowingCheckout = async (args: {
+  checkoutDir: string;
+  slug: string;
+  nonInteractive: boolean;
+}): Promise<UpdateResult> => {
+  const { checkoutDir, slug, nonInteractive } = args;
+  const branch = `skillsets/${slug}`;
+
+  const source = await readGitSource({ checkoutDir });
+  if (source.mode === "pinned") {
+    throw new Error(
+      `Cannot update "${slug}": it is pinned to a commit (detached HEAD). Pins are immutable; re-install to change the pin.`,
+    );
+  }
+
+  const status = await runGit({
+    command: ["status", "--porcelain=v1", "-uall"],
+    cwd: checkoutDir,
+    nonInteractive,
+  });
+  if (status.length > 0) {
+    throw new Error(
+      `Cannot update "${slug}": the checkout has uncommitted changes. Commit, stash, or discard them first.`,
+    );
+  }
+
+  const shallow = await runGit({
+    command: ["rev-parse", "--is-shallow-repository"],
+    cwd: checkoutDir,
+    nonInteractive,
+  });
+  if (shallow === "true") {
+    throw new Error(
+      `Cannot update "${slug}": the checkout is shallow, so a fast-forward cannot be verified. Re-install to update.`,
+    );
+  }
+
+  const oldSha = source.resolvedSha;
+  const trackingRef = `refs/remotes/origin/${branch}`;
+
+  const fetchResult = await executeGit({
+    command: [
+      "fetch",
+      "--no-tags",
+      "origin",
+      `+refs/heads/${branch}:${trackingRef}`,
+    ],
+    cwd: checkoutDir,
+    nonInteractive,
+    remote: source.remote,
+    useDefaultSshBatchMode: true,
+  });
+  if (fetchResult.exitCode !== 0) {
+    throw failedGitCommand({ result: fetchResult, remote: source.remote });
+  }
+
+  const newSha = await runGit({
+    command: ["rev-parse", "--verify", `${trackingRef}^{commit}`],
+    cwd: checkoutDir,
+    nonInteractive,
+  });
+
+  const undo = async (): Promise<void> => {
+    await runGit({
+      command: ["reset", "--hard", oldSha],
+      cwd: checkoutDir,
+      nonInteractive,
+    });
+  };
+
+  if (newSha === oldSha) {
+    return { outcome: "up-to-date", oldSha, newSha, undo };
+  }
+
+  if (
+    !(await isAncestor({
+      ancestor: oldSha,
+      descendant: newSha,
+      checkoutDir,
+      nonInteractive,
+    }))
+  ) {
+    if (
+      await isAncestor({
+        ancestor: newSha,
+        descendant: oldSha,
+        checkoutDir,
+        nonInteractive,
+      })
+    ) {
+      throw new Error(
+        `Cannot update "${slug}": the local checkout is ahead of the remote.`,
+      );
+    }
+    throw new Error(
+      `Cannot update "${slug}": the branch has diverged from the remote and cannot be fast-forwarded. Resolve manually.`,
+    );
+  }
+
+  await runGit({
+    command: ["merge", "--ff-only", newSha],
+    cwd: checkoutDir,
+    nonInteractive,
+  });
+
+  try {
+    await validateCheckout({ checkoutDir, slug, nonInteractive });
+  } catch (error) {
+    await undo();
+    throw error;
+  }
+
+  return { outcome: "updated", oldSha, newSha, undo };
+};
