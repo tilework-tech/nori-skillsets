@@ -257,6 +257,14 @@ describe("buildAgentConfig global-install paths", () => {
       "/home/user/.claude/CLAUDE.md",
     );
   });
+
+  it("claude-code exposes the project and user MCP files for snapshotting", () => {
+    const agent = buildByName({ name: "claude-code" });
+    expect(agent.getMcpManagedPaths?.({ installDir: "/project" })).toEqual([
+      "/project/.mcp.json",
+      "/home/user/.claude.json",
+    ]);
+  });
 });
 
 describe("buildAgentConfig loaders", () => {

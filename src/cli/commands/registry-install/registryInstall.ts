@@ -14,6 +14,7 @@ import {
 } from "@/cli/config.js";
 import { switchSkillset } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { withActivationTransaction } from "@/cli/features/install/activationTransaction.js";
 import { main as installMain } from "@/cli/features/install/install.js";
 import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { hasExistingInstallation } from "@/cli/features/install/installState.js";
@@ -137,68 +138,75 @@ const registryInstallMainImpl = async (
     );
   }
 
+  const agentConfigs = agentNames.map((agentName) =>
+    AgentRegistry.getInstance().get({ name: agentName }),
+  );
+
   try {
-    // Step 2: Run initial install if no existing installation
-    if (isFirstTimeInstall) {
-      // Broadcast initial install to all configured agents
-      for (const agentName of agentNames) {
-        await installMain({
-          nonInteractive: true,
-          installDir: targetInstallDir,
-          skillset: skillsetName,
-          agent: agentName,
-          silent: silent ?? null,
-          // A transient --install-dir install must not clobber global activeSkillset.
-          persistActiveSkillset: resolved.source !== "cli",
-        });
-      }
-      // Initial install already sets the skillset and displays its own completion banners
-      return {
-        success: true,
-        cancelled: false,
-        message: `Installed and activated skillset "${bold({ text: skillsetName })}"`,
-      };
-    }
+    // Activation is transactional: a failure partway through restores the
+    // previous usable state instead of leaving a half-activated installation.
+    await withActivationTransaction({
+      installDir: targetInstallDir,
+      agents: agentConfigs,
+      operation: async () => {
+        if (isFirstTimeInstall) {
+          // Broadcast initial install to all configured agents.
+          for (const agentName of agentNames) {
+            await installMain({
+              nonInteractive: true,
+              installDir: targetInstallDir,
+              skillset: skillsetName,
+              agent: agentName,
+              silent: silent ?? null,
+              // The transaction owns the single active-pointer commit.
+              persistActiveSkillset: false,
+            });
+          }
+        } else {
+          // Show context note with switch details.
+          const currentSkillset =
+            config != null
+              ? (getActiveSkillset({ config }) ?? "(none)")
+              : "(none)";
+          const agentDisplay =
+            agentNames.length === 1 ? agentNames[0] : agentNames.join(", ");
+          const detailLines = [
+            `Install directory: ${targetInstallDir}`,
+            `Agent: ${agentDisplay}`,
+            `Current skillset: ${brightCyan({ text: bold({ text: currentSkillset }) })}`,
+            `New skillset: ${green({ text: bold({ text: skillsetName }) })}`,
+          ];
+          note(detailLines.join("\n"), "Switching Skillset");
 
-    // Step 3 (existing installation): Broadcast switch to all configured agents
+          for (const agentName of agentNames) {
+            const agentImpl = AgentRegistry.getInstance().get({
+              name: agentName,
+            });
+            await switchSkillset({
+              agent: agentImpl,
+              installDir: targetInstallDir,
+              skillsetName,
+            });
 
-    // Show context note with switch details
-    const currentSkillset =
-      config != null ? (getActiveSkillset({ config }) ?? "(none)") : "(none)";
-    const agentDisplay =
-      agentNames.length === 1 ? agentNames[0] : agentNames.join(", ");
-    const detailLines = [
-      `Install directory: ${targetInstallDir}`,
-      `Agent: ${agentDisplay}`,
-      `Current skillset: ${brightCyan({ text: bold({ text: currentSkillset }) })}`,
-      `New skillset: ${green({ text: bold({ text: skillsetName }) })}`,
-    ];
-    note(detailLines.join("\n"), "Switching Skillset");
+            // Re-run install in silent mode to regenerate files with the new skillset.
+            await installMain({
+              nonInteractive: true,
+              installDir: targetInstallDir,
+              agent: agentName,
+              silent: true,
+              skillset: skillsetName,
+              persistActiveSkillset: false,
+            });
+          }
+        }
 
-    for (const agentName of agentNames) {
-      const agentImpl = AgentRegistry.getInstance().get({ name: agentName });
-      await switchSkillset({
-        agent: agentImpl,
-        installDir: targetInstallDir,
-        skillsetName,
-      });
-
-      // Step 4: Re-run install in silent mode to regenerate files with new skillset
-      await installMain({
-        nonInteractive: true,
-        installDir: targetInstallDir,
-        agent: agentName,
-        silent: true,
-        skillset: skillsetName,
-        // A transient --install-dir switch must not clobber global activeSkillset.
-        persistActiveSkillset: resolved.source !== "cli",
-      });
-    }
-
-    // Persist activeSkillset to config unless this is a transient CLI override
-    if (resolved.source !== "cli") {
-      await updateConfig({ activeSkillset: skillsetName });
-    }
+        // Commit the active pointer once, unless this is a transient
+        // --install-dir override.
+        if (resolved.source !== "cli") {
+          await updateConfig({ activeSkillset: skillsetName });
+        }
+      },
+    });
 
     return {
       success: true,
