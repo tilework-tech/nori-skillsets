@@ -151,6 +151,53 @@ export const registerNoriSkillsetsNewCommand = (args: {
 };
 
 /**
+ * Register the Git-backed publish command.
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsPublishCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("publish <skillset>")
+    .description("Commit and publish a Git-backed skillset")
+    .requiredOption("--to <remote>", "Git remote URL, path, or configured name")
+    .option("-m, --message <text>", "Commit message")
+    .option("-y, --yes", "Confirm publication without prompting")
+    .action(
+      async (
+        skillset: string,
+        options: {
+          message?: string;
+          to: string;
+          yes?: boolean;
+        },
+      ) => {
+        const { publishSkillsetMain } =
+          await import("@/cli/commands/publish-skillset/publishSkillset.js");
+        const globalOpts = program.opts();
+        await wrapWithFraming({
+          title: "Publish Skillset",
+          exitOnFailure: true,
+          silent: globalOpts.silent || null,
+          action: () =>
+            publishSkillsetMain({
+              skillset,
+              remote: options.to,
+              message: options.message ?? null,
+              yes: options.yes ?? false,
+              nonInteractive:
+                globalOpts.nonInteractive || globalOpts.silent || null,
+              silent: globalOpts.silent || null,
+            }),
+        });
+      },
+    );
+};
+
+/**
  * Register the 'register' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance

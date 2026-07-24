@@ -33,6 +33,7 @@ _nori_skillsets() {
     'watch:Watch Claude Code sessions and save transcripts'
     'dir:Open the Nori skillsets directory'
     'fork:Fork an existing skillset to a new name'
+    'publish:Commit and publish a Git-backed skillset'
     'edit:Open a skillset folder in VS Code'
     'install-location:Display Nori installation directories'
     'clear:Remove all Nori-managed configuration from the install directory'
@@ -68,6 +69,14 @@ _nori_skillsets() {
           _arguments \\
             '1:base-skillset:' \\
             '2:new-skillset:' \\
+            \$global_opts
+          ;;
+        publish)
+          _arguments \\
+            '1:skillset:' \\
+            '--to[Git remote URL, path, or configured name]:remote:' \\
+            '(-m --message)'{-m,--message}'[Commit message]:text:' \\
+            '(-y --yes)'{-y,--yes}'[Confirm publication without prompting]' \\
             \$global_opts
           ;;
         edit)

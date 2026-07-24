@@ -10,6 +10,7 @@ import type * as clackPrompts from "@clack/prompts";
 import {
   registerNoriSkillsetsInstallCommand,
   registerNoriSkillsetsNewCommand,
+  registerNoriSkillsetsPublishCommand,
   registerNoriSkillsetsUploadSkillCommand,
 } from "./noriSkillsetsCommands.js";
 
@@ -40,6 +41,11 @@ const commandDelegates = vi.hoisted(() => ({
     cancelled: false,
     message: "created",
   }),
+  publishSkillset: vi.fn().mockResolvedValue({
+    success: true,
+    cancelled: false,
+    message: "published",
+  }),
 }));
 
 vi.mock("@/cli/commands/git-install/gitInstall.js", () => ({
@@ -52,6 +58,10 @@ vi.mock("@/cli/commands/registry-install/registryInstall.js", () => ({
 
 vi.mock("@/cli/commands/new-skillset/newSkillset.js", () => ({
   newSkillsetMain: commandDelegates.newSkillset,
+}));
+
+vi.mock("@/cli/commands/publish-skillset/publishSkillset.js", () => ({
+  publishSkillsetMain: commandDelegates.publishSkillset,
 }));
 
 describe("registerNoriSkillsetsNewCommand", () => {
@@ -183,6 +193,54 @@ describe("registerNoriSkillsetsInstallCommand", () => {
     );
 
     expect(installCommand?.helpInformation()).toMatch(/--pin.*full.*40.*64/is);
+  });
+});
+
+describe("registerNoriSkillsetsPublishCommand", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("forwards the explicit destination and deliberate publication options", async () => {
+    const program = new Command();
+    program.exitOverride();
+    program.option("--non-interactive");
+    program.option("--silent");
+    registerNoriSkillsetsPublishCommand({ program });
+
+    await program.parseAsync(
+      [
+        "node",
+        "sks",
+        "--non-interactive",
+        "publish",
+        "acme/reviewer",
+        "--to",
+        "/tmp/skillsets.git",
+        "--message",
+        "Publish reviewer v2",
+        "--yes",
+      ],
+      { from: "node" },
+    );
+
+    expect(commandDelegates.publishSkillset).toHaveBeenCalledWith({
+      message: "Publish reviewer v2",
+      nonInteractive: true,
+      remote: "/tmp/skillsets.git",
+      silent: null,
+      skillset: "acme/reviewer",
+      yes: true,
+    });
+  });
+
+  it("requires an explicit --to destination", async () => {
+    const program = new Command();
+    program.exitOverride();
+    registerNoriSkillsetsPublishCommand({ program });
+
+    await expect(
+      program.parseAsync(["publish", "reviewer"], { from: "user" }),
+    ).rejects.toMatchObject({ code: "commander.missingMandatoryOptionValue" });
+    expect(commandDelegates.publishSkillset).not.toHaveBeenCalled();
   });
 });
 

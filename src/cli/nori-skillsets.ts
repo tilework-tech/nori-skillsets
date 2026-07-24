@@ -32,6 +32,7 @@ import {
   registerNoriSkillsetsListSkillsetsCommand,
   registerNoriSkillsetsLoginCommand,
   registerNoriSkillsetsNewCommand,
+  registerNoriSkillsetsPublishCommand,
   registerNoriSkillsetsRegisterCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
@@ -165,6 +166,7 @@ Examples:
   $ nori-skillsets register my-skillset                     # create nori.json for existing skillset
   $ nori-skillsets register                                 # create nori.json for current skillset
   $ nori-skillsets fork senior-swe my-custom                # fork a skillset to a new name
+  $ nori-skillsets publish my-custom --to git@github.com:myorg/skillsets.git
   $ nori-skillsets edit                                     # open active skillset in VS Code
   $ nori-skillsets edit my-skillset                          # open a specific skillset
   $ nori-skillsets clear                                     # remove Nori-managed config from install directory
@@ -203,6 +205,7 @@ registerNoriSkillsetsInstallLocationCommand({ program });
 registerNoriSkillsetsCompletionCommand({ program });
 registerNoriSkillsetsForkCommand({ program });
 registerNoriSkillsetsNewCommand({ program });
+registerNoriSkillsetsPublishCommand({ program });
 registerNoriSkillsetsRegisterCommand({ program });
 registerNoriSkillsetsImportMcpCommand({ program });
 registerNoriSkillsetsEditSkillsetCommand({ program });

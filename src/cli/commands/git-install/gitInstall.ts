@@ -8,6 +8,7 @@ import { cancel, confirm, isCancel } from "@clack/prompts";
 import { getDefaultAgents, loadConfig, updateConfig } from "@/cli/config.js";
 import { markInstall } from "@/cli/features/agentOperations.js";
 import { AgentRegistry } from "@/cli/features/agentRegistry.js";
+import { validateGitPackageEntries } from "@/cli/features/gitPackage.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
 import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
@@ -22,8 +23,6 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 60_000;
 const MINIMUM_GIT_VERSION = { major: 2, minor: 29 } as const;
 const FULL_COMMIT_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
-const HFS_IGNORED_CODE_POINTS =
-  /[\u200C-\u200F\u202A-\u202E\u206A-\u206F\uFEFF]/gu;
 const SSH_BATCH_MODE_DISABLED = /batchmode(?:\s*=\s*|\s+)["']?no\b/iu;
 const SUPPORTED_REMOTE_SCHEMES = new Set([
   "file",
@@ -399,73 +398,19 @@ const runGit = async (args: {
   return result.stdout;
 };
 
-type TrackedEntry = {
-  mode: string;
-  path: string;
-};
-
-const normalizeReservedRootPath = (args: { path: string }): string => {
-  const [rootEntry = ""] = args.path.split("/");
-  return rootEntry
-    .normalize("NFKC")
-    .replace(HFS_IGNORED_CODE_POINTS, "")
-    .toLowerCase();
-};
-
-const parseTrackedEntries = (args: { output: string }): Array<TrackedEntry> => {
-  const records = args.output.split("\0").filter((record) => record.length > 0);
-  return records.map((record) => {
-    const match = /^(\d{6}) [0-9a-f]+ \d+\t([\s\S]+)$/u.exec(record);
-    if (match == null) {
-      throw new Error("Git returned invalid tracked-entry output");
-    }
-    return { mode: match[1], path: match[2] };
-  });
-};
-
 const validateCheckout = async (args: {
   checkoutDir: string;
   slug: string;
   nonInteractive: boolean;
 }): Promise<void> => {
   const { checkoutDir, slug, nonInteractive } = args;
-  const entries = parseTrackedEntries({
+  validateGitPackageEntries({
     output: await runGit({
       command: ["ls-files", "--stage", "-z"],
       cwd: checkoutDir,
       nonInteractive,
     }),
   });
-  if (
-    entries.some(
-      (entry) =>
-        normalizeReservedRootPath({ path: entry.path }) === ".nori-version",
-    )
-  ) {
-    throw new Error(
-      "Git-backed skillsets cannot contain Registry provenance (.nori-version)",
-    );
-  }
-  if (entries.some((entry) => entry.mode === "120000")) {
-    throw new Error("Git-backed skillsets cannot contain symbolic links");
-  }
-  if (entries.some((entry) => entry.mode === "160000")) {
-    throw new Error("Git-backed skillsets cannot contain submodules");
-  }
-  const manifestAliases = entries.filter(
-    (entry) => normalizeReservedRootPath({ path: entry.path }) === "nori.json",
-  );
-  const manifest = manifestAliases[0];
-  if (
-    manifestAliases.length !== 1 ||
-    manifest == null ||
-    manifest.path !== "nori.json" ||
-    (manifest.mode !== "100644" && manifest.mode !== "100755")
-  ) {
-    throw new Error(
-      "Git-backed skillsets require an exact root nori.json regular file",
-    );
-  }
 
   let metadata;
   try {
