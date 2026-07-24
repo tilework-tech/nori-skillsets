@@ -53,7 +53,16 @@ pause() {
 }
 # Echo a command, then run it (in the given Nori home).
 show() { printf '   %s$ %s%s\n' "$GREEN" "$*" "$RESET"; }
-sks() { local home="$1"; shift; show "NORI_GLOBAL_CONFIG=<$home> sks $*"; env NORI_GLOBAL_CONFIG="$WORK/$home" node "$SKS" "$@"; }
+persona() {
+  case "$1" in
+    author)   echo "Alice · author" ;;
+    consumer) echo "Bob · you" ;;
+    pin)      echo "Carol · reproducible install" ;;
+    *)        echo "$1" ;;
+  esac
+}
+# Each home is a separate machine/persona; show who is running the command.
+sks() { local home="$1"; shift; show "[$(persona "$home")]  sks $*"; env NORI_GLOBAL_CONFIG="$WORK/$home" node "$SKS" "$@"; }
 git_q() { git "$@" >/dev/null 2>&1; }
 
 # --- workspace ---------------------------------------------------------------
@@ -76,7 +85,7 @@ git config --global user.name  >/dev/null 2>&1 || git config --global user.name 
 
 if [ -n "$REMOTE_OVERRIDE" ]; then REMOTE="$REMOTE_OVERRIDE"; else
   git init --bare -q "$WORK/remote.git"; REMOTE="file://$WORK/remote.git"; fi
-SLUG="senior-swe"
+SLUG="code-reviewer"
 AUTHOR_PROFILE="$WORK/author/.nori/profiles/personal/$SLUG"
 
 printf '%s\n' "$BOLD"
@@ -86,21 +95,22 @@ cat <<'EOF'
   └────────────────────────────────────────────────────────────┘
 EOF
 printf '%s' "$RESET"
-echo "  Remote:   $REMOTE"
-echo "  Author:   \$WORK/author     Consumer: \$WORK/consumer"
+echo "  Remote:  $REMOTE"
+echo "  Cast:    Alice (author) publishes a skillset · Bob (you) installs & evolves it"
+echo "           — two separate machines, only Git between them."
 pause 1
 
 # 1. CREATE ------------------------------------------------------------------
-banner "Author creates a Git-native skillset" \
+banner "Alice authors a Git-native skillset" \
   "'new' scaffolds an offline, editable Git repo — no network, no Registrar."
 sks author new "$SLUG"
 mkdir -p "$AUTHOR_PROFILE/skills"
 printf '# Review checklist\n\n- Prefer clarity over cleverness.\n' > "$AUTHOR_PROFILE/skills/review.md"
-show "cat author profile nori.json"; cat "$AUTHOR_PROFILE/nori.json"; echo
+show "cat Alice's nori.json"; cat "$AUTHOR_PROFILE/nori.json"; echo
 pause
 
 # 2. PUBLISH -----------------------------------------------------------------
-banner "Author publishes it to a Git remote" \
+banner "Alice publishes it to a Git remote" \
   "'publish' commits the reviewed tree and pushes skillsets/$SLUG — deliberate, fast-forward-only."
 sks author publish "$SLUG" --to "$REMOTE" --yes
 show "git ls-remote $REMOTE skillsets/$SLUG"
@@ -110,39 +120,42 @@ REMOTE_BRANCHES+=("skillsets/$SLUG")
 pause
 
 # 3. INSTALL (via primary remote) --------------------------------------------
-banner "Consumer points its primary remote at that Git repo" \
+banner "Bob points his primary remote at Alice's repo" \
   "Now bare-name installs resolve to Git instead of the Registry."
 sks consumer config --primary-remote "$REMOTE"
-banner "Consumer installs by bare name — from Git" \
+# 'list' exits non-zero when empty; that's fine for the before/after reveal.
+show "Bob has no skillsets yet:"; sks consumer list || true
+banner "Bob installs Alice's skillset by bare name — from Git" \
   "First install of a source prompts for trust; --trust-source approves non-interactively and records durable trust."
 sks consumer install "$SLUG" --trust-source --non-interactive
+show "now Bob has Alice's skillset:"; sks consumer list || true
 show "sks trust list"; sks consumer trust list
 pause
 
 # 4. PIN ---------------------------------------------------------------------
-banner "A different home pins an exact commit" \
-  "'--pin <sha>' gives a reproducible historical version (detached HEAD)."
+banner "Carol pins an exact commit" \
+  "On a third machine, '--pin <sha>' gives a reproducible historical version (detached HEAD)."
 sks pin install "$SLUG" --from "$REMOTE" --pin "$TIP1" --trust-source --non-interactive
 PIN_HEAD="$(git -C "$WORK/pin/.nori/profiles/personal/$SLUG" rev-parse HEAD)"
 echo "   pinned HEAD = $PIN_HEAD  (matches published tip: $TIP1)"
 pause
 
 # 5. UPDATE ------------------------------------------------------------------
-banner "Author ships an update" \
-  "Edit the skillset and publish again — the branch advances by one commit."
+banner "Alice ships an update" \
+  "She edits the skillset and publishes again — the branch advances by one commit."
 printf -- '- Write tests before implementation.\n' >> "$AUTHOR_PROFILE/skills/review.md"
 sks author publish "$SLUG" --to "$REMOTE" --yes
 TIP2="$(git ls-remote "$REMOTE" "refs/heads/skillsets/$SLUG" | cut -f1)"
-banner "Consumer updates — fast-forward only, transactional" \
+banner "Bob updates — fast-forward only, transactional" \
   "'update' fetches, fast-forwards, and re-activates atomically (rolls back on any failure)."
 sks consumer update "$SLUG"
 UPDATED_HEAD="$(git -C "$WORK/consumer/.nori/profiles/personal/$SLUG" rev-parse HEAD)"
-echo "   consumer HEAD = $UPDATED_HEAD  (matches new tip: $TIP2)"
-show "consumer now has the new content:"; tail -1 "$WORK/consumer/.nori/profiles/personal/$SLUG/skills/review.md"
+echo "   Bob's HEAD = $UPDATED_HEAD  (matches Alice's new tip: $TIP2)"
+show "Bob now has Alice's new content:"; tail -1 "$WORK/consumer/.nori/profiles/personal/$SLUG/skills/review.md"
 pause
 
 # 6. FORK --------------------------------------------------------------------
-banner "Consumer forks it into their own skillset" \
+banner "Bob forks it into his own skillset" \
   "'fork' makes an independent copy — no upstream history, ready to diverge and publish."
 sks consumer fork "personal/$SLUG" "${SLUG}-mine"
 sks consumer publish "${SLUG}-mine" --to "$REMOTE" --yes
@@ -152,7 +165,7 @@ git ls-remote "$REMOTE" "refs/heads/skillsets/${SLUG}-mine"
 pause
 
 # 7. TRUST -------------------------------------------------------------------
-banner "Durable trust is revocable" \
+banner "Bob's trust is durable and revocable" \
   "Revoke a source and the next install of it re-prompts."
 show "sks trust list"; sks consumer trust list
 sks consumer trust revoke "$REMOTE" "$SLUG"
