@@ -198,6 +198,39 @@ export const registerNoriSkillsetsPublishCommand = (args: {
 };
 
 /**
+ * Register the 'update' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsUpdateCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("update <skillset>")
+    .description("Update a Git-backed skillset to its latest branch tip")
+    .action(async (skillset: string) => {
+      const { updateSkillsetMain } =
+        await import("@/cli/commands/update-skillset/updateSkillset.js");
+      const globalOpts = program.opts();
+      await wrapWithFraming({
+        title: "Update Skillset",
+        exitOnFailure: true,
+        silent: globalOpts.silent || null,
+        action: () =>
+          updateSkillsetMain({
+            slug: skillset,
+            installDir: globalOpts.installDir ?? null,
+            nonInteractive:
+              globalOpts.nonInteractive || globalOpts.silent || null,
+            silent: globalOpts.silent || null,
+          }),
+      });
+    });
+};
+
+/**
  * Register the 'register' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
