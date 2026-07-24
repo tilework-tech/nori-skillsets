@@ -22,13 +22,12 @@ import {
   redactRemote,
   runGit,
   sanitizeDisplayText,
-  validateGitPackageEntries,
+  validateCheckout,
 } from "@/cli/features/gitPackage.js";
 import { noninteractive as activateSkillset } from "@/cli/features/install/install.js";
 import { withInstallLock } from "@/cli/features/install/installLock.js";
 import { isSilentMode, setSilentMode } from "@/cli/logger.js";
 import { validateSkillsetName } from "@/cli/prompts/validators.js";
-import { readSkillsetMetadata } from "@/norijson/nori.js";
 import { getNoriSkillsetsDir } from "@/norijson/skillset.js";
 import { resolveInstallDir } from "@/utils/path.js";
 
@@ -118,36 +117,6 @@ const readSshCommandConfig = async (args: {
       return null;
     }
     throw error;
-  }
-};
-
-const validateCheckout = async (args: {
-  checkoutDir: string;
-  slug: string;
-  nonInteractive: boolean;
-}): Promise<void> => {
-  const { checkoutDir, slug, nonInteractive } = args;
-  validateGitPackageEntries({
-    output: await runGit({
-      command: ["ls-files", "--stage", "-z"],
-      cwd: checkoutDir,
-      nonInteractive,
-    }),
-  });
-
-  let metadata;
-  try {
-    metadata = await readSkillsetMetadata({ skillsetDir: checkoutDir });
-  } catch (error) {
-    throw new Error(`Invalid skillset manifest: ${String(error)}`);
-  }
-  if (metadata.name !== slug) {
-    throw new Error(
-      `Skillset manifest name "${sanitizeDisplayText({ value: metadata.name })}" does not match requested name "${slug}"`,
-    );
-  }
-  if (metadata.type !== "skillset") {
-    throw new Error("Invalid skillset manifest: type must be skillset");
   }
 };
 

@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import * as path from "node:path";
 
+import { readSkillsetMetadata } from "@/norijson/nori.js";
+
 const HFS_IGNORED_CODE_POINTS =
   /[\u200C-\u200F\u202A-\u202E\u206A-\u206F\uFEFF]/gu;
 
@@ -372,4 +374,83 @@ export const isAncestor = async (args: {
   if (result.exitCode === 0) return true;
   if (result.exitCode === 1) return false;
   throw failedGitCommand({ result });
+};
+
+export type GitSource = {
+  remote: string | null;
+  branch: string | null;
+  resolvedSha: string;
+  mode: "following" | "pinned";
+};
+
+// Read a Git-backed skillset checkout's source as a native read-model: its
+// origin remote, current branch, resolved HEAD commit, and whether it is
+// following its branch or pinned to a detached commit. Derived entirely from
+// native Git state — there is no Nori source sidecar.
+export const readGitSource = async (args: {
+  checkoutDir: string;
+}): Promise<GitSource> => {
+  const { checkoutDir } = args;
+
+  const remoteResult = await executeGit({
+    command: ["config", "--get", "remote.origin.url"],
+    cwd: checkoutDir,
+    nonInteractive: true,
+  });
+  const remote = remoteResult.exitCode === 0 ? remoteResult.stdout : null;
+
+  // Exit 0 with the branch name when on a branch; exit 1 when detached (pinned).
+  const branchResult = await executeGit({
+    command: ["symbolic-ref", "-q", "--short", "HEAD"],
+    cwd: checkoutDir,
+    nonInteractive: true,
+  });
+  const branch = branchResult.exitCode === 0 ? branchResult.stdout : null;
+
+  const resolvedSha = await runGit({
+    command: ["rev-parse", "HEAD"],
+    cwd: checkoutDir,
+    nonInteractive: true,
+  });
+
+  return {
+    remote,
+    branch,
+    resolvedSha,
+    mode: branch == null ? "pinned" : "following",
+  };
+};
+
+// Validate a checked-out Git skillset tree: reject tracked symlinks,
+// submodules, and Registry `.nori-version` provenance; require exactly one
+// root `nori.json`; and require the manifest name/type to match. Shared by
+// install (on acquisition) and update (on the fetched tip).
+export const validateCheckout = async (args: {
+  checkoutDir: string;
+  slug: string;
+  nonInteractive: boolean;
+}): Promise<void> => {
+  const { checkoutDir, slug, nonInteractive } = args;
+  validateGitPackageEntries({
+    output: await runGit({
+      command: ["ls-files", "--stage", "-z"],
+      cwd: checkoutDir,
+      nonInteractive,
+    }),
+  });
+
+  let metadata;
+  try {
+    metadata = await readSkillsetMetadata({ skillsetDir: checkoutDir });
+  } catch (error) {
+    throw new Error(`Invalid skillset manifest: ${String(error)}`);
+  }
+  if (metadata.name !== slug) {
+    throw new Error(
+      `Skillset manifest name "${sanitizeDisplayText({ value: metadata.name })}" does not match requested name "${slug}"`,
+    );
+  }
+  if (metadata.type !== "skillset") {
+    throw new Error("Invalid skillset manifest: type must be skillset");
+  }
 };
