@@ -20,10 +20,12 @@ set -euo pipefail
 # --- options -----------------------------------------------------------------
 AUTO=0
 REMOTE_OVERRIDE=""
+CLEANUP=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --auto) AUTO=1 ;;
     --remote) REMOTE_OVERRIDE="$2"; shift ;;
+    --cleanup) CLEANUP=1 ;;
     *) echo "unknown option: $1"; exit 2 ;;
   esac
   shift
@@ -56,8 +58,19 @@ git_q() { git "$@" >/dev/null 2>&1; }
 
 # --- workspace ---------------------------------------------------------------
 WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
-trap cleanup EXIT
+REMOTE_BRANCHES=()   # branches this run pushed to a real --remote
+cleanup() {
+  rm -rf "$WORK"
+  if [ "$CLEANUP" = "1" ] && [ -n "$REMOTE_OVERRIDE" ] && [ "${#REMOTE_BRANCHES[@]}" -gt 0 ]; then
+    echo; echo "── cleanup: removing demo branches from the remote ──"
+    for b in "${REMOTE_BRANCHES[@]}"; do
+      git push -q "$REMOTE" --delete "$b" 2>/dev/null \
+        && echo "  deleted $b" || echo "  (already gone) $b"
+    done
+  fi
+}
+# Also clean up on Ctrl-C / disconnect (e.g. the web-terminal tab closing).
+trap cleanup EXIT INT TERM HUP
 git config --global user.email >/dev/null 2>&1 || git config --global user.email "demo@nori.local"
 git config --global user.name  >/dev/null 2>&1 || git config --global user.name  "Nori Demo"
 
@@ -93,6 +106,7 @@ sks author publish "$SLUG" --to "$REMOTE" --yes
 show "git ls-remote $REMOTE skillsets/$SLUG"
 git ls-remote "$REMOTE" "refs/heads/skillsets/$SLUG"
 TIP1="$(git ls-remote "$REMOTE" "refs/heads/skillsets/$SLUG" | cut -f1)"
+REMOTE_BRANCHES+=("skillsets/$SLUG")
 pause
 
 # 3. INSTALL (via primary remote) --------------------------------------------
@@ -132,6 +146,7 @@ banner "Consumer forks it into their own skillset" \
   "'fork' makes an independent copy — no upstream history, ready to diverge and publish."
 sks consumer fork "personal/$SLUG" "${SLUG}-mine"
 sks consumer publish "${SLUG}-mine" --to "$REMOTE" --yes
+REMOTE_BRANCHES+=("skillsets/${SLUG}-mine")
 show "git ls-remote $REMOTE skillsets/${SLUG}-mine"
 git ls-remote "$REMOTE" "refs/heads/skillsets/${SLUG}-mine"
 pause

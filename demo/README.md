@@ -16,11 +16,20 @@ demo/git-skillsets-demo.sh         # interactive: press Enter between steps (for
 demo/git-skillsets-demo.sh --auto  # hands-off, sleeps between steps (good for recording)
 ```
 
-Run against a real Git remote instead of a local one (needs push access, e.g. a
-throwaway `skillsets/senior-swe` branch):
+Run against a real Git remote instead of a local one (needs push access), so the
+published `skillsets/senior-swe` and `skillsets/senior-swe-mine` branches are
+observable on the remote:
 
 ```bash
 demo/git-skillsets-demo.sh --remote git@github.com:your-org/your-repo.git
+```
+
+Add `--cleanup` to have it tear down the branches it pushed when it exits
+(including on Ctrl-C or a closed web-terminal tab) — so a real-remote run leaves
+nothing behind:
+
+```bash
+demo/git-skillsets-demo.sh --remote <url> --cleanup
 ```
 
 Requires Node 20+ (the CLI's fetch dependency needs the `File` global).
