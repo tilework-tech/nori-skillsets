@@ -133,11 +133,11 @@ show "sks trust list"; sks consumer trust list
 pause
 
 # 4. PIN ---------------------------------------------------------------------
-banner "Carol pins an exact commit" \
-  "On a third machine, '--pin <sha>' gives a reproducible historical version (detached HEAD)."
+banner "Carol pins an exact commit — a frozen version" \
+  "On a third machine, '--pin <sha>' installs one exact commit and detaches HEAD. It will NOT move, even when Alice advances the branch (we'll see that shortly)."
 sks pin install "$SLUG" --from "$REMOTE" --pin "$TIP1" --trust-source --non-interactive
 PIN_HEAD="$(git -C "$WORK/pin/.nori/profiles/personal/$SLUG" rev-parse HEAD)"
-echo "   pinned HEAD = $PIN_HEAD  (matches published tip: $TIP1)"
+echo "   Carol is pinned to $PIN_HEAD  (today's tip — remember this SHA)"
 pause
 
 # 5. UPDATE ------------------------------------------------------------------
@@ -152,6 +152,15 @@ sks consumer update "$SLUG"
 UPDATED_HEAD="$(git -C "$WORK/consumer/.nori/profiles/personal/$SLUG" rev-parse HEAD)"
 echo "   Bob's HEAD = $UPDATED_HEAD  (matches Alice's new tip: $TIP2)"
 show "Bob now has Alice's new content:"; tail -1 "$WORK/consumer/.nori/profiles/personal/$SLUG/skills/review.md"
+pause
+
+# 5b. PIN CONTRAST -----------------------------------------------------------
+banner "Meanwhile, Carol's pin is frozen" \
+  "Bob followed Alice's update to the new tip; Carol's pinned install did NOT move — and 'update' refuses to advance a pin (pins are immutable)."
+echo "   Bob   (following) → $UPDATED_HEAD   ← advanced to Alice's new tip"
+echo "   Carol (pinned)    → $PIN_HEAD   ← unchanged: still the original commit"
+show "even 'update' won't move Carol's pin:"
+sks pin update "$SLUG" --non-interactive || true
 pause
 
 # 6. FORK --------------------------------------------------------------------
