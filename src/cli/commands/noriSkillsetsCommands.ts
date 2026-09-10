@@ -463,6 +463,48 @@ export const registerNoriSkillsetsUploadCommand = (args: {
 };
 
 /**
+ * Register the 'seed' command for nori-skillsets CLI
+ * @param args - Configuration arguments
+ * @param args.program - Commander program instance
+ */
+export const registerNoriSkillsetsSeedCommand = (args: {
+  program: Command;
+}): void => {
+  const { program } = args;
+
+  program
+    .command("seed")
+    .description(
+      "Seed a manifest of skillsets into an org registry (download+fork+upload each entry in one process)",
+    )
+    .requiredOption("--org <orgId>", "Target organization id")
+    .requiredOption(
+      "--manifest <json>",
+      'JSON array of { "source": string, "name": string } entries',
+    )
+    .action(async (options: { org: string; manifest: string }) => {
+      const { seedMain } = await import("@/cli/commands/seed/seed.js");
+      const globalOpts = program.opts();
+
+      await wrapWithFraming({
+        title: "Seed Skillsets",
+        exitOnFailure: true,
+        action: () => {
+          const manifest = JSON.parse(options.manifest) as Array<{
+            source: string;
+            name: string;
+          }>;
+          return seedMain({
+            orgId: options.org,
+            manifest,
+            installDir: globalOpts.installDir || null,
+          });
+        },
+      });
+    });
+};
+
+/**
  * Register the 'install' command for nori-skillsets CLI
  * @param args - Configuration arguments
  * @param args.program - Commander program instance
