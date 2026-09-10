@@ -35,6 +35,7 @@ import {
   registerNoriSkillsetsRegisterCommand,
   registerNoriSkillsetsLogoutCommand,
   registerNoriSkillsetsSearchCommand,
+  registerNoriSkillsetsSeedCommand,
   registerNoriSkillsetsSwitchSkillsetCommand,
   registerNoriSkillsetsSyntaxCommand,
   registerNoriSkillsetsUnlinkCommand,
@@ -210,6 +211,7 @@ registerNoriSkillsetsInitCommand({ program });
 registerNoriSkillsetsSearchCommand({ program });
 registerNoriSkillsetsDownloadCommand({ program });
 registerNoriSkillsetsUploadCommand({ program });
+registerNoriSkillsetsSeedCommand({ program });
 registerNoriSkillsetsInstallCommand({ program });
 registerNoriSkillsetsSwitchSkillsetCommand({ program });
 registerNoriSkillsetsLinkCommand({ program });

@@ -2,9 +2,39 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type * as FsPromises from "fs/promises";
 
 import { readJsonObjectFile, writeJsonFileAtomic } from "./jsonFile.js";
+
+// Records the mode of the atomic-write temp file at the instant it is created,
+// so a test can assert the temp is opened with the restricted mode rather than
+// being widened during writing. Recording is opt-in per test via `record`.
+const openObservations = vi.hoisted(() => ({
+  record: false,
+  modes: [] as Array<number>,
+}));
+
+// Wrap only `open` from fs/promises; every other operation stays real so the
+// rest of the suite exercises the true filesystem.
+vi.mock("fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>();
+  const open: typeof actual.open = async (...openArgs) => {
+    const handle = await actual.open(...openArgs);
+    const target = openArgs[0];
+    if (
+      openObservations.record &&
+      typeof target === "string" &&
+      target.includes("secret.json.tmp-")
+    ) {
+      const stat = await actual.stat(target);
+      openObservations.modes.push(stat.mode & 0o777);
+    }
+    return handle;
+  };
+  return { ...actual, default: { ...actual, open }, open };
+});
 
 let tempDir: string;
 
@@ -145,42 +175,31 @@ describe("writeJsonFileAtomic", () => {
     });
   });
 
-  it("creates the temporary file with the existing restricted mode before writing", async () => {
+  it("creates the temporary file with the existing restricted mode from the moment it exists", async () => {
     const filePath = path.join(tempDir, "secret.json");
     await fs.writeFile(filePath, JSON.stringify({ a: 1 }));
     await fs.chmod(filePath, 0o600);
+
+    // Observe the temp file's mode at its earliest possible moment — right after
+    // it is created — rather than racing an in-flight write. Under a permissive
+    // umask, a naive implementation that created the temp at the default mode
+    // and only chmod'd it afterward would expose a world-readable window; this
+    // captures the mode before any bytes are written, deterministically.
     const originalUmask = process.umask(0o000);
-    const observedModes = new Set<number>();
-    let writeFinished = false;
+    openObservations.record = true;
+    openObservations.modes = [];
 
     try {
-      const writePromise = writeJsonFileAtomic({
-        filePath,
-        // Large enough to observe the temp file while the write is in flight,
-        // before a post-write chmod could mask the creation mode.
-        value: { secret: "x".repeat(128 * 1024 * 1024) },
-      }).finally(() => {
-        writeFinished = true;
-      });
-
-      while (!writeFinished) {
-        const entries = await fs.readdir(tempDir);
-        for (const entry of entries) {
-          if (entry.startsWith("secret.json.tmp-")) {
-            const mode =
-              (await fs.stat(path.join(tempDir, entry))).mode & 0o777;
-            observedModes.add(mode);
-          }
-        }
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-
-      await writePromise;
+      await writeJsonFileAtomic({ filePath, value: { secret: "value" } });
     } finally {
+      openObservations.record = false;
       process.umask(originalUmask);
     }
 
-    expect(observedModes.size).toBeGreaterThan(0);
-    expect([...observedModes]).toEqual([0o600]);
+    expect(openObservations.modes.length).toBeGreaterThan(0);
+    expect([...new Set(openObservations.modes)]).toEqual([0o600]);
+
+    // And the published file carries the restricted mode too.
+    expect((await fs.stat(filePath)).mode & 0o777).toBe(0o600);
   });
 });
