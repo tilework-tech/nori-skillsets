@@ -32,7 +32,26 @@ type ResolvedSubagent = {
   tomlSandboxMode: string | null;
 };
 
-export type SubagentTargetFormat = "markdown" | "codex-toml" | "pi-markdown";
+export type SubagentTargetFormat =
+  | "markdown"
+  | "codex-toml"
+  | "pi-markdown"
+  | "opencode-markdown";
+
+// OpenCode permission keys covering its built-in tools, in emission order.
+const OPENCODE_PERMISSION_KEYS = [
+  "read",
+  "edit",
+  "glob",
+  "grep",
+  "list",
+  "bash",
+  "task",
+  "webfetch",
+  "websearch",
+  "todowrite",
+  "skill",
+] as const;
 
 const FRONTMATTER_DELIMITER = "---";
 
@@ -143,6 +162,7 @@ const toList = (args: { value?: FrontmatterValue | null }): Array<string> => {
   }
 
   return value
+    .replace(/^\[(.*)\]$/, "$1")
     .split(",")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
@@ -387,6 +407,78 @@ const getPiModel = (args: { markdownModel?: string | null }): string | null => {
   return markdownModel;
 };
 
+const normalizeMarkdownToolForOpenCode = (args: {
+  tool: string;
+}): string | null => {
+  const { tool } = args;
+
+  switch (tool.trim().toLowerCase()) {
+    case "read":
+      return "read";
+    case "edit":
+    case "write":
+    case "multiedit":
+    case "notebookedit":
+      return "edit";
+    case "glob":
+      return "glob";
+    case "grep":
+      return "grep";
+    case "ls":
+      return "list";
+    case "bash":
+      return "bash";
+    case "task":
+    case "agent":
+      return "task";
+    case "webfetch":
+      return "webfetch";
+    case "websearch":
+      return "websearch";
+    case "todowrite":
+      return "todowrite";
+    case "skill":
+      return "skill";
+    default:
+      return null;
+  }
+};
+
+// Claude Code treats a tools list as an allowlist; OpenCode expresses the
+// same restriction as permission denials for every tool left out.
+const getOpenCodeDeniedTools = (args: {
+  markdownTools: Array<string>;
+  tomlSandboxMode?: string | null;
+}): Array<string> => {
+  const { markdownTools, tomlSandboxMode } = args;
+  if (markdownTools.length > 0) {
+    const allowed = new Set(
+      markdownTools.map((tool) => normalizeMarkdownToolForOpenCode({ tool })),
+    );
+    return OPENCODE_PERMISSION_KEYS.filter((key) => !allowed.has(key));
+  }
+
+  if (tomlSandboxMode === "read-only") {
+    return ["edit", "bash"];
+  }
+
+  return [];
+};
+
+// OpenCode resolves models as provider/model; Claude aliases such as
+// "inherit" or "sonnet" would name a nonexistent provider.
+const getOpenCodeModel = (args: {
+  markdownModel?: string | null;
+  tomlModel?: string | null;
+}): string | null => {
+  const { markdownModel, tomlModel } = args;
+  return (
+    [markdownModel, tomlModel].find(
+      (model): model is string => model != null && model.includes("/"),
+    ) ?? null
+  );
+};
+
 const getBody = (args: {
   body?: string | null;
   developerInstructions?: string | null;
@@ -451,6 +543,41 @@ export const emitSubagentContent = (args: {
     return {
       content: `${lines.join("\n")}\n`,
       extension: ".toml",
+    };
+  }
+
+  if (targetFormat === "opencode-markdown") {
+    // Only known keys are emitted: OpenCode forwards unknown frontmatter keys
+    // to the model provider as request options.
+    const openCodeLines = [
+      FRONTMATTER_DELIMITER,
+      `name: ${JSON.stringify(resolved.name)}`,
+      `description: ${JSON.stringify(resolved.description)}`,
+      "mode: subagent",
+    ];
+
+    const model = getOpenCodeModel({
+      markdownModel: resolved.markdownModel,
+      tomlModel: resolved.tomlModel,
+    });
+    if (model != null) {
+      openCodeLines.push(`model: ${JSON.stringify(model)}`);
+    }
+
+    const deniedTools = getOpenCodeDeniedTools({
+      markdownTools: resolved.markdownTools,
+      tomlSandboxMode: resolved.tomlSandboxMode,
+    });
+    if (deniedTools.length > 0) {
+      openCodeLines.push("permission:");
+      openCodeLines.push(...deniedTools.map((tool) => `  ${tool}: deny`));
+    }
+
+    openCodeLines.push(FRONTMATTER_DELIMITER);
+
+    return {
+      content: `${openCodeLines.join("\n")}\n\n${body.trim()}\n`,
+      extension: ".md",
     };
   }
 

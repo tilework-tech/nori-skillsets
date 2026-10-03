@@ -224,6 +224,7 @@ export const AGENT_DEFINITIONS: ReadonlyArray<AgentDefinition> = [
     slashcommandsDirName: "commands",
     instructionsFileName: "AGENTS.md",
     instructionsPlacement: "install-root-for-project",
+    subagentTargetFormat: "opencode-markdown",
   },
   {
     name: "openclaw",

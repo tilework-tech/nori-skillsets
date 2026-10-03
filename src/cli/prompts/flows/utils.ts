@@ -21,13 +21,13 @@ import { isCancel, cancel } from "@clack/prompts";
 export const unwrapPrompt = <T>(args: {
   value: T | symbol;
   cancelMessage?: string | null;
-}): T | null => {
+}): Exclude<T, symbol> | null => {
   const { value, cancelMessage } = args;
   if (isCancel(value)) {
     cancel(cancelMessage ?? "Operation cancelled.");
     return null;
   }
-  return value as T;
+  return value as Exclude<T, symbol>;
 };
 
 /**

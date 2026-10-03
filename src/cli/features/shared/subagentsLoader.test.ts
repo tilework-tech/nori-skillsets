@@ -11,6 +11,7 @@ import * as path from "path";
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+import { AgentRegistry } from "@/cli/features/agentRegistry.js";
 import { createSubagentsLoader } from "@/cli/features/shared/subagentsLoader.js";
 
 import type { Config } from "@/cli/config.js";
@@ -631,6 +632,245 @@ describe("createSubagentsLoader", () => {
 
       expect(docsTomlExists).toBe(false);
       expect(docsMdExists).toBe(false);
+    });
+  });
+
+  describe("OpenCode emission", () => {
+    const installForOpenCode = async (args: {
+      subagents: Record<string, string>;
+      emittedName: string;
+    }): Promise<{ frontmatter: string; body: string }> => {
+      const { subagents, emittedName } = args;
+      const openCode = AgentRegistry.getInstance().get({ name: "opencode" });
+      const loader = openCode
+        .getLoaders()
+        .find((candidate) => candidate.name === "subagents");
+      if (loader == null) {
+        throw new Error("OpenCode does not register a subagents loader");
+      }
+      const skillset = await createTestSkillset({
+        skillsetsDir: noriProfilesDir,
+        skillsetName: "opencode-test",
+        subagents,
+      });
+
+      await loader.run({
+        agent: openCode,
+        config: createTestConfig({
+          installDir: tempDir,
+          activeSkillset: "opencode-test",
+        }),
+        skillset,
+      });
+
+      const emitted = await fs.readFile(
+        path.join(tempDir, ".opencode", "agents", emittedName),
+        "utf-8",
+      );
+      const match = emitted.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      if (match == null) {
+        throw new Error(`No frontmatter block in:\n${emitted}`);
+      }
+      return { frontmatter: match[1], body: match[2] };
+    };
+
+    it("should translate a Claude tools allowlist into OpenCode permission denials", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "nori-code-reviewer.md":
+            "---\nname: nori-code-reviewer\ndescription: Review changed code\ntools: Read, Grep, Glob, Bash, TodoWrite\nmodel: inherit\ncolor: blue\n---\n\nReview the diff carefully.\n",
+        },
+        emittedName: "nori-code-reviewer.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "nori-code-reviewer"',
+          'description: "Review changed code"',
+          "mode: subagent",
+          "permission:",
+          "  edit: deny",
+          "  list: deny",
+          "  task: deny",
+          "  webfetch: deny",
+          "  websearch: deny",
+          "  skill: deny",
+        ].join("\n"),
+      );
+    });
+
+    it("should allow edits when any Claude write tool is allowlisted", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "nori-writer.md":
+            "---\nname: nori-writer\ndescription: Writes files\ntools: Read, MultiEdit, Bash\n---\n\nWrite.\n",
+        },
+        emittedName: "nori-writer.md",
+      });
+
+      expect(frontmatter).toContain("mode: subagent");
+      expect(frontmatter).not.toContain("  edit: deny");
+      expect(frontmatter).toContain("  glob: deny");
+    });
+
+    it("should read a bracketed tools list as the same allowlist", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "nori-code-reviewer.md":
+            "---\nname: nori-code-reviewer\ndescription: Review changed code\ntools: [Read, Grep, Glob, Bash, TodoWrite]\n---\n\nReview.\n",
+        },
+        emittedName: "nori-code-reviewer.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "nori-code-reviewer"',
+          'description: "Review changed code"',
+          "mode: subagent",
+          "permission:",
+          "  edit: deny",
+          "  list: deny",
+          "  task: deny",
+          "  webfetch: deny",
+          "  websearch: deny",
+          "  skill: deny",
+        ].join("\n"),
+      );
+    });
+
+    it("should use a provider-qualified TOML model when the markdown model is a Claude alias", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "paired.md":
+            "---\nname: paired\ndescription: Paired\nmodel: inherit\n---\n\nBody.\n",
+          "paired.toml":
+            'name = "paired"\ndescription = "Paired"\nmodel = "openai/gpt-6"\n',
+        },
+        emittedName: "paired.md",
+      });
+
+      expect(frontmatter).toContain('model: "openai/gpt-6"');
+    });
+
+    it("should keep the body and substitute template paths", async () => {
+      const { body } = await installForOpenCode({
+        subagents: {
+          "nori-code-reviewer.md":
+            "---\nname: nori-code-reviewer\ndescription: Review changed code\ntools: Read\n---\n\nReview the diff carefully.\nRead: {{skills_dir}}/review/SKILL.md\n",
+        },
+        emittedName: "nori-code-reviewer.md",
+      });
+
+      expect(body).toContain("Review the diff carefully.");
+      expect(body).toContain(
+        path.join(tempDir, ".opencode", "skills", "review", "SKILL.md"),
+      );
+    });
+
+    it("should leave all tools available when the Claude subagent has no tools allowlist", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: TEST_MARKDOWN_ONLY_SUBAGENTS,
+        emittedName: "nori-task-runner.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "nori-task-runner"',
+          'description: "Run a task outside the main context"',
+          "mode: subagent",
+        ].join("\n"),
+      );
+    });
+
+    it("should keep provider-qualified models", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "pinned.md":
+            "---\nname: pinned\ndescription: Pinned model\nmodel: anthropic/claude-sonnet-5\n---\n\nBody.\n",
+        },
+        emittedName: "pinned.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "pinned"',
+          'description: "Pinned model"',
+          "mode: subagent",
+          'model: "anthropic/claude-sonnet-5"',
+        ].join("\n"),
+      );
+    });
+
+    it.each(["inherit", "sonnet"])(
+      "should drop the unqualified model %s",
+      async (model) => {
+        const { frontmatter } = await installForOpenCode({
+          subagents: {
+            "aliased.md": `---\nname: aliased\ndescription: Aliased model\nmodel: ${model}\n---\n\nBody.\n`,
+          },
+          emittedName: "aliased.md",
+        });
+
+        expect(frontmatter).toBe(
+          [
+            'name: "aliased"',
+            'description: "Aliased model"',
+            "mode: subagent",
+          ].join("\n"),
+        );
+      },
+    );
+
+    it("should drop Codex-only frontmatter keys", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: TEST_MARKDOWN_WITH_CODEX_METADATA_SUBAGENTS,
+        emittedName: "nori-runtime-aware-runner.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "nori-runtime-aware-runner"',
+          'description: "Run a task with Codex metadata"',
+          "mode: subagent",
+        ].join("\n"),
+      );
+    });
+
+    it("should escape descriptions containing YAML-significant characters", async () => {
+      // Claude Code accepts these unquoted descriptions even though they are
+      // not strict YAML, so skillsets in the wild contain them.
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "nori-web-researcher.md":
+            '---\nname: nori-web-researcher\ndescription: Use this often: say "hi" # C:\\temp\n---\n\nResearch.\n',
+        },
+        emittedName: "nori-web-researcher.md",
+      });
+
+      expect(frontmatter).toContain(
+        'description: "Use this often: say \\"hi\\" # C:\\\\temp"',
+      );
+    });
+
+    it("should deny edits and shell for read-only TOML subagents", async () => {
+      const { frontmatter } = await installForOpenCode({
+        subagents: {
+          "nori-knowledge-researcher.toml":
+            TEST_TOML_SUBAGENTS["nori-knowledge-researcher.toml"],
+        },
+        emittedName: "nori-knowledge-researcher.md",
+      });
+
+      expect(frontmatter).toBe(
+        [
+          'name: "nori-knowledge-researcher"',
+          'description: "Research specialist"',
+          "mode: subagent",
+          "permission:",
+          "  edit: deny",
+          "  bash: deny",
+        ].join("\n"),
+      );
     });
   });
 
