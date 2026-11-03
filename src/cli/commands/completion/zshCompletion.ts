@@ -30,7 +30,7 @@ _nori_skillsets() {
     'unlink:Unlink a symlinked skillset'
     'download-skill:Download and install a skill package'
     'external:Install skills from an external GitHub repository'
-    'watch:Watch Claude Code sessions and save transcripts'
+    'watch:Retired; stops any running watch daemon'
     'dir:Open the Nori skillsets directory'
     'fork:Fork an existing skillset to a new name'
     'edit:Open a skillset folder in VS Code'
@@ -146,8 +146,8 @@ _nori_skillsets() {
           )
           _arguments \\
             '1: :->watch_subcmd' \\
-            '(-a --agent)'{-a,--agent}'[Agent to watch]:name:' \\
-            '--set-destination[Re-configure transcript upload destination]' \\
+            '(-a --agent)'{-a,--agent}'[Ignored]:name:' \\
+            '--set-destination[Ignored]' \\
             \$global_opts
           if [[ \$state == watch_subcmd ]]; then
             _describe 'watch command' watch_commands

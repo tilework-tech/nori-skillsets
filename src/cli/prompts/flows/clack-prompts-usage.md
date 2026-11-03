@@ -473,7 +473,7 @@ Non-interactive commands migrated to clack output:
 Commands with interactive prompts that need full flow migration:
 
 - [ ] `login/login.ts` - Legacy path still uses `promptUser` (flow exists)
-- [x] `watch/watch.ts` - Uses legacy `promptUser` for transcript destination (flow exists, `watchStopMain` also migrated)
+- [x] `watch/watch.ts` - No prompts; `watchFlow` was removed when transcript upload was retired
 - [ ] `install/existingConfigCapture.ts` - Legacy path (initFlow handles this)
 - [ ] `registry-download/registryDownload.ts` - Multiple `promptUser` calls
 - [ ] `registry-install/registryInstall.ts` - Interactive install prompts

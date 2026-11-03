@@ -16,7 +16,7 @@ This is the sole source directory. Everything under `@/src` is compiled to `@/bu
 |-----------|---------|
 | `cli/` | CLI entrypoint, commands, features (agent integrations), prompts, and update checking |
 | `core/` | Cli-free policy and orchestration extracted from commands: upload policy/pipeline/sync and org-scoped registry auth resolution (see @/src/core/docs.md) |
-| `api/` | HTTP clients for the registry, transcripts, and authentication token management, plus a retained legacy analytics helper and the pure credential shapes/helpers in `authCredentials.ts` |
+| `api/` | HTTP clients for the registry and authentication token management, plus a retained legacy analytics helper and the pure credential shapes/helpers in `authCredentials.ts` |
 | `norijson/` | Types and runtime operations for the `nori.json` manifest format, including metadata CRUD (`readSkillsetMetadata`, `writeSkillsetMetadata`, `addSkillToNoriJson`, `ensureNoriJson`), plus skillset path utilities, parsing, and discovery |
 | `packaging/` | Cli-free package mechanics: tarball create/extract, atomic directory replacement, `.nori-version` provenance, and shared registry lookup helpers. Sole owner of these primitives -- commands must not hand-roll them (see @/src/packaging/docs.md) |
 | `providers/` | External service singletons (Firebase) |

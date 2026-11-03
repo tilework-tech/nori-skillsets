@@ -157,8 +157,7 @@ Examples:
   $ nori-skillsets external owner/repo
   $ nori-skillsets external https://github.com/owner/repo --skill my-skill
   $ nori-skillsets external owner/repo --all --ref main
-  $ nori-skillsets watch                                    # start watching Claude Code sessions
-  $ nori-skillsets watch stop                               # stop the watch daemon
+  $ nori-skillsets watch stop                               # stop a legacy watch daemon
   $ nori-skillsets dir                                      # open the skillsets directory
   $ nori-skillsets install-location                         # show all installation directories
   $ nori-skillsets install-location --non-interactive       # plain output for scripts

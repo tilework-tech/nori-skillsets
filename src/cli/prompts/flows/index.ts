@@ -92,14 +92,6 @@ export {
 } from "./factoryReset.js";
 
 export {
-  watchFlow,
-  type WatchFlowCallbacks,
-  type WatchFlowResult,
-  type PrepareResult,
-  type StartDaemonResult,
-} from "./watch.js";
-
-export {
   configFlow,
   type ConfigFlowCallbacks,
   type ConfigFlowResult,

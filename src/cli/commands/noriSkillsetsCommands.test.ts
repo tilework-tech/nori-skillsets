@@ -5,35 +5,21 @@
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import * as installTracking from "@/cli/installTracking.js";
+import * as watchModule from "@/cli/commands/watch/watch.js";
 
 import {
   registerNoriSkillsetsUploadSkillCommand,
   registerNoriSkillsetsWatchCommand,
 } from "./noriSkillsetsCommands.js";
 
-vi.mock("@/cli/installTracking.js", () => ({
-  trackWatchStarted: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock("@/cli/version.js", () => ({
-  getCurrentPackageVersion: vi.fn().mockReturnValue("2.4.0"),
-}));
-
 vi.mock("@/cli/commands/watch/watch.js", () => ({
   watchMain: vi.fn().mockResolvedValue({
     success: true,
     cancelled: false,
-    message: "watch started",
+    message: "Transcript upload has been retired.",
   }),
   watchStopMain: vi.fn().mockResolvedValue(undefined),
 }));
-
-const trackWatchStarted = (
-  installTracking as unknown as {
-    trackWatchStarted: ReturnType<typeof vi.fn>;
-  }
-).trackWatchStarted;
 
 describe("registerNoriSkillsetsUploadSkillCommand", () => {
   const buildUploadSkillCommand = (): Command => {
@@ -68,17 +54,34 @@ describe("registerNoriSkillsetsUploadSkillCommand", () => {
   });
 });
 
-describe("registerNoriSkillsetsWatchCommand analytics", () => {
+describe("registerNoriSkillsetsWatchCommand", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("does not emit watch-started for watch stop", async () => {
+  it.each([
+    [["watch"]],
+    [["watch", "--agent", "claude-code"]],
+    [["watch", "--set-destination"]],
+    [["watch", "--agent", "claude-code", "--_background"]],
+  ])(
+    "still accepts the legacy invocation %j so existing scripts do not crash",
+    async (argv) => {
+      const program = new Command().exitOverride();
+      registerNoriSkillsetsWatchCommand({ program });
+
+      await program.parseAsync(argv, { from: "user" });
+
+      expect(watchModule.watchMain).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("still provides watch stop", async () => {
     const program = new Command().exitOverride();
     registerNoriSkillsetsWatchCommand({ program });
 
     await program.parseAsync(["watch", "stop"], { from: "user" });
 
-    expect(trackWatchStarted).not.toHaveBeenCalled();
+    expect(watchModule.watchStopMain).toHaveBeenCalledTimes(1);
   });
 });

@@ -71,8 +71,7 @@ type AnalyticsEnvelope = {
   event:
     | "skillsets_command_completed"
     | "skillsets_install_started"
-    | "skillsets_install_completed"
-    | "skillsets_watch_started";
+    | "skillsets_install_completed";
   activity_id: string;
   occurred_at: string;
   product: "skillsets";
@@ -423,17 +422,6 @@ export const trackCommandCompleted = async (args: {
       event: "skillsets_command_completed",
       currentVersion: args.currentVersion,
       properties: { command, result: args.result },
-    }),
-  );
-};
-
-export const trackWatchStarted = async (args: {
-  currentVersion: string;
-}): Promise<void> => {
-  queueCapture(
-    buildEnvelope({
-      event: "skillsets_watch_started",
-      currentVersion: args.currentVersion,
     }),
   );
 };

@@ -4,17 +4,17 @@ Path: @/src/api
 
 ### Overview
 
-The API module contains HTTP clients for registry operations, transcript uploads, and Firebase authentication token management. Registry-authenticated requests flow through a centralized `apiRequest` function with retry logic and token refresh. A legacy analytics helper remains for compatibility but is not the authenticated product-analytics client.
+The API module contains HTTP clients for registry operations and Firebase authentication token management. Registry-authenticated requests flow through a centralized `apiRequest` function with retry logic and token refresh. A legacy analytics helper remains for compatibility but is not the authenticated product-analytics client.
 
 ### How it fits into the larger codebase
 
-CLI commands in `@/src/cli/commands/` call into this module for registry operations (search, download, upload) and transcript uploads. Authentication depends on config loaded from `@/src/cli/config.ts` (via `ConfigManager.loadConfig()`) and the Firebase provider at `@/src/providers/firebase.ts`. URL construction uses helpers from `@/src/utils/url.ts`, and network error formatting comes from `@/src/utils/fetch.ts`. This module is also the cli-free home of the credential shapes and pure credential predicates (`authCredentials.ts`), consumed by `@/src/cli/config.ts`, the org-scoped resolution helper in `@/src/core/registryAuthResolution.ts`, and the registry commands directly.
+CLI commands in `@/src/cli/commands/` call into this module for registry operations (search, download, upload). Authentication depends on config loaded from `@/src/cli/config.ts` (via `ConfigManager.loadConfig()`) and the Firebase provider at `@/src/providers/firebase.ts`. URL construction uses helpers from `@/src/utils/url.ts`, and network error formatting comes from `@/src/utils/fetch.ts`. This module is also the cli-free home of the credential shapes and pure credential predicates (`authCredentials.ts`), consumed by `@/src/cli/config.ts`, the org-scoped resolution helper in `@/src/core/registryAuthResolution.ts`, and the registry commands directly.
 
 ### Core Implementation
 
 **`authCredentials.ts`** defines the credential shapes -- `AuthCredentials` (the nested `auth` block from `~/.nori-config.json`) and `RegistryAuth` (per-registry credentials handed to `getRegistryAuthToken`) -- plus the pure helpers `hasUnexpiredRegistryIdToken`, `hasRegistryAuthCredentials` (does this auth hold any usable registry credential: refresh token, API token, or unexpired direct ID token), and `toRegistryAuth` (project `AuthCredentials` onto a target registry URL). It is a leaf module with no imports, deliberately placed here rather than in `@/src/cli/config.ts` (its former home) so that `@/src/core/` and this module never import from `src/cli/`. `getRegistryAuth` (which needs the full `Config`) stayed in `@/src/cli/config.ts`.
 
-**`base.ts`** provides `ConfigManager` (reads `~/.nori-config.json` synchronously), `AuthManager` (caches Firebase ID tokens with 55-minute expiry), and `apiRequest()` -- a generic authenticated fetch wrapper with exponential backoff retries and automatic 401 token refresh. This is the foundation for `transcript.ts`. `AuthManager` is exported so tests can call `AuthManager.reset()` to clear cached tokens between cases. The `readApiTokenEnv()` helper reads `NORI_API_TOKEN`, validates its shape via `isValidApiToken` from `@/src/utils/apiToken.ts`, parses out the orgId, and returns `{ token, orgId }` or `null`. Malformed or empty values return `null` silently (no warning is emitted).
+**`base.ts`** provides `ConfigManager` (reads `~/.nori-config.json` synchronously), `AuthManager` (caches Firebase ID tokens with 55-minute expiry), and `apiRequest()` -- a generic authenticated fetch wrapper with exponential backoff retries and automatic 401 token refresh. `AuthManager` is exported so tests can call `AuthManager.reset()` to clear cached tokens between cases. The `readApiTokenEnv()` helper reads `NORI_API_TOKEN`, validates its shape via `isValidApiToken` from `@/src/utils/apiToken.ts`, parses out the orgId, and returns `{ token, orgId }` or `null`. Malformed or empty values return `null` silently (no warning is emitted).
 
 **Auth resolution precedence** (per request, evaluated top-down in `AuthManager.getAuthToken` and mirrored in `getRegistryAuthToken` from `registryAuth.ts`):
 
@@ -41,8 +41,6 @@ Each `SkillConflict` / `SubagentConflict` item in the 409 body may carry an opti
 **`registryAuth.ts`** provides per-registry-URL token caching for Firebase ID tokens and precedence-checks for API tokens. Its `RegistryAuth` input type comes from `authCredentials.ts` (it previously came from `@/src/cli/config.ts`). `getRegistryAuthToken` evaluates env-var API tokens (scoped match against the orgId parsed from the token), then config API tokens (scoped match against the orgId parsed from the token), then an unexpired direct `idToken` from config, then the cached Firebase token, then performs a refresh-token exchange. API tokens short-circuit before the cache is consulted and are never written back to the cache. Direct `idToken` config is the broker-managed session-machine path; it is not refreshable by `nori-skillsets`, so expired direct tokens fall through to refresh-token auth only when a refresh token is also present.
 
 **`analytics.ts`** is a retained legacy helper with its historical organization-URL request shape. New releases do not use it for product activity. The authenticated v1 sender is `@/src/cli/installTracking.ts`, which uses a human Firebase ID token and the first-party login endpoint without foreground retries.
-
-**`transcript.ts`** uploads session transcripts via `apiRequest`, optionally routing to organization-specific subdomains. The upload payload conditionally includes `projectName` and `skillsetName` -- both are nullable and only included when non-null.
 
 ### Things to Know
 

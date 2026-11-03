@@ -1,798 +1,240 @@
 /**
  * Watch Command
  *
- * Monitors Claude Code sessions and saves transcripts to ~/.nori/transcripts/
- * Runs as a background daemon with PID file management.
+ * Transcript upload to registrars has been retired. `watch` is kept so that
+ * existing scripts and daemons do not break: it stops any watch daemon left
+ * running by an older version and exits without uploading anything.
  */
 
-import { spawn } from "child_process";
-import { createHash } from "crypto";
+import { execFile } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { promisify } from "util";
 
-import { extractSessionId } from "@/cli/commands/watch/parser.js";
 import {
-  getTranscriptDir,
-  getTranscriptRegistryPath,
   getWatchLogFile,
   getWatchPidFile,
 } from "@/cli/commands/watch/paths.js";
-import { findStaleTranscripts } from "@/cli/commands/watch/staleScanner.js";
-import { copyTranscript } from "@/cli/commands/watch/storage.js";
-import { TranscriptRegistry } from "@/cli/commands/watch/transcriptRegistry.js";
-import { processTranscriptForUpload } from "@/cli/commands/watch/uploader.js";
-import {
-  createWatcher,
-  stopWatcher,
-  waitForWatcherReady,
-  type WatcherInstance,
-} from "@/cli/commands/watch/watcher.js";
-import {
-  loadConfig,
-  updateConfig,
-  getDefaultAgents,
-  getActiveSkillset,
-} from "@/cli/config.js";
-import { AgentRegistry } from "@/cli/features/agentRegistry.js";
-import { getHomeDir } from "@/utils/home.js";
 
 import type { CommandStatus } from "@/cli/commands/commandStatus.js";
 
-/**
- * Debounce window in milliseconds for file events
- */
-const DEBOUNCE_MS = 500;
+export const WATCH_RETIRED_MESSAGE =
+  "Transcript upload has been retired. `nori-skillsets watch` no longer watches or uploads sessions.";
+
+const STOP_TIMEOUT_MS = 2000;
+const STOP_POLL_MS = 50;
+
+const execFileAsync = promisify(execFile);
 
 /**
- * Stale threshold in milliseconds - files not modified for this long are considered stale
- */
-const STALE_THRESHOLD_MS = 30000;
-
-/**
- * Expire threshold in milliseconds - files not modified for this long are deleted (24 hours)
- */
-const EXPIRE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Scan interval in milliseconds - how often to scan for stale transcripts
- * Files need to be 30s stale before upload, so 60s scan interval is sufficient
- */
-const SCAN_INTERVAL_MS = 60000;
-
-/**
- * Log stream for daemon mode
- */
-let logStream: fs.FileHandle | null = null;
-
-/**
- * Flag to track if we're shutting down
- */
-let isShuttingDown = false;
-
-/**
- * Signal handler reference for cleanup
- */
-let signalHandler: (() => void) | null = null;
-
-/**
- * Debounce map for file events
- * Key: file path, Value: last event timestamp
- */
-const lastEventTime: Map<string, number> = new Map();
-
-/**
- * Track files currently being uploaded to prevent duplicate uploads
- */
-const uploadingFiles: Set<string> = new Set();
-
-/**
- * Watcher for agent transcript directory
- */
-let projectsWatcher: WatcherInstance | null = null;
-
-/**
- * Current transcript destination org ID
- */
-let transcriptOrgId: string | null = null;
-
-/**
- * Whether to garbage collect (delete) transcripts after successful upload
- */
-let garbageCollectEnabled = false;
-
-/**
- * Transcript registry for tracking uploaded transcripts
- */
-let registry: TranscriptRegistry | null = null;
-
-/**
- * Interval handle for stale transcript scanner
- */
-let scanIntervalHandle: NodeJS.Timeout | null = null;
-
-/**
- * Current transcript storage directory (for stale scanner)
- */
-let currentTranscriptDir: string | null = null;
-
-/**
- * Log a message (to file in daemon mode, console otherwise)
+ * Append a line to the watch log. Used in background mode, where stdout and
+ * stderr are detached.
  *
- * @param message - The message to log
+ * @param args - Configuration arguments
+ * @param args.message - The message to log
  */
-const log = async (message: string): Promise<void> => {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
+const appendToWatchLog = async (args: { message: string }): Promise<void> => {
+  const { message } = args;
+  const logFile = getWatchLogFile();
+  await fs.mkdir(path.dirname(logFile), { recursive: true });
+  await fs.appendFile(
+    logFile,
+    `[${new Date().toISOString()}] ${message}\n`,
+    "utf-8",
+  );
+};
 
-  if (logStream != null) {
-    try {
-      await logStream.write(logMessage);
-    } catch {
-      // Ignore write errors during shutdown
+/**
+ * Read the PID of a previously started watch daemon, if any
+ *
+ * @returns The daemon PID, or null when no valid PID file exists
+ */
+const readDaemonPid = async (): Promise<number | null> => {
+  let pidContent: string;
+  try {
+    pidContent = await fs.readFile(getWatchPidFile(), "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
     }
-  } else {
-    process.stdout.write(logMessage);
+    throw err;
+  }
+  const pid = parseInt(pidContent.trim(), 10);
+  return isNaN(pid) || pid <= 0 ? null : pid;
+};
+
+/**
+ * Read a process's command line. Uses /proc on Linux and falls back to `ps`
+ * (macOS).
+ *
+ * @param args - Configuration arguments
+ * @param args.pid - Process ID
+ *
+ * @returns The command line, or null if the process does not exist
+ */
+const readCommandLine = async (args: {
+  pid: number;
+}): Promise<string | null> => {
+  const { pid } = args;
+  try {
+    const raw = await fs.readFile(`/proc/${pid}/cmdline`, "utf-8");
+    return raw.split("\0").join(" ");
+  } catch {
+    // Not Linux, or the process is gone; fall through to ps.
+  }
+  try {
+    const { stdout } = await execFileAsync("ps", [
+      "-o",
+      "command=",
+      "-p",
+      String(pid),
+    ]);
+    const commandLine = stdout.trim();
+    return commandLine === "" ? null : commandLine;
+  } catch {
+    return null;
   }
 };
 
 /**
- * Check if the watch daemon is running
+ * Whether a PID belongs to a watch daemon spawned by an older version
+ * (`<node> <cli> watch --agent <agent> --_background`). Guards against
+ * signalling an unrelated process that reused a stale PID.
  *
- * @returns True if daemon is running, false otherwise
+ * @param args - Configuration arguments
+ * @param args.pid - Process ID
+ *
+ * @returns True if the process is a legacy watch daemon
  */
-export const isWatchRunning = async (): Promise<boolean> => {
-  const pidFile = getWatchPidFile();
-
-  try {
-    const pidContent = await fs.readFile(pidFile, "utf-8");
-    const pid = parseInt(pidContent.trim(), 10);
-
-    if (isNaN(pid)) {
-      return false;
-    }
-
-    // Check if process is running
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      // Process doesn't exist
-      return false;
-    }
-  } catch {
-    // PID file doesn't exist
+const isLegacyWatchDaemon = async (args: { pid: number }): Promise<boolean> => {
+  const commandLine = await readCommandLine(args);
+  if (commandLine == null) {
     return false;
   }
+  const argv = commandLine.split(/\s+/);
+  return argv.includes("watch") && argv.includes("--_background");
 };
 
 /**
- * Handle a file event from the watcher
+ * Whether a process is still running. A zombie (exited but not yet reaped,
+ * e.g. under a container PID 1 that never reaps) counts as exited.
  *
  * @param args - Configuration arguments
- * @param args.filePath - Path to the changed file
- * @param args.agent - Agent name for organizing transcripts
- */
-const handleFileEvent = async (args: {
-  filePath: string;
-  agent: string;
-}): Promise<void> => {
-  const { filePath, agent } = args;
-
-  if (isShuttingDown) {
-    return;
-  }
-
-  // Debounce: skip if we processed this file recently
-  const now = Date.now();
-  const lastTime = lastEventTime.get(filePath);
-  if (lastTime != null && now - lastTime < DEBOUNCE_MS) {
-    return;
-  }
-  lastEventTime.set(filePath, now);
-
-  try {
-    // Extract sessionId from the file
-    const sessionId = await extractSessionId({ filePath });
-
-    if (sessionId == null) {
-      await log(`Skipping ${filePath}: no sessionId found`);
-      return;
-    }
-
-    // Get the project name from the directory structure
-    const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-    const transcriptDir = agentImpl.getTranscriptDirectory?.() ?? "";
-    const relativePath = path.relative(transcriptDir, filePath);
-    const projectName = relativePath.split(path.sep)[0];
-
-    if (projectName == null) {
-      await log(`Skipping ${filePath}: could not determine project`);
-      return;
-    }
-
-    // Get destination directory
-    const destDir = getTranscriptDir({ agent, projectName });
-
-    // Copy the transcript
-    await copyTranscript({
-      sourceFile: filePath,
-      destDir,
-      sessionId,
-    });
-
-    await log(`Copied ${sessionId} from ${projectName}`);
-  } catch (err) {
-    await log(`Error processing ${filePath}: ${err}`);
-  }
-};
-
-/**
- * Result of extracting file metadata
- */
-type FileMetadata = {
-  sessionId: string | null;
-  fileHash: string | null;
-};
-
-/**
- * Extract sessionId and compute hash from a transcript file in a single read
+ * @param args.pid - Process ID
  *
- * @param args - Configuration arguments
- * @param args.filePath - Path to the transcript file
- *
- * @returns Object containing sessionId and fileHash, both null if file can't be read
+ * @returns True if the process exists and is not a zombie
  */
-const extractFileMetadata = async (args: {
-  filePath: string;
-}): Promise<FileMetadata> => {
-  const { filePath } = args;
-
+const isProcessAlive = async (args: { pid: number }): Promise<boolean> => {
+  const { pid } = args;
   try {
-    const content = await fs.readFile(filePath);
-
-    // Compute hash from buffer
-    const fileHash = createHash("md5").update(content).digest("hex");
-
-    // Extract sessionId from content as string
-    const contentStr = content.toString("utf-8");
-    const regex =
-      /"sessionId"\s*:\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/;
-    const match = contentStr.match(regex);
-    const sessionId = match ? match[1] : null;
-
-    return { sessionId, fileHash };
+    process.kill(pid, 0);
   } catch {
-    return { sessionId: null, fileHash: null };
+    return false;
   }
-};
-
-/**
- * Delete expired transcript files
- *
- * @param args - Configuration arguments
- * @param args.expiredFiles - Array of file paths to delete
- */
-const deleteExpiredFiles = async (args: {
-  expiredFiles: Array<string>;
-}): Promise<void> => {
-  const { expiredFiles } = args;
-
-  for (const filePath of expiredFiles) {
-    if (isShuttingDown) {
-      break;
-    }
-
-    try {
-      await fs.unlink(filePath);
-      await log(`Deleted expired transcript: ${filePath}`);
-    } catch (err) {
-      await log(`Failed to delete expired transcript ${filePath}: ${err}`);
-    }
-  }
-};
-
-/**
- * Scan for stale transcripts and upload them
- */
-const scanForStaleTranscripts = async (): Promise<void> => {
-  if (isShuttingDown || currentTranscriptDir == null || registry == null) {
-    return;
-  }
-
   try {
-    const { staleFiles, expiredFiles } = await findStaleTranscripts({
-      transcriptDir: currentTranscriptDir,
-      staleThresholdMs: STALE_THRESHOLD_MS,
-      expireThresholdMs: EXPIRE_THRESHOLD_MS,
-    });
-
-    // Delete expired files first
-    if (expiredFiles.length > 0) {
-      await deleteExpiredFiles({ expiredFiles });
-    }
-
-    // Read active skillset at scan time (not daemon startup) for freshness
-    const scanConfig = await loadConfig();
-    const skillsetName =
-      scanConfig != null ? getActiveSkillset({ config: scanConfig }) : null;
-
-    // Process stale files for upload
-    for (const transcriptPath of staleFiles) {
-      if (isShuttingDown) {
-        break;
-      }
-
-      // Skip if already uploading
-      if (uploadingFiles.has(transcriptPath)) {
-        continue;
-      }
-
-      // Extract sessionId and compute hash in a single read
-      const { sessionId, fileHash } = await extractFileMetadata({
-        filePath: transcriptPath,
-      });
-
-      if (sessionId == null) {
-        await log(`Skipping stale file (no sessionId): ${transcriptPath}`);
-        continue;
-      }
-
-      if (fileHash == null) {
-        await log(`Skipping stale file (can't hash): ${transcriptPath}`);
-        continue;
-      }
-
-      // Check if already uploaded with same hash
-      if (registry.isUploaded({ sessionId, fileHash })) {
-        continue;
-      }
-
-      // Upload the transcript
-      uploadingFiles.add(transcriptPath);
-
-      try {
-        await log(`Uploading stale transcript: ${transcriptPath}`);
-
-        // Extract projectName from path: {currentTranscriptDir}/{projectName}/{sessionId}.jsonl
-        const relativePath = path.relative(
-          currentTranscriptDir!,
-          transcriptPath,
-        );
-        const projectName = relativePath.split(path.sep)[0] ?? null;
-
-        const uploaded = await processTranscriptForUpload({
-          transcriptPath,
-          ...(projectName != null && { projectName }),
-          orgId: transcriptOrgId,
-          ...(skillsetName != null && { skillsetName }),
-        });
-
-        if (uploaded) {
-          // Mark as uploaded in registry
-          try {
-            registry.markUploaded({ sessionId, fileHash, transcriptPath });
-            await log(
-              `Successfully uploaded stale transcript: ${transcriptPath}`,
-            );
-
-            // Garbage collect (delete) the transcript file if enabled
-            if (garbageCollectEnabled) {
-              try {
-                await fs.unlink(transcriptPath);
-                await log(`Garbage collected transcript: ${transcriptPath}`);
-              } catch (deleteErr) {
-                await log(
-                  `Warning: Failed to garbage collect transcript ${transcriptPath}: ${deleteErr}`,
-                );
-              }
-            }
-          } catch (registryErr) {
-            await log(
-              `Warning: Upload succeeded but failed to update registry: ${registryErr}`,
-            );
-          }
-        } else {
-          await log(`Failed to upload stale transcript: ${transcriptPath}`);
-        }
-      } finally {
-        uploadingFiles.delete(transcriptPath);
-      }
-    }
-  } catch (err) {
-    await log(`Error scanning for stale transcripts: ${err}`);
-  }
-};
-
-/**
- * Clean up watch daemon resources
- *
- * @param args - Configuration arguments
- * @param args.exitProcess - Whether to call process.exit (false for tests)
- */
-export const cleanupWatch = async (args?: {
-  exitProcess?: boolean | null;
-}): Promise<void> => {
-  const exitProcess = args?.exitProcess ?? true;
-
-  if (isShuttingDown) {
-    return;
-  }
-  isShuttingDown = true;
-
-  await log("Shutting down watch daemon...");
-
-  // Stop the stale scanner interval
-  if (scanIntervalHandle != null) {
-    clearInterval(scanIntervalHandle);
-    scanIntervalHandle = null;
-  }
-
-  // Close the registry
-  if (registry != null) {
-    registry.close();
-    registry = null;
-  }
-
-  // Stop the watcher
-  if (projectsWatcher != null) {
-    stopWatcher({ instance: projectsWatcher });
-    projectsWatcher = null;
-  }
-
-  // Clear debounce and upload tracking
-  lastEventTime.clear();
-  uploadingFiles.clear();
-
-  // Reset transcript directory
-  currentTranscriptDir = null;
-
-  // Remove PID file
-  const pidFile = getWatchPidFile();
-  try {
-    await fs.unlink(pidFile);
+    const stat = await fs.readFile(`/proc/${pid}/stat`, "utf-8");
+    // Format: "<pid> (<comm>) <state> ..."; comm may contain spaces.
+    const state = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[0];
+    return state !== "Z";
   } catch {
-    // Ignore errors
+    // No /proc (macOS): kill(0) succeeding is the best signal available.
+    return true;
   }
+};
 
-  // Close log stream
-  if (logStream != null) {
-    try {
-      await logStream.close();
-    } catch {
-      // Ignore errors
+const waitForProcessExit = async (args: { pid: number }): Promise<boolean> => {
+  const { pid } = args;
+  const deadline = Date.now() + STOP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (!(await isProcessAlive({ pid }))) {
+      return true;
     }
-    logStream = null;
+    await new Promise((resolve) => setTimeout(resolve, STOP_POLL_MS));
   }
-
-  // Remove signal handlers to prevent accumulation in tests
-  if (signalHandler != null) {
-    process.removeListener("SIGTERM", signalHandler);
-    process.removeListener("SIGINT", signalHandler);
-    signalHandler = null;
-  }
-
-  // Reset shutdown flag, transcript destination, and garbage collect for next run (important for tests)
-  isShuttingDown = false;
-  transcriptOrgId = null;
-  garbageCollectEnabled = false;
-
-  if (exitProcess) {
-    process.exit(0);
-  }
-};
-
-/**
- * Save watch settings to config
- *
- * @param args - Configuration arguments
- * @param args.org - Organization ID to save
- * @param args.garbageCollect - Whether to garbage collect transcripts after upload
- */
-const saveWatchSettings = async (args: {
-  org: string;
-  garbageCollect: "enabled" | "disabled";
-}): Promise<void> => {
-  const { org, garbageCollect } = args;
-  await updateConfig({
-    transcriptDestination: org,
-    garbageCollectTranscripts: garbageCollect,
-  });
-};
-
-/**
- * Spawn the watch daemon as a detached background process
- *
- * @param args - Configuration arguments
- * @param args.agent - Agent to watch
- *
- * @returns The spawned child process PID
- */
-const spawnDaemonProcess = async (args: { agent: string }): Promise<number> => {
-  const { agent } = args;
-
-  // Get the path to the nori-skillsets executable
-  const execPath = process.argv[1];
-
-  // Spawn detached child process with _background flag
-  const child = spawn(
-    process.execPath,
-    [execPath, "watch", "--agent", agent, "--_background"],
-    {
-      detached: true,
-      stdio: ["ignore", "ignore", "ignore"],
-      env: { ...process.env },
-    },
-  );
-
-  // Unref so parent can exit independently
-  child.unref();
-
-  if (child.pid == null) {
-    throw new Error("Failed to spawn daemon process");
-  }
-
-  return child.pid;
+  return !(await isProcessAlive({ pid }));
 };
 
 /**
  * Main watch function
  *
  * @param args - Configuration arguments
- * @param args.agent - Agent to watch (default: claude-code)
- * @param args.daemon - Whether to run as daemon (deprecated, kept for compatibility)
- * @param args.setDestination - Force re-selection of transcript destination
- * @param args._background - Internal flag: run as background daemon (set by spawn)
+ * @param args.agent - Accepted for backwards compatibility; ignored
+ * @param args.setDestination - Accepted for backwards compatibility; ignored
+ * @param args._background - Set when launched as a daemon by an older version
  *
  * @returns Command status
  */
 export const watchMain = async (args?: {
   agent?: string | null;
-  daemon?: boolean | null;
   _background?: boolean | null;
   setDestination?: boolean | null;
 }): Promise<CommandStatus> => {
   const _background = args?._background ?? false;
-  const setDestination = args?.setDestination ?? false;
 
-  // Resolve agent from config defaultAgents, with --agent as override
-  const agentOverride = args?.agent ?? undefined;
-  const resolvedConfig = await loadConfig();
-  const agent = getDefaultAgents({ config: resolvedConfig, agentOverride })[0];
-
-  const homeDir = process.env.HOME ?? "";
-  const logFile = getWatchLogFile();
-
-  // Interactive flow (not in background daemon mode)
-  if (!_background) {
-    const { watchFlow } = await import("@/cli/prompts/flows/watch.js");
-
-    const flowResult = await watchFlow({
-      forceSelection: setDestination,
-      callbacks: {
-        onPrepare: async () => {
-          const running = await isWatchRunning();
-          if (running) {
-            await watchStopMain({ quiet: true });
-          }
-
-          const config = await loadConfig();
-          const userOrgs = config?.auth?.organizations ?? [];
-          const privateOrgs = userOrgs.filter((org) => org !== "public");
-
-          return {
-            privateOrgs,
-            currentDestination: config?.transcriptDestination ?? null,
-            currentGarbageCollect: config?.garbageCollectTranscripts ?? null,
-            isRunning: running,
-          };
-        },
-        onStartDaemon: async ({ org, garbageCollect }) => {
-          await saveWatchSettings({ org, garbageCollect });
-
-          // Ensure log directory exists before spawning
-          await fs.mkdir(path.dirname(logFile), { recursive: true });
-
-          try {
-            const pid = await spawnDaemonProcess({ agent });
-            const transcriptsDir = path.join(
-              getHomeDir(),
-              ".nori",
-              "transcripts",
-            );
-            return { success: true as const, pid, logFile, transcriptsDir };
-          } catch (err) {
-            return {
-              success: false as const,
-              error: err instanceof Error ? err.message : String(err),
-            };
-          }
-        },
-      },
-    });
-
-    if (flowResult == null) {
-      return { success: false, cancelled: true, message: "" };
-    }
-
-    return {
-      success: true,
-      cancelled: false,
-      message: flowResult.statusMessage,
-    };
+  if (_background) {
+    await appendToWatchLog({ message: WATCH_RETIRED_MESSAGE });
+    return { success: true, cancelled: false, message: WATCH_RETIRED_MESSAGE };
   }
 
-  // BACKGROUND MODE: Run the actual daemon (spawned by interactive mode)
-  // Reset shutdown flag
-  isShuttingDown = false;
+  const { stoppedPid } = await watchStopMain({ quiet: true });
+  const message =
+    stoppedPid == null
+      ? WATCH_RETIRED_MESSAGE
+      : `Stopped legacy watch daemon (PID ${stoppedPid}). ${WATCH_RETIRED_MESSAGE}`;
 
-  // Load config to get saved transcript destination and garbage collect preference
-  // Use getHomeDir() as startDir since watch is home-directory-based
-  const config = await loadConfig();
-  transcriptOrgId = config?.transcriptDestination ?? null;
-  garbageCollectEnabled = config?.garbageCollectTranscripts === "enabled";
-
-  const pidFile = getWatchPidFile();
-
-  // Ensure directories exist
-  await fs.mkdir(path.dirname(pidFile), { recursive: true });
-  await fs.mkdir(path.dirname(logFile), { recursive: true });
-
-  // Write PID file
-  await fs.writeFile(pidFile, process.pid.toString(), "utf-8");
-
-  // Set up log file for background daemon mode
-  // (stdout/stderr are detached, so we must log to file)
-  logStream = await fs.open(logFile, "a");
-
-  await log(`Watch daemon started (PID: ${process.pid})`);
-  await log(`Watching for ${agent} sessions`);
-
-  // Initialize transcript registry
-  const registryPath = getTranscriptRegistryPath();
-  await fs.mkdir(path.dirname(registryPath), { recursive: true });
-  registry = new TranscriptRegistry({ dbPath: registryPath });
-  await log(`Transcript registry initialized: ${registryPath}`);
-
-  // Set up signal handlers for graceful shutdown (only exit in production)
-  signalHandler = (): void => {
-    void cleanupWatch({ exitProcess: true });
-  };
-
-  process.on("SIGTERM", signalHandler);
-  process.on("SIGINT", signalHandler);
-
-  // Start the watcher for agent projects
-  const agentImpl = AgentRegistry.getInstance().get({ name: agent });
-  const watchDir = agentImpl.getTranscriptDirectory?.();
-
-  if (watchDir == null) {
-    await log(`Agent "${agent}" does not provide a transcript directory`);
-    return {
-      success: false,
-      cancelled: false,
-      message: "No transcript directory",
-    };
-  }
-
-  // Check if agent transcript directory exists
-  try {
-    await fs.access(watchDir);
-  } catch {
-    await log(`Agent transcript directory not found: ${watchDir}`);
-    await log("Will watch for directory creation...");
-  }
-
-  projectsWatcher = createWatcher({
-    watchDir,
-    onEvent: (event) => {
-      void handleFileEvent({ filePath: event.filePath, agent });
-    },
-  });
-
-  // Wait for watcher to be ready
-  await waitForWatcherReady({ instance: projectsWatcher });
-
-  await log(`Watching directory: ${watchDir}`);
-
-  // Set up transcript storage directory for stale scanner
-  const transcriptStorageDir = path.join(
-    homeDir,
-    ".nori",
-    "transcripts",
-    agent,
-  );
-
-  // Ensure transcript storage directory exists
-  await fs.mkdir(transcriptStorageDir, { recursive: true });
-
-  // Store for stale scanner
-  currentTranscriptDir = transcriptStorageDir;
-
-  // Start the stale transcript scanner
-  await log(
-    `Starting stale transcript scanner (threshold: ${STALE_THRESHOLD_MS}ms, interval: ${SCAN_INTERVAL_MS}ms)`,
-  );
-
-  // Run initial scan immediately
-  void scanForStaleTranscripts();
-
-  // Then run periodically
-  scanIntervalHandle = setInterval(() => {
-    void scanForStaleTranscripts();
-  }, SCAN_INTERVAL_MS);
-
-  await log(`Transcript storage directory: ${transcriptStorageDir}`);
-
-  // Process stays running due to active watchers and interval timers
-  return { success: true, cancelled: false, message: "Watch daemon started" };
+  return { success: true, cancelled: false, message };
 };
 
 /**
- * Stop the watch daemon
+ * Stop a watch daemon started by an older version of nori-skillsets
  *
  * @param args - Configuration arguments
  * @param args.quiet - Suppress output
+ *
+ * @returns The PID of the daemon that was stopped, or null if none was
  */
 export const watchStopMain = async (args?: {
   quiet?: boolean | null;
-}): Promise<void> => {
+}): Promise<{ stoppedPid: number | null }> => {
   const quiet = args?.quiet ?? false;
 
   const clack = await import("@clack/prompts");
-  const logSuccess = (msg: string) => clack.log.success(msg);
-  const logWarn = (msg: string) => clack.log.warn(msg);
-  const logInfo = (msg: string) => clack.log.info(msg);
 
-  const pidFile = getWatchPidFile();
+  const daemonPid = await readDaemonPid();
+  await fs.rm(getWatchPidFile(), { force: true });
 
-  // Read PID file FIRST, before cleanupWatch deletes it
-  let daemonPid: number | null = null;
-  try {
-    const pidContent = await fs.readFile(pidFile, "utf-8");
-    const pid = parseInt(pidContent.trim(), 10);
-    if (!isNaN(pid)) {
-      daemonPid = pid;
-    }
-  } catch {
-    // PID file doesn't exist - no daemon running
-  }
-
-  // Clean up local state (watchers, log stream, etc.)
-  // This also deletes the PID file, which is why we read it first
-  await cleanupWatch({ exitProcess: false });
-
-  // If we found a daemon PID and it's a different process, kill it
-  if (daemonPid != null && daemonPid !== process.pid) {
-    try {
-      process.kill(daemonPid, "SIGTERM");
-
-      // Wait a bit for the process to exit
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Check if process exited
-      try {
-        process.kill(daemonPid, 0);
-        // Process still running, wait a bit more
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch {
-        // Process exited
-      }
-
-      if (!quiet) {
-        logSuccess("Watch daemon stopped");
-      }
-    } catch {
-      if (!quiet) {
-        logWarn("Watch daemon is not running");
-      }
-    }
-  } else if (daemonPid === process.pid) {
-    // Same process, already cleaned up
+  if (
+    daemonPid == null ||
+    daemonPid === process.pid ||
+    !(await isLegacyWatchDaemon({ pid: daemonPid }))
+  ) {
     if (!quiet) {
-      logSuccess("Watch daemon stopped");
+      clack.log.info("No watch daemon running");
     }
-  } else if (!quiet) {
-    // No PID file found
-    logInfo("No watch daemon running");
+    return { stoppedPid: null };
   }
+
+  try {
+    process.kill(daemonPid, "SIGTERM");
+  } catch {
+    if (!quiet) {
+      clack.log.info("No watch daemon running");
+    }
+    return { stoppedPid: null };
+  }
+
+  const exited = await waitForProcessExit({ pid: daemonPid });
+  if (!exited) {
+    if (!quiet) {
+      clack.log.warn(
+        `Sent SIGTERM to watch daemon (PID ${daemonPid}) but it is still running`,
+      );
+    }
+    return { stoppedPid: null };
+  }
+
+  if (!quiet) {
+    clack.log.success(`Watch daemon stopped (PID ${daemonPid})`);
+  }
+  return { stoppedPid: daemonPid };
 };
