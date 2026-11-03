@@ -35,7 +35,7 @@
   },
   "scripts": {
     "build": "./scripts/build.sh",
-    "postinstall": "node build/src/cli/features/claude-code/hooks/cleanupLegacyHooks.js 2>/dev/null || true",
+    "postinstall": "node build/src/cli/features/claude-code/hooks/cleanupLegacyHooks.js 2>/dev/null || true; node build/src/cli/commands/watch/stopLegacyDaemon.js 2>/dev/null || true",
     "prepare": "npm run build",
     "prepublishOnly": "./scripts/prepublish.sh",
     "watch": "tsc --watch",
@@ -55,8 +55,6 @@
     "@clack/prompts": "^1.0.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "better-sqlite3": "^12.5.0",
-    "chokidar": "^5.0.0",
     "commander": "^14.0.2",
     "diff": "^8.0.3",
     "firebase": "^12.3.0",
@@ -68,7 +66,6 @@
     "winston": "^3.19.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^7.0.2",
     "@types/minimist": "^1.2.5",
     "@types/node": "^22.19.7",

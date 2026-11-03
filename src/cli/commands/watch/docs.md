@@ -4,44 +4,27 @@ Path: @/src/cli/commands/watch
 
 ### Overview
 
-The watch command monitors Claude Code session files and copies transcripts to `~/.nori/transcripts/` for optional upload to an organization's registry. It runs as a background daemon with PID file management, file watching via chokidar, and a periodic stale transcript scanner that uploads completed sessions.
+The watch command is retired. It used to tail Claude Code session files and upload whole transcripts to the organization's registrar at `/api/transcripts`. Registrars no longer serve that endpoint (registrar #396), and older registrars that still do were overwhelmed by the repeated full-transcript uploads. The command is kept only so that existing scripts, shell aliases, and running daemons do not crash. It never uploads, copies, or watches anything.
 
 ### How it fits into the larger codebase
 
-Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` with a `stop` subcommand. The watch command accepts a local `--agent` option that is passed directly to `watchMain`, so it uses the command-level value rather than the global `--agent` override. The interactive flow is handled by `@/cli/prompts/flows/watch.js`. Transcript uploads go through `@/api/transcript.js`. Configuration for transcript destination org is persisted to `.nori-config.json` via `@/cli/config.js`.
-
-Only the detached `--_background` process queues the meaningful `skillsets_watch_started` event through @/src/cli/installTracking.ts, after `waitForWatcherReady` and the remaining daemon setup return success. The foreground command merely spawns that process and does not emit the event. `watch stop`, cancelled setup, and failed daemon initialization do not emit it; transcript contents and destinations are never analytics properties.
+Registered via `@/src/cli/commands/noriSkillsetsCommands.ts` with a `stop` subcommand. The legacy `--agent`, `--set-destination`, and internal `--_background` options are still accepted and ignored, so old invocations parse cleanly. No analytics event is emitted for watch; only the generic command-completion tracking in @/src/cli/installTracking.ts applies. The `transcriptDestination` and `garbageCollectTranscripts` fields in `.nori-config.json` (@/src/cli/config.ts) are no longer read by watch but remain in the config schema so existing config files are not rewritten.
 
 ### Core Implementation
 
-`watchMain` has two modes. In foreground (default), it runs the interactive flow to select a transcript destination org, stops any existing daemon, then spawns a detached background process with the `--_background` flag. In background mode, it initializes the file watcher, PID file, log file, transcript registry, and stale scanner.
+`watchMain`:
 
-The data pipeline is:
+- Foreground (default): calls `watchStopMain({ quiet: true })` to stop any daemon left running by an older version, then returns success with `WATCH_RETIRED_MESSAGE`, which the framing wrapper prints as the outro. It does not spawn a background process.
+- `--_background`: appends `WATCH_RETIRED_MESSAGE` to `~/.nori/logs/watch.log` (stdout is detached in that mode) and returns immediately without writing a PID file.
 
-```
-Claude Code writes .jsonl -> chokidar detects change -> handleFileEvent
-  -> extractSessionId (regex, no JSON parse) -> copyTranscript to ~/.nori/transcripts/{agent}/{project}/
-  -> stale scanner detects idle files -> processTranscriptForUpload -> transcript API -> delete local file
-```
+`watchStopMain` reads `~/.nori/watch.pid` and removes it. It sends `SIGTERM` only when the recorded PID is not the current process and its command line (`/proc/<pid>/cmdline` on Linux, `ps -o command=` elsewhere) contains both `watch` and `--_background`, the signature of a daemon spawned by an older release. This keeps a stale PID file from signalling an unrelated process that reused the PID. It then waits up to 2 seconds for the process to exit (a zombie counts as exited, since container PID 1s may never reap it) and returns `{ stoppedPid }`. Foreground `watch` includes the stopped PID in its outro.
 
-`watcher.ts` wraps chokidar with polling mode for cross-platform reliability. It filters for `.jsonl` files and emits `add`/`change` events.
+`stopLegacyDaemon.ts` is a direct-execution entry point run by the npm `postinstall` script (after `cleanupLegacyHooks.js`). It calls `watchStopMain({ quiet: true })` and never fails the install.
 
-`parser.ts` extracts UUID-format `sessionId` values from JSONL files using regex without full JSON parsing.
-
-`paths.ts` provides agent-agnostic filesystem path calculations: transcript storage dirs, PID file, log file, and registry DB path.
-
-`storage.ts` handles copying transcript files to the destination directory, named by session ID.
-
-`staleScanner.ts` periodically scans transcript directories for `.jsonl` files. Files idle longer than 30 seconds are considered stale (ready for upload); files idle longer than 24 hours are expired and deleted.
-
-`uploader.ts` reads, parses, and uploads transcript files via `transcriptApi.upload`, then deletes the local file on success. It accepts optional `projectName`, `orgId`, and `skillsetName` parameters, forwarding them to the API when non-null.
-
-`transcriptRegistry.ts` is a SQLite-backed (via `better-sqlite3`) deduplication layer. It tracks session ID + content hash pairs to avoid re-uploading unchanged transcripts.
+`paths.ts` provides the PID file (`~/.nori/watch.pid`) and log file (`~/.nori/logs/watch.log`) locations.
 
 ### Things to Know
 
-File events are debounced at 500ms per file path. The stale scanner runs every 60 seconds. The daemon writes logs to `~/.nori/logs/watch.log` since stdout/stderr are detached. Signal handlers (SIGTERM, SIGINT) trigger graceful shutdown that stops the watcher, closes the registry DB, removes the PID file, and clears all state. The `cleanupWatch` function resets all module-level state for test isolation.
-
-The active skillset name is read fresh from config at each scan cycle via `loadConfig()` + `getActiveSkillset()` in `scanForStaleTranscripts`, rather than being captured once at daemon startup. This means if a user switches skillsets mid-session, the next scan picks up the new value. This is distinct from `transcriptOrgId`, which is set once at daemon startup from saved config.
+A daemon started by an older release keeps running its old in-memory code after the package is upgraded. The `postinstall` hook stops it on upgrade; running `nori-skillsets watch` or `nori-skillsets watch stop` on the new version also stops it (for example when install scripts were disabled with `--ignore-scripts`). Leftover `~/.nori/transcripts/` copies and `registry.db` from older releases are not touched.
 
 Created and maintained by Nori.

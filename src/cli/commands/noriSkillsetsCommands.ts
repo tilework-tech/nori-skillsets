@@ -949,14 +949,11 @@ export const registerNoriSkillsetsWatchCommand = (args: {
   const watchCmd = program
     .command("watch")
     .description(
-      "Watch Claude Code sessions and save transcripts to ~/.nori/transcripts/",
+      "Retired: transcript upload was removed; stops any running watch daemon",
     )
-    .option("-a, --agent <name>", "Agent to watch")
-    .option(
-      "--set-destination",
-      "Re-configure transcript upload destination organization",
-    )
-    .option("--_background", "Internal: run as background daemon")
+    .option("-a, --agent <name>", "Ignored; kept for backwards compatibility")
+    .option("--set-destination", "Ignored; kept for backwards compatibility")
+    .option("--_background", "Internal: legacy background daemon mode")
     .action(
       async (options: {
         agent?: string;
@@ -966,27 +963,12 @@ export const registerNoriSkillsetsWatchCommand = (args: {
         const { watchMain } = await import("@/cli/commands/watch/watch.js");
         await wrapWithFraming({
           title: "nori watch",
-          action: async () => {
-            const result = await watchMain({
+          action: async () =>
+            watchMain({
               agent: options.agent ?? null,
               setDestination: options.setDestination ?? false,
               _background: options._background ?? false,
-            });
-            if (
-              options._background === true &&
-              result.success &&
-              !result.cancelled
-            ) {
-              const { trackWatchStarted } =
-                await import("@/cli/installTracking.js");
-              const { getCurrentPackageVersion } =
-                await import("@/cli/version.js");
-              await trackWatchStarted({
-                currentVersion: getCurrentPackageVersion() ?? "unknown",
-              });
-            }
-            return result;
-          },
+            }),
         });
       },
     );

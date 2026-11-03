@@ -16,7 +16,6 @@ type ProductAnalyticsExports = {
     currentVersion: string;
     explicitInstall?: boolean;
   }) => Promise<void>;
-  trackWatchStarted: (args: { currentVersion: string }) => Promise<void>;
 };
 
 const productAnalytics =
@@ -28,8 +27,6 @@ const trackCommandCompleted =
 const trackInstallLifecycle =
   productAnalytics.trackInstallLifecycle ??
   installTracking.trackInstallLifecycle;
-const trackWatchStarted =
-  productAnalytics.trackWatchStarted ?? (async () => undefined);
 
 type AnalyticsRequest = {
   schema_version: number;
@@ -453,22 +450,6 @@ describe("authenticated product analytics", () => {
     await flushProductAnalytics({ timeoutMs: 100 });
 
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("sends the watch-started event without properties", async () => {
-    await writeConfig({
-      idToken: "firebase-id-token",
-      idTokenExpiresAt: Date.now() + 60_000,
-    });
-    await writeInstallState();
-
-    await trackWatchStarted({ currentVersion: "2.4.0" });
-    await flushProductAnalytics({ timeoutMs: 100 });
-
-    expect(analyticsBodies(fetchMock)).toEqual([
-      expect.objectContaining({ event: "skillsets_watch_started" }),
-    ]);
-    expect(analyticsBodies(fetchMock)[0]).not.toHaveProperty("properties");
   });
 
   it("bounds final flush and never changes output or exit state", async () => {
