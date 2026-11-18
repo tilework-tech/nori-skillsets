@@ -47,6 +47,20 @@ describe("copyBundledSkills", () => {
     );
   });
 
+  it("should install a nori-info skill that explains Jiro from current sources", async () => {
+    await copyBundledSkills({ destSkillsDir, installDir: tempDir });
+
+    const content = await fs.readFile(
+      path.join(destSkillsDir, "nori-info", "SKILL.md"),
+      "utf-8",
+    );
+    expect(content).toMatch(/Jiro[^.]*product/i);
+    expect(content).toMatch(/Nori[^.]*company/i);
+    expect(content).toContain("https://jiro.bot");
+    expect(content).not.toContain("norisessions.com");
+    expect(content).toContain("Do not guess");
+  });
+
   it("should not overwrite a skillset-provided skill with the same name", async () => {
     // Pre-create a nori-info skill in the destination (simulates skillset-provided version)
     const existingSkillDir = path.join(destSkillsDir, "nori-info");
