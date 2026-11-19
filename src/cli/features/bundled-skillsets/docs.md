@@ -5,7 +5,7 @@ Path: @/src/cli/features/bundled-skillsets
 ### Overview
 
 - Provides skills that are automatically included in every skillset installation, regardless of which skillset is active
-- Currently bundles a single `nori-info` skill that gives agents pointers to CLI help, docs site, GitHub repo, and company homepage
+- Currently bundles a single `nori-info` skill that says Nori is the company and the platform and Jiro is Nori's default agent, and points agents at current sources: jiro.bot (features, pricing, comparisons), noriagentic.com, docs.noriagentic.com, the skillsets CLI help, docs site, and GitHub repo, and the Nori CLI package; it tells agents not to guess
 - Shared across all agent implementations
 
 ### How it fits into the larger codebase
